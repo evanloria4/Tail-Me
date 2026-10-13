@@ -39,6 +39,8 @@ module.exports = {
     'react/prop-types': 'off', // turn off prop types since we're using Typescript
     '@typescript-eslint/no-var-requires': 'off',
     'no-console': 'off',
+    // Optional props on TS function components use default parameters instead
+    'react/require-default-props': 'off',
   },
   overrides: [
     {
