@@ -7,7 +7,7 @@ router.get('/', requireAuth, (req, res) => {
   const {
     id,
     username,
-    displayName,
+    fullName,
     avatarUrl,
     bio,
     subscriptionStatus,
@@ -17,7 +17,7 @@ router.get('/', requireAuth, (req, res) => {
   res.json({
     id,
     username,
-    displayName,
+    fullName,
     avatarUrl,
     bio,
     subscriptionStatus,

@@ -41,6 +41,8 @@ module.exports = {
     'no-console': 'off',
     // Optional props on TS function components use default parameters instead
     'react/require-default-props': 'off',
+    // Prisma aggregate fields (_count, _sum, ...)
+    'no-underscore-dangle': ['error', { allow: ['_count', '_sum', '_avg', '_min', '_max'] }],
   },
   overrides: [
     {

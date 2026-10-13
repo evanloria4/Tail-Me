@@ -15,6 +15,7 @@ export default function Signup() {
 
   const [passcode, setPasscode] = useState('');
   const [passcodeOk, setPasscodeOk] = useState(false);
+  const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +43,13 @@ export default function Signup() {
     setError(null);
     setSubmitting(true);
     try {
-      await api.post('/auth/signup', { passcode, username, email, password });
+      await api.post('/auth/signup', {
+        passcode,
+        fullName,
+        username,
+        email,
+        password,
+      });
       await signIn(email, password);
       navigate('/', { replace: true });
     } catch (err) {
@@ -88,6 +95,15 @@ export default function Signup() {
     <AuthLayout title="Create your account">
       <form onSubmit={createAccount}>
         <FormError message={error} />
+        <Field
+          id="fullName"
+          label="Full name"
+          autoComplete="name"
+          required
+          maxLength={60}
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+        />
         <Field
           id="username"
           label="Username"

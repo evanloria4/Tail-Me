@@ -92,9 +92,9 @@ module.exports = {
       filename: 'index.html',
       inject: true
     }),
-    // Keep the tsc-compiled server output (dist/server) when cleaning
+    // Only clean webpack's own output; tsc's server build (server/, shared/, generated/) shares dist/
     new CleanWebpackPlugin({
-      cleanOnceBeforeBuildPatterns: ['**/*', '!server', '!server/**'],
+      cleanOnceBeforeBuildPatterns: ['bundle.js*', 'index.html', 'assets/**'],
     }),
   ],
   resolve: {

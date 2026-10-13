@@ -40,6 +40,8 @@ router.post('/passcode', passcodeLimiter, (req, res) => {
  */
 router.post('/signup', passcodeLimiter, async (req, res) => {
   const { passcode, email, password, username } = req.body ?? {};
+  const fullName =
+    typeof req.body?.fullName === 'string' ? req.body.fullName.trim() : '';
 
   if (!passcodeMatches(passcode)) {
     res.status(401).json({ error: 'Incorrect passcode' });
@@ -57,6 +59,10 @@ router.post('/signup', passcodeLimiter, async (req, res) => {
     res.status(400).json({
       error: 'Username must be 3-20 letters, numbers or underscores',
     });
+    return;
+  }
+  if (!fullName || fullName.length > 60) {
+    res.status(400).json({ error: 'Enter your full name (max 60 characters)' });
     return;
   }
 
@@ -84,7 +90,9 @@ router.post('/signup', passcodeLimiter, async (req, res) => {
   }
 
   try {
-    await prisma.user.create({ data: { id: data.user.id, username } });
+    await prisma.user.create({
+      data: { id: data.user.id, username, fullName },
+    });
   } catch (err) {
     // Don't leave an auth account without a profile
     await supabaseAdmin.auth.admin.deleteUser(data.user.id);

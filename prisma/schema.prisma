@@ -20,13 +20,13 @@ enum SubscriptionStatus {
 
 /// App profile for a Supabase Auth user. `id` is the Supabase auth.users id.
 model User {
-  id          String   @id @db.Uuid
-  username    String   @unique
-  displayName String?
-  avatarUrl   String?
-  bio         String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @db.Uuid
+  username  String   @unique
+  fullName  String
+  avatarUrl String?
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Stripe ($5/mo) — anything that hits the Odds API requires an active subscription
   stripeCustomerId     String?            @unique
@@ -163,11 +163,16 @@ model BetLeg {
   order           Int       @default(0)
   sportKey        String
   eventId         String?
-  /// The Odds API market key, e.g. "h2h", "spreads", "player_pass_tds"
+  /// Display matchup, e.g. "Chiefs @ Bills" (always set, so manual legs need no Event row)
+  eventLabel      String
+  /// The Odds API market key, e.g. "h2h", "spreads", "player_pass_tds"; "player_prop" for manual props
   marketKey       String
+  /// Display name for props, e.g. "Passing TDs"
+  marketLabel     String?
   /// Outcome name, e.g. "Kansas City Chiefs", "Over"
   selection       String
   playerId        String?
+  playerName      String?
   /// Point/line, e.g. -3.5 or 1.5
   line            Decimal?  @db.Decimal(8, 2)
   americanOdds    Int

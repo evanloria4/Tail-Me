@@ -2,6 +2,8 @@ import express, { NextFunction, Request, Response } from 'express';
 import path from 'path';
 import authRouter from './routes/auth';
 import meRouter from './routes/me';
+import metaRouter from './routes/meta';
+import postsRouter from './routes/posts';
 
 const DIST_DIR = path.resolve(__dirname, '..', '..', 'dist');
 
@@ -14,6 +16,8 @@ app.use(express.json());
 
 app.use('/api/auth', authRouter);
 app.use('/api/me', meRouter);
+app.use('/api/meta', metaRouter);
+app.use('/api/posts', postsRouter);
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Not found' });

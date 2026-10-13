@@ -13,7 +13,7 @@ import api from '../lib/api';
 export type Profile = {
   id: string;
   username: string;
-  displayName: string | null;
+  fullName: string;
   avatarUrl: string | null;
   bio: string | null;
   subscriptionStatus: 'NONE' | 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED';
