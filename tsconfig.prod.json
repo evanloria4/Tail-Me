@@ -11,7 +11,9 @@
     "sourceMap": false,
     "isolatedModules": false,
     "resolveJsonModule": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
   "include": [
     "src/**/*.ts",
@@ -20,6 +22,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "src/client/**/*"
+    "src/client/**/*",
+    "src/**/*.test.ts"
   ]
 }

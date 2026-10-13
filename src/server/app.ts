@@ -1,4 +1,6 @@
+import 'dotenv/config';
 import express, { NextFunction, Request, Response } from 'express';
+import helmet from 'helmet';
 import path from 'path';
 import authRouter from './routes/auth';
 import meRouter from './routes/me';
@@ -11,6 +13,23 @@ const app = express();
 
 // Behind the webpack proxy / hosting proxy, so rate limiting sees the real IP
 app.set('trust proxy', 1);
+
+// Security headers; the browser talks to Supabase directly (auth + storage)
+const supabaseUrl = process.env.SUPABASE_URL ?? '';
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        connectSrc: [
+          "'self'",
+          supabaseUrl,
+          supabaseUrl.replace(/^https/, 'wss'),
+        ],
+        imgSrc: ["'self'", 'data:', 'blob:', supabaseUrl],
+      },
+    },
+  })
+);
 
 app.use(express.json());
 

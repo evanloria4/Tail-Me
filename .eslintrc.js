@@ -47,7 +47,7 @@ module.exports = {
   overrides: [
     {
       // Tooling files can import devDependencies
-      files: ['*.config.ts', 'prisma/**/*.ts'],
+      files: ['*.config.ts', 'prisma/**/*.ts', '**/*.test.ts'],
       rules: { 'import/no-extraneous-dependencies': 'off' },
     },
   ],
