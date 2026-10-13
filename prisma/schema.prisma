@@ -34,6 +34,9 @@ model User {
   subscriptionStatus   SubscriptionStatus @default(NONE)
   currentPeriodEnd     DateTime?
 
+  /// Admins bypass the subscription paywall
+  isAdmin Boolean @default(false)
+
   posts     Post[]
   tails     Tail[]
   comments  Comment[]

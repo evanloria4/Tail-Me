@@ -18,6 +18,7 @@ export type Profile = {
   bio: string | null;
   subscriptionStatus: 'NONE' | 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED';
   currentPeriodEnd: string | null;
+  isAdmin: boolean;
   createdAt: string;
 };
 
@@ -87,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       loading,
       isSubscribed:
+        !!profile?.isAdmin ||
         profile?.subscriptionStatus === 'ACTIVE' ||
         profile?.subscriptionStatus === 'TRIALING',
       signIn,

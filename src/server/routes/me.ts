@@ -12,6 +12,7 @@ router.get('/', requireAuth, (req, res) => {
     bio,
     subscriptionStatus,
     currentPeriodEnd,
+    isAdmin,
     createdAt,
   } = req.user!;
   res.json({
@@ -22,6 +23,7 @@ router.get('/', requireAuth, (req, res) => {
     bio,
     subscriptionStatus,
     currentPeriodEnd,
+    isAdmin,
     createdAt,
   });
 });

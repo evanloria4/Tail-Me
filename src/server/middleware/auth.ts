@@ -42,14 +42,14 @@ export async function requireAuth(
   next();
 }
 
-/** Gate for anything that costs us money (Odds API). Use after requireAuth. */
+/** Gate for anything that costs us money (Odds API). Admins pass. Use after requireAuth. */
 export function requireSubscription(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
   const status = req.user?.subscriptionStatus;
-  if (status !== 'ACTIVE' && status !== 'TRIALING') {
+  if (!req.user?.isAdmin && status !== 'ACTIVE' && status !== 'TRIALING') {
     res.status(402).json({ error: 'Subscription required' });
     return;
   }
