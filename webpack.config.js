@@ -85,7 +85,10 @@ module.exports = {
       filename: 'index.html',
       inject: true
     }),
-    new CleanWebpackPlugin(),
+    // Keep the tsc-compiled server output (dist/server) when cleaning
+    new CleanWebpackPlugin({
+      cleanOnceBeforeBuildPatterns: ['**/*', '!server', '!server/**'],
+    }),
   ],
   resolve: {
     extensions: ['.tsx', '.ts', '.js', '.css'],

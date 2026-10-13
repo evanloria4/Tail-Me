@@ -1,0 +1,237 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Users ----------
+
+enum SubscriptionStatus {
+  NONE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+/// App profile for a Supabase Auth user. `id` is the Supabase auth.users id.
+model User {
+  id          String   @id @db.Uuid
+  username    String   @unique
+  displayName String?
+  avatarUrl   String?
+  bio         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Stripe ($5/mo) — anything that hits the Odds API requires an active subscription
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  subscriptionStatus   SubscriptionStatus @default(NONE)
+  currentPeriodEnd     DateTime?
+
+  posts     Post[]
+  tails     Tail[]
+  comments  Comment[]
+  reactions Reaction[]
+}
+
+// ---------- Reference data (mirrors The Odds API) ----------
+
+model Sportsbook {
+  id               String  @id @default(cuid())
+  /// The Odds API bookmaker key, e.g. "draftkings", "williamhill_us" (Caesars)
+  key              String  @unique
+  name             String
+  logoUrl          String?
+  /// Whether Tail can deep-link into this book's betslip
+  supportsDeepLink Boolean @default(false)
+  active           Boolean @default(true)
+
+  posts Post[]
+}
+
+model Sport {
+  /// The Odds API sport key, e.g. "americanfootball_nfl"
+  key    String  @id
+  title  String
+  active Boolean @default(true)
+
+  events  Event[]
+  players Player[]
+}
+
+model Event {
+  /// The Odds API event id
+  id           String   @id
+  sportKey     String
+  homeTeam     String
+  awayTeam     String
+  commenceTime DateTime
+  completed    Boolean  @default(false)
+  homeScore    Int?
+  awayScore    Int?
+  updatedAt    DateTime @updatedAt
+
+  sport Sport    @relation(fields: [sportKey], references: [key])
+  legs  BetLeg[]
+
+  @@index([sportKey, commenceTime])
+}
+
+model Player {
+  id          String   @id @default(cuid())
+  /// Name as The Odds API returns it in outcome descriptions
+  name        String
+  sportKey    String
+  team        String?
+  headshotUrl String?
+  updatedAt   DateTime @updatedAt
+
+  sport Sport    @relation(fields: [sportKey], references: [key])
+  legs  BetLeg[]
+
+  @@unique([name, sportKey])
+}
+
+// ---------- Posts & bets ----------
+
+enum PostType {
+  STRAIGHT // one bet, one leg
+  PARLAY // one bet, many legs
+  LADDER // many single-leg bets: same pick at climbing lines
+}
+
+enum BetResult {
+  PENDING
+  WON
+  LOST
+  PUSH
+  VOID
+}
+
+model Post {
+  id           String    @id @default(cuid())
+  authorId     String    @db.Uuid
+  type         PostType
+  caption      String?
+  sportsbookId String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  sportsbook Sportsbook @relation(fields: [sportsbookId], references: [id])
+  bets       Bet[]
+  comments   Comment[]
+  reactions  Reaction[]
+
+  @@index([createdAt])
+  @@index([authorId, createdAt])
+}
+
+/// A single slip. Straight/parlay posts have one; ladder posts have one per rung.
+model Bet {
+  id           String    @id @default(cuid())
+  postId       String
+  /// Ladder rung position (0 for straight/parlay)
+  order        Int       @default(0)
+  units        Decimal   @db.Decimal(6, 2)
+  /// Total odds as shown on the book's slip (may differ from multiplied legs for same-game parlays)
+  americanOdds Int
+  /// Used for "$10 pays $X" = 10 * decimalOdds
+  decimalOdds  Decimal   @db.Decimal(12, 4)
+  result       BetResult @default(PENDING)
+  settledAt    DateTime?
+  /// Betslip deep link covering the whole bet, when the book supports multi-leg links
+  deepLink     String?
+
+  post  Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  legs  BetLeg[]
+  tails Tail[]
+
+  @@unique([postId, order])
+}
+
+model BetLeg {
+  id              String    @id @default(cuid())
+  betId           String
+  order           Int       @default(0)
+  sportKey        String
+  eventId         String?
+  /// The Odds API market key, e.g. "h2h", "spreads", "player_pass_tds"
+  marketKey       String
+  /// Outcome name, e.g. "Kansas City Chiefs", "Over"
+  selection       String
+  playerId        String?
+  /// Point/line, e.g. -3.5 or 1.5
+  line            Decimal?  @db.Decimal(8, 2)
+  americanOdds    Int
+  result          BetResult @default(PENDING)
+  /// Book's selection id + single-leg deep link from The Odds API (includeSids / includeLinks)
+  bookSelectionId String?
+  deepLink        String?
+
+  bet    Bet     @relation(fields: [betId], references: [id], onDelete: Cascade)
+  event  Event?  @relation(fields: [eventId], references: [id])
+  player Player? @relation(fields: [playerId], references: [id])
+
+  @@unique([betId, order])
+  @@index([eventId])
+}
+
+// ---------- Social ----------
+
+/// A user tailing a bet. Never shown on the tailer's profile; used for tail counts
+/// and each user's record on bets they tailed from a given poster.
+model Tail {
+  id        String   @id @default(cuid())
+  userId    String   @db.Uuid
+  betId     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bet  Bet  @relation(fields: [betId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, betId])
+  @@index([betId])
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  postId    String
+  authorId  String    @db.Uuid
+  body      String
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+}
+
+model Reaction {
+  postId    String
+  userId    String   @db.Uuid
+  emoji     String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId, emoji])
+}
+
+// ---------- Billing ----------
+
+/// Processed Stripe webhook events, so retries aren't applied twice
+model StripeEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
+}

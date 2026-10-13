@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
-    "outDir": "./dist/",
+    "target": "ES2020",
+    "lib": ["DOM", "DOM.Iterable", "ES2020"],
+    "allowJs": true,
     "sourceMap": true,
     "strict": true,
     "noEmit": true,
@@ -9,22 +11,32 @@
     "module": "ESNext",
     "moduleDetection": "force",
     "moduleResolution": "bundler",
-    "target": "ES2020",
-    "allowJs": true,
-    "jsx": "react",
+    "jsx": "react-jsx",
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
+    },
+    "types": ["node"]
+  },
+  "ts-node": {
+    "compilerOptions": {
+      "module": "CommonJS",
+      "moduleResolution": "node"
     }
   },
   "include": [
     "src/**/*",
+    "prisma/**/*.ts",
+    "prisma.config.ts",
     "tailwind.config.ts",
-    ".eslintrc.js",
+    ".eslintrc.js"
   ],
   "exclude": [
     "node_modules",
-    "postcss.config.js",
+    "dist",
+    "postcss.config.js"
   ]
 }

@@ -36,10 +36,17 @@ module.exports = {
   ],
   rules: {
     // Add any custom rules here
-    'react/prop-types/': 'off', // turn off prop types since we're using Typescript
+    'react/prop-types': 'off', // turn off prop types since we're using Typescript
     '@typescript-eslint/no-var-requires': 'off',
     'no-console': 'off',
   },
+  overrides: [
+    {
+      // Tooling files can import devDependencies
+      files: ['*.config.ts', 'prisma/**/*.ts'],
+      rules: { 'import/no-extraneous-dependencies': 'off' },
+    },
+  ],
   // Ignore files in the test directory
   ignorePatterns: [
     '/tests/*',
@@ -47,5 +54,6 @@ module.exports = {
     '/dist/**',
     'webpack.config.js',
     'postcss.config.js',
+    '/src/generated/**',
   ],
 };
