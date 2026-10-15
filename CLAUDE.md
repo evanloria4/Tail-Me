@@ -38,5 +38,12 @@ Social sports-betting app for one friend group: users post straight / parlay / l
 - helmet CSP allows the Supabase URL for `connect-src`/`img-src`; add any new external origins there.
 - Windows dev machine (CRLF); Prettier uses `endOfLine: 'auto'`.
 
+## Live odds (bet picker)
+- `src/server/odds.ts` wraps The Odds API with an in-memory TTL cache; routes in `routes/odds.ts` (subscribers only). Market whitelist + labels live in `src/shared/markets.ts`.
+- Live odds come from FanDuel only for now (`LIVE_ODDS_BOOK` in `shared/markets.ts`); the picker says so. Adding books costs nothing extra (≤10 books in one call = one region). The manual form still offers every book.
+- In development (`nodemon.json` sets `NODE_ENV=development`) odds cache for 24h and persist to `.cache/odds/` (gitignored) so restarts don't spend credits; delete that folder to force fresh odds. nodemon only watches `src/server` and `src/shared`.
+- Credits are scarce (shared key): in production game lines cache 5 min per league, props/alt lines cache 10 min per market and load one category at a time. Don't add eager or background fetches.
+- Picked legs store `eventId`, `bookSelectionId` and the book's add-to-betslip `deepLink`; straight bets and ladder rungs also set `Bet.deepLink`. The old typed-in form remains as "Enter manually".
+
 ## Not built yet
-Odds API integration (live odds picker, cached events, deep links via `includeLinks`/`includeSids`), Tail button + tail records, profile pages, avatars/headshots (Supabase Storage), Stripe ($5/mo), password reset (needs Resend SMTP + domain), deploy (planned: DigitalOcean App Platform).
+Tail button + tail records (deep links are already stored on legs), profile pages, avatars/headshots (Supabase Storage), Stripe ($5/mo), password reset (needs Resend SMTP + domain), deploy (planned: DigitalOcean App Platform).

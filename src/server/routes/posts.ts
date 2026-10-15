@@ -68,10 +68,14 @@ function toFeedPost(post: PostWithFeed): FeedPost {
   };
 }
 
-function legData(leg: LegInput, order: number) {
+/** Odds API event ids we've stored; legs pointing anywhere else drop the link */
+type KnownEvents = Set<string>;
+
+function legData(leg: LegInput, order: number, events: KnownEvents) {
   return {
     order,
     sportKey: leg.sportKey,
+    eventId: leg.eventId && events.has(leg.eventId) ? leg.eventId : null,
     eventLabel: leg.eventLabel,
     marketKey: leg.marketKey,
     marketLabel: leg.marketKey === 'player_prop' ? leg.marketLabel : null,
@@ -79,11 +83,13 @@ function legData(leg: LegInput, order: number) {
     selection: leg.selection,
     line: leg.marketKey === 'h2h' ? null : (leg.line ?? null),
     americanOdds: leg.americanOdds,
+    bookSelectionId: leg.bookSelectionId ?? null,
+    deepLink: leg.deepLink ?? null,
   };
 }
 
 /** Turns validated input into Bet rows (one for straight/parlay, one per ladder rung) */
-function betsData(input: CreatePostInput) {
+function betsData(input: CreatePostInput, events: KnownEvents) {
   switch (input.type) {
     case 'STRAIGHT':
       return [
@@ -92,7 +98,8 @@ function betsData(input: CreatePostInput) {
           units: input.units,
           americanOdds: input.leg.americanOdds,
           decimalOdds: americanToDecimal(input.leg.americanOdds),
-          legs: { create: [legData(input.leg, 0)] },
+          deepLink: input.leg.deepLink ?? null,
+          legs: { create: [legData(input.leg, 0, events)] },
         },
       ];
     case 'PARLAY': {
@@ -105,7 +112,7 @@ function betsData(input: CreatePostInput) {
           units: input.units,
           americanOdds: input.slipOdds ?? decimalToAmerican(decimal),
           decimalOdds: decimal,
-          legs: { create: input.legs.map(legData) },
+          legs: { create: input.legs.map((l, i) => legData(l, i, events)) },
         },
       ];
     }
@@ -115,13 +122,25 @@ function betsData(input: CreatePostInput) {
         units: rung.units,
         americanOdds: rung.americanOdds,
         decimalOdds: americanToDecimal(rung.americanOdds),
+        deepLink: rung.deepLink ?? null,
         legs: {
-          create: [legData({ ...input.pick, ...rung }, 0)],
+          create: [legData({ ...input.pick, ...rung }, 0, events)],
         },
       }));
     default:
       throw new Error('Unknown post type');
   }
+}
+
+function eventIdsOf(input: CreatePostInput): string[] {
+  const ids =
+    // eslint-disable-next-line no-nested-ternary
+    input.type === 'STRAIGHT'
+      ? [input.leg.eventId]
+      : input.type === 'PARLAY'
+        ? input.legs.map((l) => l.eventId)
+        : [input.pick.eventId];
+  return ids.filter((id): id is string => Boolean(id));
 }
 
 function sportKeysOf(input: CreatePostInput): string[] {
@@ -175,13 +194,25 @@ router.post('/', requireAuth, requireSubscription, async (req, res) => {
     return;
   }
 
+  const eventIds = [...new Set(eventIdsOf(input))];
+  const events: KnownEvents = new Set(
+    eventIds.length
+      ? (
+          await prisma.event.findMany({
+            where: { id: { in: eventIds } },
+            select: { id: true },
+          })
+        ).map((e) => e.id)
+      : []
+  );
+
   const post = await prisma.post.create({
     data: {
       authorId: req.user!.id,
       type: input.type,
       caption: input.caption || null,
       sportsbookId: sportsbook.id,
-      bets: { create: betsData(input) },
+      bets: { create: betsData(input, events) },
     },
     include: feedInclude,
   });

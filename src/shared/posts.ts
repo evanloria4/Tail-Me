@@ -23,9 +23,17 @@ const units = z
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
+/** Set when a pick comes from live odds; drives tailing into the book */
+const bookRef = {
+  bookSelectionId: text(200).optional(),
+  deepLink: z.string().url().max(1000).optional(),
+};
+
 /** The pick itself, without price — shared by single legs and ladder rungs */
 const pickSchema = z.object({
   sportKey: text(64),
+  /** Odds API event id, when picked from live odds */
+  eventId: text(64).optional(),
   eventLabel: text(80),
   marketKey: z.enum(Object.keys(MARKETS) as [MarketKey, ...MarketKey[]]),
   marketLabel: text(40).optional(),
@@ -63,7 +71,7 @@ function checkPick(
 }
 
 export const legSchema = pickSchema
-  .extend({ line: z.number().nullable().optional(), americanOdds })
+  .extend({ line: z.number().nullable().optional(), americanOdds, ...bookRef })
   .superRefine((leg, ctx) => checkPick(leg, ctx, true));
 
 const base = {
@@ -91,7 +99,7 @@ export const createPostSchema = z.discriminatedUnion('type', [
     type: z.literal('LADDER'),
     pick: pickSchema.superRefine((p, ctx) => checkPick(p, ctx, false)),
     rungs: z
-      .array(z.object({ line: z.number(), americanOdds, units }))
+      .array(z.object({ line: z.number(), americanOdds, units, ...bookRef }))
       .min(2, 'A ladder needs at least 2 rungs')
       .max(10)
       .refine(

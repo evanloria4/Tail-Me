@@ -1,15 +1,15 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
+import { ComposerHeader, inputClass, PaysSummary } from './ComposerParts';
+import SlipPicker from './SlipPicker';
 import api, { apiErrorMessage } from '../lib/api';
 import useMeta, { Meta } from '../lib/useMeta';
 import {
   americanToDecimal,
   formatAmerican,
-  formatMoney,
   decimalToAmerican,
   isValidAmerican,
   parlayDecimal,
-  payout,
 } from '../../shared/odds';
 import {
   createPostSchema,
@@ -99,9 +99,6 @@ function legInput(d: LegDraft) {
 }
 
 // ---------- Inputs ----------
-
-const inputClass =
-  'w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white placeholder-gray-500 outline-none focus:border-emerald-500';
 
 function TextInput({
   label,
@@ -289,61 +286,6 @@ const cardClass = 'rounded-xl border border-gray-800 bg-gray-900/60 p-4';
 const addButtonClass =
   'w-full rounded-lg border border-dashed border-gray-700 py-2 text-sm text-gray-400 transition hover:border-emerald-500 hover:text-emerald-400';
 
-function CloseButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label="Close"
-      className="-mr-2 rounded-lg p-2 text-gray-400 transition hover:bg-gray-800 hover:text-white"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        className="h-5 w-5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        strokeLinecap="round"
-        aria-hidden="true"
-      >
-        <path d="M6 6l12 12M18 6L6 18" />
-      </svg>
-    </button>
-  );
-}
-
-/** Odds + "$10 pays" for the footer; null until there's a price to show */
-function PaysSummary({ decimals }: { decimals: (number | null)[] }) {
-  const priced = decimals.filter((d): d is number => d !== null);
-  if (!priced.length) {
-    return <span className="text-gray-500">Enter odds to see the payout</span>;
-  }
-  if (decimals.length === 1) {
-    return (
-      <span className="text-gray-300">
-        <span className="font-mono">
-          {formatAmerican(decimalToAmerican(priced[0]))}
-        </span>
-        {' · $10 pays '}
-        <span className="font-semibold text-emerald-400">
-          {formatMoney(payout(10, priced[0]))}
-        </span>
-      </span>
-    );
-  }
-  const low = Math.min(...priced);
-  const high = Math.max(...priced);
-  return (
-    <span className="text-gray-300">
-      {'$10 pays '}
-      <span className="font-semibold text-emerald-400">
-        {formatMoney(payout(10, low))}
-        {high !== low && `–${formatMoney(payout(10, high))}`}
-      </span>
-    </span>
-  );
-}
-
 /** True once the user has typed anything worth asking about before discarding */
 const legHasInput = (l: LegDraft) =>
   [l.eventLabel, l.playerName, l.marketLabel, l.line, l.americanOdds].some(
@@ -354,15 +296,14 @@ const legHasInput = (l: LegDraft) =>
     l.selection.trim() !== '');
 
 function ComposerForm({
-  onClose,
+  header,
   onPosted,
   dirtyRef,
 }: {
-  onClose: () => void;
+  header: React.ReactNode;
   onPosted: () => void;
   dirtyRef: React.MutableRefObject<boolean>;
 }) {
-  const { isSubscribed } = useAuth();
   const meta = useMeta();
 
   const [type, setType] = useState<PostType>('STRAIGHT');
@@ -406,28 +347,6 @@ function ComposerForm({
     // eslint-disable-next-line no-param-reassign
     dirtyRef.current = dirty;
   }, [dirty, dirtyRef]);
-
-  const header = (
-    <div className="flex items-center justify-between border-b border-gray-800 px-5 py-4">
-      <h2 className="text-lg font-bold">New slip</h2>
-      <CloseButton onClick={onClose} />
-    </div>
-  );
-
-  if (!isSubscribed) {
-    return (
-      <>
-        {header}
-        <div className="px-5 py-10 text-center">
-          <h3 className="text-xl font-bold">Posting is for subscribers</h3>
-          <p className="mt-2 text-gray-400">
-            A $5/month subscription covers live odds and lets you post slips.
-            Free accounts can still view and tail.
-          </p>
-        </div>
-      </>
-    );
-  }
 
   if (!meta) {
     return (
@@ -734,13 +653,6 @@ function ComposerForm({
             <PaysSummary decimals={decimals} />
           </p>
           <button
-            type="button"
-            onClick={onClose}
-            className="hidden rounded-lg px-4 py-2.5 text-sm font-medium text-gray-300 transition hover:bg-gray-800 sm:block"
-          >
-            Cancel
-          </button>
-          <button
             type="submit"
             disabled={submitting}
             className="rounded-lg bg-emerald-500 px-5 py-2.5 font-semibold text-gray-950 transition hover:bg-emerald-400 disabled:opacity-50"
@@ -750,6 +662,76 @@ function ComposerForm({
         </div>
       </div>
     </form>
+  );
+}
+
+/** Live-odds picker by default; the typed-in form is the fallback */
+function Composer({
+  onClose,
+  onPosted,
+  dirtyRef,
+}: {
+  onClose: () => void;
+  onPosted: () => void;
+  dirtyRef: React.MutableRefObject<boolean>;
+}) {
+  const { isSubscribed } = useAuth();
+  const [mode, setMode] = useState<'picker' | 'manual'>('picker');
+
+  const switchMode = (next: 'picker' | 'manual') => {
+    if (
+      dirtyRef.current &&
+      // eslint-disable-next-line no-alert
+      !window.confirm('Switching clears this slip. Continue?')
+    )
+      return;
+    // eslint-disable-next-line no-param-reassign
+    dirtyRef.current = false;
+    setMode(next);
+  };
+
+  if (!isSubscribed) {
+    return (
+      <>
+        <ComposerHeader onClose={onClose} />
+        <div className="px-5 py-10 text-center">
+          <h3 className="text-xl font-bold">Posting is for subscribers</h3>
+          <p className="mt-2 text-gray-400">
+            A $5/month subscription covers live odds and lets you post slips.
+            Free accounts can still view and tail.
+          </p>
+        </div>
+      </>
+    );
+  }
+
+  if (mode === 'manual') {
+    return (
+      <ComposerForm
+        header={
+          <ComposerHeader onClose={onClose}>
+            <button
+              type="button"
+              onClick={() => switchMode('picker')}
+              className="rounded-lg px-2 py-1 text-sm font-medium text-emerald-400 transition hover:bg-gray-800"
+            >
+              Use live odds
+            </button>
+          </ComposerHeader>
+        }
+        onPosted={onPosted}
+        dirtyRef={dirtyRef}
+      />
+    );
+  }
+
+  return (
+    <SlipPicker
+      header={<ComposerHeader onClose={onClose} />}
+      onManual={() => switchMode('manual')}
+      onPosted={onPosted}
+      dirtyRef={dirtyRef}
+    />
   );
 }
 
@@ -809,10 +791,10 @@ export default function PostComposer({
         e.preventDefault();
         requestClose();
       }}
-      className="m-0 h-full max-h-full w-full max-w-full bg-gray-950 text-white backdrop:bg-black/70 backdrop:backdrop-blur-sm open:flex open:flex-col sm:m-auto sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-2xl sm:border sm:border-gray-800 sm:shadow-2xl"
+      className="m-0 h-full max-h-full w-full max-w-full bg-gray-950 text-white backdrop:bg-black/70 backdrop:backdrop-blur-sm open:flex open:flex-col sm:m-auto sm:h-[88vh] sm:max-h-[56rem] sm:max-w-xl sm:rounded-2xl sm:border sm:border-gray-800 sm:shadow-2xl"
     >
       {open && (
-        <ComposerForm
+        <Composer
           onClose={requestClose}
           onPosted={onPosted}
           dirtyRef={dirtyRef}
