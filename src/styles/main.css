@@ -1,3 +1,55 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Theme palette as RGB channels (see tailwind.config.ts). Names follow the
+ * dark palette's roles: gray-950 page, 900 cards, 800 borders/inputs,
+ * 300-500 secondary text, white primary text, emerald-400 accent text.
+ */
+@layer base {
+  :root {
+    color-scheme: light;
+    --white: 17 20 24;
+    --gray-50: 17 20 24;
+    --gray-100: 31 35 41;
+    --gray-200: 43 48 56;
+    --gray-300: 55 62 72;
+    --gray-400: 75 83 96;
+    --gray-500: 107 115 128;
+    --gray-600: 154 162 173;
+    --gray-700: 207 213 220;
+    --gray-800: 225 229 234;
+    --gray-900: 255 255 255;
+    --gray-950: 242 244 246;
+    --emerald-400: 4 120 87;
+    --emerald-500: 5 150 105;
+    --red-400: 220 38 38;
+    --yellow-300: 161 98 7;
+  }
+
+  /* The original dark palette (Tailwind's stock gray/emerald) */
+  :root.dark {
+    color-scheme: dark;
+    --white: 255 255 255;
+    --gray-50: 249 250 251;
+    --gray-100: 243 244 246;
+    --gray-200: 229 231 235;
+    --gray-300: 209 213 219;
+    --gray-400: 156 163 175;
+    --gray-500: 107 114 128;
+    --gray-600: 75 85 99;
+    --gray-700: 55 65 81;
+    --gray-800: 31 41 55;
+    --gray-900: 17 24 39;
+    --gray-950: 3 7 18;
+    --emerald-400: 52 211 153;
+    --emerald-500: 16 185 129;
+    --red-400: 248 113 113;
+    --yellow-300: 253 224 71;
+  }
+
+  body {
+    @apply bg-gray-950 text-white;
+  }
+}

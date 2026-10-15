@@ -14,6 +14,7 @@ Social sports-betting app for one friend group: users post straight / parlay / l
 - `npm run prod` — build server + client, serve both from :8080
 - `npm test` (vitest), `npm run typecheck`, `npm run lint`
 - `npm run db:migrate` (migrate dev + generate), `db:deploy`, `db:seed`, `db:studio`
+- `npm run db:demo` — fake friends + slips for UI work (re-runnable; `-- --clear` removes them)
 - `npm run admin:set -- <username> [true|false]`, `npm run dev:subscribe -- <username> [ACTIVE|NONE]`
 
 ## Rules & decisions

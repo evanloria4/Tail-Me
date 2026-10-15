@@ -21,7 +21,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "eslint src prisma prisma.config.ts --ext .ts,.tsx"
+    "lint": "eslint src prisma prisma.config.ts --ext .ts,.tsx",
+    "db:demo": "ts-node prisma/seed-demo.ts"
   },
   "keywords": [],
   "author": "",

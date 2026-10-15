@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import PostCard from '../components/PostCard';
+import { useLayout } from '../components/AppLayout';
 import type { BetResult, FeedPost } from '../../shared/posts';
 
 type FeedPage = { posts: FeedPost[]; nextCursor: string | null };
 
 export default function Feed() {
   const { profile, isSubscribed } = useAuth();
+  const { openComposer, feedVersion } = useLayout();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,7 +33,7 @@ export default function Feed() {
 
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, feedVersion]);
 
   const settle = async (betId: string, result: BetResult) => {
     const update = (r: BetResult) =>
@@ -77,12 +78,13 @@ export default function Feed() {
         <div className="rounded-2xl border border-dashed border-gray-800 p-10 text-center">
           <p className="text-gray-400">No slips yet.</p>
           {isSubscribed && (
-            <Link
-              to="/new"
+            <button
+              type="button"
+              onClick={openComposer}
               className="mt-4 inline-block rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-gray-950 hover:bg-emerald-400"
             >
               Post the first one
-            </Link>
+            </button>
           )}
         </div>
       )}

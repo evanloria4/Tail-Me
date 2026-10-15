@@ -1,11 +1,10 @@
 import React from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthProvider';
 import RequireAuth from './auth/RequireAuth';
 import AppLayout from './components/AppLayout';
 import Feed from './pages/Feed';
 import Login from './pages/Login';
-import NewPost from './pages/NewPost';
 import Signup from './pages/Signup';
 
 export default function App() {
@@ -22,7 +21,7 @@ export default function App() {
           }
         >
           <Route path="/" element={<Feed />} />
-          <Route path="/new" element={<NewPost />} />
+          <Route path="/new" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </AuthProvider>
