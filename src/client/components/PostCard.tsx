@@ -1,13 +1,10 @@
 import React from 'react';
 import { formatAmerican, formatMoney, payout } from '../../shared/odds';
-import {
-  BetResult,
-  describeLeg,
-  FeedBet,
-  FeedPost,
-  MARKETS,
-} from '../../shared/posts';
+import { BetResult, FeedBet, FeedLeg, FeedPost } from '../../shared/posts';
 import timeAgo from '../lib/time';
+
+// Slip layout follows a sportsbook bet slip: a title bar with the total
+// odds, picks strung on a vertical timeline, then wager/payout totals.
 
 const RESULT_STYLES: Record<BetResult, string> = {
   PENDING: 'bg-gray-800 text-gray-300',
@@ -17,13 +14,73 @@ const RESULT_STYLES: Record<BetResult, string> = {
   VOID: 'bg-gray-800 text-gray-500',
 };
 
+/** Timeline dot per result: hollow while pending, filled once settled */
+const NODE_STYLES: Record<BetResult, string> = {
+  PENDING: 'border-gray-600 bg-gray-900',
+  WON: 'border-emerald-500 bg-emerald-500',
+  LOST: 'border-red-400 bg-red-400',
+  PUSH: 'border-yellow-300 bg-yellow-300',
+  VOID: 'border-gray-600 bg-gray-800',
+};
+
 const RESULT_OPTIONS: BetResult[] = ['PENDING', 'WON', 'LOST', 'PUSH', 'VOID'];
 
-const TYPE_LABELS: Record<FeedPost['type'], string> = {
-  STRAIGHT: 'Straight',
-  PARLAY: 'Parlay',
-  LADDER: 'Ladder',
+const units = (n: number) => `${Math.round(n * 100) / 100}u`;
+
+/** What a stake returns: nothing on a loss, the stake back on push/void.
+ *  Pending bets show what they'd return if they hit. */
+function returned(stake: number, decimal: number, result: BetResult) {
+  if (result === 'LOST') return 0;
+  if (result === 'PUSH' || result === 'VOID') return stake;
+  return payout(stake, decimal);
+}
+
+const PAYOUT_LABELS: Record<BetResult, string> = {
+  PENDING: '$10 pays',
+  WON: '$10 paid',
+  LOST: 'Payout',
+  PUSH: 'Push, $10 back',
+  VOID: 'Void, $10 back',
 };
+
+/** Green only for money actually won; plain while pending, muted for $0 or a refund */
+const payoutColor = (result: BetResult) => {
+  if (result === 'WON') return 'text-win';
+  if (result === 'PENDING') return '';
+  return 'text-gray-400';
+};
+
+/** Big pick line + small uppercase market line, e.g. "Bills -3.5" / "SPREAD" */
+function legText(leg: FeedLeg): { title: string; market: string } {
+  const line = leg.line == null ? '' : ` ${leg.line}`;
+  switch (leg.marketKey) {
+    case 'h2h':
+      return { title: leg.selection, market: 'Moneyline' };
+    case 'spreads':
+      return {
+        title: `${leg.selection} ${leg.line != null && leg.line > 0 ? '+' : ''}${leg.line ?? ''}`,
+        market: 'Spread',
+      };
+    case 'totals':
+      return { title: `${leg.selection}${line}`, market: 'Total' };
+    default: {
+      // Yes/no props ("Anytime TD") read better without the "Yes"
+      const pick =
+        leg.selection === 'Yes' ? leg.marketLabel : `${leg.selection}${line}`;
+      return {
+        title: `${leg.playerName} ${pick}`,
+        market: `${leg.playerName} - ${leg.marketLabel}`,
+      };
+    }
+  }
+}
+
+function slipTitle(post: FeedPost): string {
+  const { legs } = post.bets[0];
+  if (post.type === 'LADDER') return `${post.bets.length} Rung Ladder`;
+  const sameGame = legs.every((l) => l.eventLabel === legs[0].eventLabel);
+  return `${legs.length} Leg ${sameGame ? 'Same Game ' : ''}Parlay`;
+}
 
 function ResultControl({
   bet,
@@ -34,7 +91,7 @@ function ResultControl({
   isAuthor: boolean;
   onSettle: (betId: string, result: BetResult) => void;
 }) {
-  const style = `rounded-md px-2 py-0.5 text-xs font-semibold ${RESULT_STYLES[bet.result]}`;
+  const style = `rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${RESULT_STYLES[bet.result]}`;
   if (!isAuthor) return <span className={style}>{bet.result}</span>;
   return (
     <select
@@ -52,19 +109,80 @@ function ResultControl({
   );
 }
 
-function Pays({ decimal }: { decimal: number }) {
+/** One stop on the slip's timeline; the connector runs down to the next stop */
+function TimelineRow({
+  result,
+  last,
+  children,
+}: {
+  result: BetResult;
+  last: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <span className="text-sm text-gray-300">
-      $10 pays{' '}
-      <span className="font-semibold text-emerald-400">
-        {formatMoney(payout(10, decimal))}
-      </span>
-    </span>
+    <li className="relative pl-10 pr-4">
+      <span
+        aria-hidden="true"
+        className={`absolute left-4 top-4 h-3 w-3 rounded-full border-2 ${NODE_STYLES[result]}`}
+      />
+      {!last && (
+        <span
+          aria-hidden="true"
+          className="absolute -bottom-4 left-[21.5px] top-7 w-px bg-gray-700"
+        />
+      )}
+      <div className={`py-3 ${last ? '' : 'border-b border-gray-800'}`}>
+        {children}
+      </div>
+    </li>
   );
 }
 
-function units(n: number) {
-  return `${n}u`;
+function LegRow({
+  leg,
+  result,
+  last,
+}: {
+  leg: FeedLeg;
+  result: BetResult;
+  last: boolean;
+}) {
+  const { title, market } = legText(leg);
+  return (
+    <TimelineRow result={result} last={last}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-bold leading-snug">{title}</p>
+          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            {market}
+          </p>
+        </div>
+        <span className="font-mono font-bold tabular-nums">
+          {formatAmerican(leg.americanOdds)}
+        </span>
+      </div>
+      <p className="mt-1.5 text-xs text-emerald-400">{leg.eventLabel}</p>
+    </TimelineRow>
+  );
+}
+
+function Total({
+  label,
+  value,
+  align = 'left',
+}: {
+  label: string;
+  value: React.ReactNode;
+  align?: 'left' | 'right';
+}) {
+  return (
+    <div className={align === 'right' ? 'text-right' : ''}>
+      <p className="font-bold tabular-nums">{value}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+        {label}
+      </p>
+    </div>
+  );
 }
 
 export default function PostCard({
@@ -81,29 +199,37 @@ export default function PostCard({
   const isAuthor = post.author.id === currentUserId;
   const tails = post.bets.reduce((sum, b) => sum + b.tailCount, 0);
   const first = post.bets[0];
+  const isLadder = post.type === 'LADDER';
+  const isStraight = post.type === 'STRAIGHT';
   const pick = first.legs[0];
+
+  const rungsHit = post.bets.filter((b) => b.result === 'WON').length;
+  const ladderSettled = post.bets.some((b) => b.result !== 'PENDING');
+  const allSettled = post.bets.every((b) => b.result !== 'PENDING');
+  const ladderRisked = post.bets.reduce((s, b) => s + b.units, 0);
+  const ladderReturn = post.bets.reduce(
+    (s, b) => s + returned(b.units, b.decimalOdds, b.result),
+    0
+  );
+
+  // A parlay's legs share the bet's result only once it has won; a lost
+  // parlay doesn't say which leg missed, so those dots stay neutral.
+  const legResult: BetResult = first.result === 'WON' ? 'WON' : 'PENDING';
 
   return (
     <article className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900">
       <header className="flex items-center gap-3 px-4 pt-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/20 font-bold uppercase text-emerald-400">
+        <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-emerald-500/20 font-bold uppercase text-emerald-400">
           {post.author.fullName[0]}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate">
-            <span className="font-semibold">{post.author.fullName}</span>{' '}
-            <span className="text-sm text-gray-500">
-              @{post.author.username}
-            </span>
+          <p className="truncate font-semibold leading-tight">
+            {post.author.fullName}
           </p>
-          <p className="text-xs text-gray-500">
-            {timeAgo(post.createdAt)} · {post.sportsbook.name}
+          <p className="truncate text-sm text-gray-500">
+            @{post.author.username} · {timeAgo(post.createdAt)}
           </p>
         </div>
-        <span className="rounded-md bg-gray-800 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-gray-300">
-          {TYPE_LABELS[post.type]}
-          {post.type === 'PARLAY' && ` · ${first.legs.length} legs`}
-        </span>
       </header>
 
       {post.caption && (
@@ -112,72 +238,163 @@ export default function PostCard({
         </p>
       )}
 
-      <div className="m-4 rounded-xl border border-gray-800 bg-gray-950">
-        {post.type === 'LADDER' ? (
-          <>
-            <div className="border-b border-gray-800 px-4 py-3">
-              <p className="font-semibold">
-                {pick.marketKey === 'player_prop'
-                  ? `${pick.playerName} ${pick.selection} ${pick.marketLabel}`
-                  : `${pick.selection} · ${MARKETS[pick.marketKey]}`}
+      <div className="m-4 overflow-hidden rounded-xl border border-gray-800">
+        {/* Title bar */}
+        <div className="flex items-start justify-between gap-3 border-b border-gray-800 px-4 py-3">
+          <div className="min-w-0">
+            {isStraight ? (
+              // A single pick is the slip's headline, like a book's bet receipt
+              <>
+                <p className="text-lg font-bold leading-tight">
+                  {legText(pick).title}
+                </p>
+                <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  {legText(pick).market}
+                </p>
+                <p className="mt-1.5 text-xs text-emerald-400">
+                  {pick.eventLabel}
+                </p>
+              </>
+            ) : (
+              <p className="text-lg font-bold leading-tight">
+                {slipTitle(post)}
               </p>
-              <p className="text-xs text-gray-500">{pick.eventLabel}</p>
-            </div>
-            {post.bets.map((bet) => (
-              <div
-                key={bet.id}
-                className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 px-4 py-2.5 last:border-b-0"
-              >
-                <span className="w-20 font-mono font-semibold">
-                  {bet.legs[0].line}
-                </span>
-                <span className="w-14 font-mono text-gray-300">
-                  {formatAmerican(bet.americanOdds)}
-                </span>
-                <span className="w-12 text-sm text-gray-400">
-                  {units(bet.units)}
-                </span>
-                <Pays decimal={bet.decimalOdds} />
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="rounded border border-gray-700 px-1.5 py-px text-[11px] font-semibold text-gray-400">
+                {post.sportsbook.name}
+              </span>
+              {!isLadder && (
                 <ResultControl
-                  bet={bet}
+                  bet={first}
                   isAuthor={isAuthor}
                   onSettle={onSettle}
                 />
-              </div>
-            ))}
+              )}
+            </div>
+          </div>
+          {!isLadder && (
+            <span className="font-mono text-lg font-bold tabular-nums">
+              {formatAmerican(first.americanOdds)}
+            </span>
+          )}
+          {isLadder && ladderSettled && (
+            <div className="text-right">
+              <p className="text-lg font-bold leading-tight tabular-nums">
+                {rungsHit}/{post.bets.length}
+              </p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                Hit
+              </p>
+            </div>
+          )}
+        </div>
+
+        {isLadder ? (
+          <>
+            <div className="border-b border-gray-800 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                {pick.playerName
+                  ? `${pick.playerName} - ${pick.marketLabel}`
+                  : legText(pick).market}
+              </p>
+              <p className="mt-1 text-xs text-emerald-400">{pick.eventLabel}</p>
+            </div>
+            <ol>
+              {post.bets.map((bet, i) => {
+                const leg = bet.legs[0];
+                return (
+                  <TimelineRow
+                    key={bet.id}
+                    result={bet.result}
+                    last={i === post.bets.length - 1}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-bold">
+                        {leg.selection} {leg.line}
+                      </p>
+                      <span className="font-mono font-bold tabular-nums">
+                        {formatAmerican(bet.americanOdds)}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400">
+                      <span>
+                        {units(bet.units)}{' '}
+                        {bet.result === 'PENDING' ? 'pays' : 'paid'}{' '}
+                        <span
+                          className={`font-semibold ${payoutColor(bet.result)}`}
+                        >
+                          {units(
+                            returned(bet.units, bet.decimalOdds, bet.result)
+                          )}
+                        </span>
+                      </span>
+                      <ResultControl
+                        bet={bet}
+                        isAuthor={isAuthor}
+                        onSettle={onSettle}
+                      />
+                    </div>
+                  </TimelineRow>
+                );
+              })}
+            </ol>
           </>
         ) : (
-          <>
-            {first.legs.map((leg) => (
-              <div
-                key={leg.id}
-                className="flex items-start justify-between gap-3 border-b border-gray-800 px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="font-semibold">{describeLeg(leg)}</p>
-                  <p className="text-xs text-gray-500">{leg.eventLabel}</p>
-                </div>
-                <span className="font-mono text-gray-300">
-                  {formatAmerican(leg.americanOdds)}
-                </span>
-              </div>
-            ))}
-            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-              <span className="text-sm text-gray-400">
-                {units(first.units)} ·{' '}
-                <span className="font-mono text-white">
-                  {formatAmerican(first.americanOdds)}
-                </span>
-              </span>
-              <Pays decimal={first.decimalOdds} />
-              <ResultControl
-                bet={first}
-                isAuthor={isAuthor}
-                onSettle={onSettle}
-              />
-            </div>
-          </>
+          !isStraight && (
+            <ol>
+              {first.legs.map((leg, i) => (
+                <LegRow
+                  key={leg.id}
+                  leg={leg}
+                  result={legResult}
+                  last={i === first.legs.length - 1}
+                />
+              ))}
+            </ol>
+          )
         )}
+
+        {/* Totals */}
+        <div className="flex items-end justify-between gap-4 border-t border-gray-800 bg-gray-950 px-4 py-3">
+          {isLadder ? (
+            <>
+              <Total label="Units risked" value={units(ladderRisked)} />
+              <Total
+                align="right"
+                // Until every rung settles, assume the open ones hit
+                label={allSettled ? 'Payout' : 'Max payout'}
+                value={
+                  <span
+                    className={
+                      // eslint-disable-next-line no-nested-ternary
+                      !allSettled
+                        ? ''
+                        : rungsHit > 0
+                          ? 'text-win'
+                          : 'text-gray-400'
+                    }
+                  >
+                    {units(ladderReturn)}
+                  </span>
+                }
+              />
+            </>
+          ) : (
+            <>
+              <Total label="Units" value={units(first.units)} />
+              <Total
+                align="right"
+                label={PAYOUT_LABELS[first.result]}
+                value={
+                  <span className={payoutColor(first.result)}>
+                    {formatMoney(returned(10, first.decimalOdds, first.result))}
+                  </span>
+                }
+              />
+            </>
+          )}
+        </div>
       </div>
 
       <footer className="flex items-center justify-between px-4 pb-4 text-sm text-gray-500">

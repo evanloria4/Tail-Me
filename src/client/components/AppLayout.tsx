@@ -155,9 +155,11 @@ export default function AppLayout() {
         <div className="flex h-16 items-center px-5 sm:px-8 lg:px-16 xl:px-24">
           <Link
             to="/"
-            className="text-2xl font-extrabold tracking-tight sm:text-3xl"
+            // Light mode sets the dark-mode wordmark in a dark chip; the
+            // literal colors keep it identical in both themes
+            className="rounded-lg bg-[#111827] px-3 pb-1.5 pt-1 text-2xl font-extrabold tracking-tight text-[#fff] sm:text-3xl dark:bg-transparent dark:p-0"
           >
-            Tail<span className="text-emerald-400">Me</span>
+            Tail<span className="text-[#34d399]">Me</span>
           </Link>
 
           <div className="ml-auto hidden items-center gap-8 md:flex">

@@ -22,7 +22,7 @@ Social sports-betting app for one friend group: users post straight / parlay / l
 - Signup is server-side only (`POST /api/auth/signup`) so the shared `SIGNUP_PASSCODE` can't be skipped; Supabase public signups are meant to be disabled.
 - API auth: client sends Supabase access token as `Authorization: Bearer`; `requireAuth` verifies it and loads the Prisma `User` into `req.user`.
 - Users have required `fullName` + unique `username`; show both.
-- Post model: Post -> Bet[] -> BetLeg[]. Straight/parlay = 1 bet; ladder = 1 single-leg bet per rung (same pick, climbing lines). Units on bets; every slip shows "$10 pays $X" (`payout(10, decimalOdds)`). Parlay `americanOdds` may be the book's slip price (same-game parlays) instead of multiplied legs.
+- Post model: Post -> Bet[] -> BetLeg[]. Straight/parlay = 1 bet; ladder = 1 single-leg bet per rung (same pick, climbing lines). Units on bets; straight/parlay slips show "$10 pays $X" (`payout(10, decimalOdds)`; $0 once lost, $10 back on push/void). Ladders show payouts in the poster's units plus an "N/M hit" count. Parlay `americanOdds` may be the book's slip price (same-game parlays) instead of multiplied legs.
 - Users settle their own bets (no auto-settlement). One shared feed.
 - Tails are never shown on the tailer's profile; tracked for tail counts and per-poster tail records.
 - Leagues: NFL, NCAA Football, NHL. Books: DraftKings, FanDuel, BetMGM, Caesars (`williamhill_us`), Fanatics, ESPN BET — stored in tables (seed in `prisma/seed.ts`).
