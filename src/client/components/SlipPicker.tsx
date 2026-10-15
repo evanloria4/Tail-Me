@@ -745,6 +745,7 @@ export default function SlipPicker({
         ? americanToDecimal(Number(slipOdds))
         : null;
     const decimal = sgpDecimal ?? slipDecimal(selections);
+    const straight = mode === 'STRAIGHT';
     return (
       <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
         {header}
@@ -758,24 +759,24 @@ export default function SlipPicker({
           </button>
 
           <div className="overflow-hidden rounded-xl border border-gray-800">
-            <div className="flex items-center justify-between gap-3 border-b border-gray-800 px-4 py-3">
-              <div>
-                <p className="text-lg font-bold leading-tight">
-                  {mode === 'STRAIGHT' && 'Straight'}
-                  {mode === 'PARLAY' &&
-                    `${selections.length} Leg ${sameGame ? 'Same Game ' : ''}Parlay`}
-                  {mode === 'LADDER' && `${selections.length} Rung Ladder`}
-                </p>
-                <p className="text-xs text-gray-500">{bookName}</p>
+            {/* A straight's pick is its own headline, so it gets no title bar */}
+            {!straight && (
+              <div className="flex items-center justify-between gap-3 border-b border-gray-800 px-4 py-3">
+                <div>
+                  <p className="text-lg font-bold leading-tight">
+                    {mode === 'PARLAY' &&
+                      `${selections.length} Leg ${sameGame ? 'Same Game ' : ''}Parlay`}
+                    {mode === 'LADDER' && `${selections.length} Rung Ladder`}
+                  </p>
+                  <p className="text-xs text-gray-500">{bookName}</p>
+                </div>
+                {mode === 'PARLAY' && decimal && (
+                  <span className="font-mono text-lg font-bold tabular-nums">
+                    {formatAmerican(decimalToAmerican(decimal))}
+                  </span>
+                )}
               </div>
-              {mode !== 'LADDER' && decimal && (
-                <span className="font-mono text-lg font-bold tabular-nums">
-                  {mode === 'STRAIGHT'
-                    ? formatAmerican(selections[0].outcome.price)
-                    : formatAmerican(decimalToAmerican(decimal))}
-                </span>
-              )}
-            </div>
+            )}
             <ul className="divide-y divide-gray-800">
               {(mode === 'LADDER'
                 ? [...selections].sort(
@@ -785,7 +786,9 @@ export default function SlipPicker({
               ).map((s) => (
                 <li key={s.key} className="flex items-start gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <p className="font-bold leading-snug">
+                    <p
+                      className={`font-bold leading-snug ${straight ? 'text-lg' : ''}`}
+                    >
                       {selectionTitle(s)}
                     </p>
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
@@ -794,6 +797,9 @@ export default function SlipPicker({
                     <p className="mt-1 text-xs text-emerald-400">
                       {s.eventLabel}
                     </p>
+                    {straight && (
+                      <p className="mt-0.5 text-xs text-gray-500">{bookName}</p>
+                    )}
                   </div>
                   {mode === 'LADDER' && (
                     <label className="w-16 shrink-0" htmlFor={`units-${s.key}`}>
@@ -812,7 +818,9 @@ export default function SlipPicker({
                       />
                     </label>
                   )}
-                  <span className="font-mono font-bold tabular-nums">
+                  <span
+                    className={`font-mono font-bold tabular-nums ${straight ? 'text-lg' : ''}`}
+                  >
                     {formatAmerican(s.outcome.price)}
                   </span>
                   <button

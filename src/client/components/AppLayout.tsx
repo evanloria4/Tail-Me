@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../auth/AuthProvider';
 import useTheme from '../lib/theme';
 import PostComposer from './PostComposer';
+import { useToast } from './Toast';
 
 const NAV_ITEMS = [{ to: '/', label: 'Feed', end: true }];
 
@@ -112,6 +113,7 @@ export default function AppLayout() {
   const { profile, signOut } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const toast = useToast();
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [feedVersion, setFeedVersion] = useState(0);
@@ -144,6 +146,16 @@ export default function AppLayout() {
     setComposerOpen(false);
     setFeedVersion((v) => v + 1);
     navigate('/');
+    toast('Slip posted');
+    // After the popup releases its scroll lock, jump to the new post at the top
+    requestAnimationFrame(() =>
+      window.scrollTo({
+        top: 0,
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 'auto'
+          : 'smooth',
+      })
+    );
   };
 
   return (
