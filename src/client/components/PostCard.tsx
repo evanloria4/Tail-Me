@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { formatAmerican, formatMoney, payout } from '../../shared/odds';
 import { BetResult, FeedBet, FeedLeg, FeedPost } from '../../shared/posts';
 import timeAgo from '../lib/time';
@@ -39,8 +39,8 @@ const PAYOUT_LABELS: Record<BetResult, string> = {
   PENDING: '$10 pays',
   WON: '$10 paid',
   LOST: 'Payout',
-  PUSH: 'Push, $10 back',
-  VOID: 'Void, $10 back',
+  PUSH: 'Payout',
+  VOID: 'Payout',
 };
 
 /** Green only for money actually won; plain while pending, muted for $0 or a refund */
@@ -185,19 +185,186 @@ function Total({
   );
 }
 
+/** Where Tail lands when a pick has no add-to-betslip link (typed-in slips) */
+const BOOK_HOMEPAGES: Record<string, string> = {
+  fanduel: 'https://sportsbook.fanduel.com',
+  draftkings: 'https://sportsbook.draftkings.com',
+  williamhill_us: 'https://www.caesars.com/sportsbook-and-casino',
+  betmgm: 'https://sports.betmgm.com',
+  espnbet: 'https://espnbet.com',
+  fanatics: 'https://sportsbook.fanatics.com',
+};
+
+type TailPick = {
+  id: string;
+  title: string;
+  odds: number;
+  link: string | null;
+};
+
+function tailPicks(post: FeedPost): TailPick[] {
+  if (post.type === 'LADDER') {
+    return post.bets.map((b) => {
+      const leg = b.legs[0];
+      const who = leg.playerName ? `${leg.playerName} ` : '';
+      return {
+        id: b.id,
+        title: `${who}${leg.selection} ${leg.line ?? ''}`.trim(),
+        odds: b.americanOdds,
+        link: b.deepLink ?? leg.deepLink,
+      };
+    });
+  }
+  return post.bets[0].legs.map((l) => ({
+    id: l.id,
+    title: legText(l).title,
+    odds: l.americanOdds,
+    link: l.deepLink,
+  }));
+}
+
+const tailButtonClass =
+  'inline-flex items-center gap-1.5 rounded-lg border border-emerald-500 px-3 py-1.5 text-sm font-semibold text-emerald-400 transition hover:bg-emerald-500/10';
+
+/** Shown once tailed: a status, not a control */
+function TailedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-3 py-1.5 text-sm font-semibold text-emerald-400">
+      ✓ Tailed
+    </span>
+  );
+}
+
+/**
+ * Tail: straights open the pick straight onto the book's bet slip. Parlays and
+ * ladders list each pick with its own add link, since a book link adds one
+ * selection at a time (the book's slip collects them into the parlay).
+ */
+function TailSection({
+  post,
+  onTail,
+  children,
+}: {
+  post: FeedPost;
+  onTail: (postId: string) => void;
+  /** Left side of the row (the tail count) */
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const tailed = post.bets.some((b) => b.tailedByMe);
+  const picks = tailPicks(post);
+  const book = post.sportsbook.name;
+  const home = BOOK_HOMEPAGES[post.sportsbook.key] ?? null;
+  const linked = picks.every((pk) => pk.link);
+  const single = picks.length === 1 && (picks[0].link || home);
+
+  let control: React.ReactNode;
+  if (tailed) control = <TailedBadge />;
+  else if (single)
+    control = (
+      <a
+        href={picks[0].link ?? home!}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => onTail(post.id)}
+        className={tailButtonClass}
+      >
+        Tail ↗
+      </a>
+    );
+  else
+    control = (
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(true);
+          onTail(post.id);
+        }}
+        className={tailButtonClass}
+      >
+        Tail
+      </button>
+    );
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        {children}
+        {control}
+      </div>
+      {/* Stays open after tailing so each pick can still be added */}
+      {open && !single && (
+        <div className="mt-3 space-y-2">
+          {linked ? (
+            <>
+              <p className="text-xs text-gray-500">
+                {post.type === 'LADDER'
+                  ? `Each rung is its own bet. Add the ones you want to your ${book} slip.`
+                  : `Add each pick to your ${book} slip. ${book} builds the parlay as you add them.`}
+              </p>
+              <ul className="divide-y divide-gray-800 rounded-lg border border-gray-800">
+                {picks.map((pk) => (
+                  <li key={pk.id} className="flex items-center gap-3 px-3 py-2">
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                      {pk.title}
+                    </span>
+                    <span className="font-mono text-sm tabular-nums text-gray-400">
+                      {formatAmerican(pk.odds)}
+                    </span>
+                    <a
+                      href={pk.link!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-md bg-emerald-500 px-2.5 py-1 text-xs font-semibold text-gray-950 hover:bg-emerald-400"
+                    >
+                      Add ↗
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="text-xs text-gray-500">
+              This slip was entered by hand, so its picks can&apos;t be added
+              automatically.{' '}
+              {home && (
+                <a
+                  href={home}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-emerald-400 hover:underline"
+                >
+                  Open {book} ↗
+                </a>
+              )}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PostCard({
   post,
   currentUserId,
   onSettle,
   onDelete,
+  onTail,
 }: {
   post: FeedPost;
   currentUserId?: string;
   onSettle: (betId: string, result: BetResult) => void;
   onDelete: (postId: string) => void;
+  onTail: (postId: string) => void;
 }) {
   const isAuthor = post.author.id === currentUserId;
-  const tails = post.bets.reduce((sum, b) => sum + b.tailCount, 0);
+  const tails = Math.max(...post.bets.map((b) => b.tailCount));
+  const tailCountLabel = `${tails} ${tails === 1 ? 'tail' : 'tails'}`;
+  // Others can tail while a bet is open; a tailed slip keeps its badge after
+  const canTail =
+    post.bets.some((b) => b.tailedByMe) ||
+    (!isAuthor && post.bets.some((b) => b.result === 'PENDING'));
   const first = post.bets[0];
   const isLadder = post.type === 'LADDER';
   const isStraight = post.type === 'STRAIGHT';
@@ -397,20 +564,26 @@ export default function PostCard({
         </div>
       </div>
 
-      <footer className="flex items-center justify-between px-4 pb-4 text-sm text-gray-500">
-        <span>
-          {tails} {tails === 1 ? 'tail' : 'tails'}
-        </span>
-        {isAuthor && (
-          <button
-            type="button"
-            onClick={() => onDelete(post.id)}
-            className="text-gray-500 hover:text-red-400"
-          >
-            Delete
-          </button>
-        )}
-      </footer>
+      {canTail ? (
+        <footer className="px-4 pb-4 text-sm text-gray-500">
+          <TailSection post={post} onTail={onTail}>
+            <span>{tailCountLabel}</span>
+          </TailSection>
+        </footer>
+      ) : (
+        <footer className="flex items-center justify-between px-4 pb-4 text-sm text-gray-500">
+          <span>{tailCountLabel}</span>
+          {isAuthor && (
+            <button
+              type="button"
+              onClick={() => onDelete(post.id)}
+              className="text-gray-500 hover:text-red-400"
+            >
+              Delete
+            </button>
+          )}
+        </footer>
+      )}
     </article>
   );
 }

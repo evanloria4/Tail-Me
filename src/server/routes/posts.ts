@@ -19,21 +19,26 @@ import {
 const router = Router();
 const PAGE_SIZE = 20;
 
-const feedInclude = {
-  author: {
-    select: { id: true, username: true, fullName: true, avatarUrl: true },
-  },
-  sportsbook: { select: { key: true, name: true } },
-  bets: {
-    orderBy: { order: 'asc' },
-    include: {
-      legs: { orderBy: { order: 'asc' } },
-      _count: { select: { tails: true } },
+/** Feed shape; `tails` only loads the viewer's own tail so we can show "Tailed" */
+const feedInclude = (viewerId: string) =>
+  ({
+    author: {
+      select: { id: true, username: true, fullName: true, avatarUrl: true },
     },
-  },
-} satisfies Prisma.PostInclude;
+    sportsbook: { select: { key: true, name: true } },
+    bets: {
+      orderBy: { order: 'asc' },
+      include: {
+        legs: { orderBy: { order: 'asc' } },
+        _count: { select: { tails: true } },
+        tails: { where: { userId: viewerId }, select: { id: true } },
+      },
+    },
+  }) satisfies Prisma.PostInclude;
 
-type PostWithFeed = Prisma.PostGetPayload<{ include: typeof feedInclude }>;
+type PostWithFeed = Prisma.PostGetPayload<{
+  include: ReturnType<typeof feedInclude>;
+}>;
 
 function toFeedPost(post: PostWithFeed): FeedPost {
   return {
@@ -52,6 +57,7 @@ function toFeedPost(post: PostWithFeed): FeedPost {
       result: bet.result,
       deepLink: bet.deepLink,
       tailCount: bet._count.tails,
+      tailedByMe: bet.tails.length > 0,
       legs: bet.legs.map((leg) => ({
         id: leg.id,
         sportKey: leg.sportKey,
@@ -158,7 +164,7 @@ router.get('/', requireAuth, async (req, res) => {
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: PAGE_SIZE + 1,
     ...(cursor && { cursor: { id: cursor }, skip: 1 }),
-    include: feedInclude,
+    include: feedInclude(req.user!.id),
   });
   const hasMore = posts.length > PAGE_SIZE;
   const page = posts.slice(0, PAGE_SIZE);
@@ -214,7 +220,7 @@ router.post('/', requireAuth, requireSubscription, async (req, res) => {
       sportsbookId: sportsbook.id,
       bets: { create: betsData(input, events) },
     },
-    include: feedInclude,
+    include: feedInclude(req.user!.id),
   });
   res.status(201).json(toFeedPost(post));
 });
@@ -249,6 +255,39 @@ router.patch<{ betId: string }>(
       data: { result, settledAt: result === 'PENDING' ? null : new Date() },
     });
     res.json({ ok: true });
+  }
+);
+
+/**
+ * Tail a slip: records a tail on every bet in the post (each ladder rung is its
+ * own bet). Free users can tail. Repeat tails are no-ops.
+ */
+router.post<{ postId: string }>(
+  '/:postId/tail',
+  requireAuth,
+  async (req, res) => {
+    const viewerId = req.user!.id;
+    const post = await prisma.post.findFirst({
+      where: { id: req.params.postId, deletedAt: null },
+      select: { authorId: true, bets: { select: { id: true } } },
+    });
+    if (!post) {
+      res.status(404).json({ error: 'Post not found' });
+      return;
+    }
+    if (post.authorId === viewerId) {
+      res.status(400).json({ error: "You can't tail your own slip" });
+      return;
+    }
+    await prisma.tail.createMany({
+      data: post.bets.map((b) => ({ userId: viewerId, betId: b.id })),
+      skipDuplicates: true,
+    });
+    const updated = await prisma.post.findUniqueOrThrow({
+      where: { id: req.params.postId },
+      include: feedInclude(viewerId),
+    });
+    res.json(toFeedPost(updated));
   }
 );
 

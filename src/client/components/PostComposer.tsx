@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { ComposerHeader, inputClass, PaysSummary } from './ComposerParts';
 import SlipPicker from './SlipPicker';
+import useConfirm from './ConfirmDialog';
 import api, { apiErrorMessage } from '../lib/api';
 import useMeta, { Meta } from '../lib/useMeta';
 import {
@@ -677,12 +678,20 @@ function Composer({
 }) {
   const { isSubscribed } = useAuth();
   const [mode, setMode] = useState<'picker' | 'manual'>('picker');
+  const [confirm, confirmDialog] = useConfirm();
 
-  const switchMode = (next: 'picker' | 'manual') => {
+  const switchMode = async (next: 'picker' | 'manual') => {
     if (
       dirtyRef.current &&
-      // eslint-disable-next-line no-alert
-      !window.confirm('Switching clears this slip. Continue?')
+      !(await confirm({
+        title:
+          next === 'manual'
+            ? 'Enter this slip manually?'
+            : 'Switch to live odds?',
+        message: 'Your current slip will be cleared.',
+        confirmLabel: 'Switch',
+        cancelLabel: 'Keep it',
+      }))
     )
       return;
     // eslint-disable-next-line no-param-reassign
@@ -707,31 +716,37 @@ function Composer({
 
   if (mode === 'manual') {
     return (
-      <ComposerForm
-        header={
-          <ComposerHeader onClose={onClose}>
-            <button
-              type="button"
-              onClick={() => switchMode('picker')}
-              className="rounded-lg px-2 py-1 text-sm font-medium text-emerald-400 transition hover:bg-gray-800"
-            >
-              Use live odds
-            </button>
-          </ComposerHeader>
-        }
-        onPosted={onPosted}
-        dirtyRef={dirtyRef}
-      />
+      <>
+        <ComposerForm
+          header={
+            <ComposerHeader onClose={onClose}>
+              <button
+                type="button"
+                onClick={() => switchMode('picker')}
+                className="rounded-lg px-2 py-1 text-sm font-medium text-emerald-400 transition hover:bg-gray-800"
+              >
+                Use live odds
+              </button>
+            </ComposerHeader>
+          }
+          onPosted={onPosted}
+          dirtyRef={dirtyRef}
+        />
+        {confirmDialog}
+      </>
     );
   }
 
   return (
-    <SlipPicker
-      header={<ComposerHeader onClose={onClose} />}
-      onManual={() => switchMode('manual')}
-      onPosted={onPosted}
-      dirtyRef={dirtyRef}
-    />
+    <>
+      <SlipPicker
+        header={<ComposerHeader onClose={onClose} />}
+        onManual={() => switchMode('manual')}
+        onPosted={onPosted}
+        dirtyRef={dirtyRef}
+      />
+      {confirmDialog}
+    </>
   );
 }
 
@@ -750,13 +765,19 @@ export default function PostComposer({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const dirtyRef = useRef(false);
+  const [confirm, confirmDialog] = useConfirm();
 
-  // Every close path (✕, Cancel, Escape) goes through here
-  const requestClose = () => {
+  // Every close path (✕, Escape) goes through here
+  const requestClose = async () => {
     if (
       dirtyRef.current &&
-      // eslint-disable-next-line no-alert
-      !window.confirm('Discard this slip? Your picks will be lost.')
+      !(await confirm({
+        title: 'Discard this slip?',
+        message: 'Your picks will be lost.',
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+        danger: true,
+      }))
     )
       return;
     onClose();
@@ -800,6 +821,7 @@ export default function PostComposer({
           dirtyRef={dirtyRef}
         />
       )}
+      {confirmDialog}
     </dialog>
   );
 }

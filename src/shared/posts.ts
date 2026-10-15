@@ -138,6 +138,8 @@ export type FeedBet = {
   result: BetResult;
   deepLink: string | null;
   tailCount: number;
+  /** Whether the viewer has tailed this bet */
+  tailedByMe: boolean;
   legs: FeedLeg[];
 };
 

@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import PostCard from '../components/PostCard';
 import { useLayout } from '../components/AppLayout';
+import useConfirm from '../components/ConfirmDialog';
 import type { BetResult, FeedPost } from '../../shared/posts';
 
 type FeedPage = { posts: FeedPost[]; nextCursor: string | null };
@@ -10,6 +11,7 @@ type FeedPage = { posts: FeedPost[]; nextCursor: string | null };
 export default function Feed() {
   const { profile, isSubscribed } = useAuth();
   const { openComposer, feedVersion } = useLayout();
+  const [confirm, confirmDialog] = useConfirm();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,9 +57,25 @@ export default function Feed() {
     }
   };
 
+  // Records the tail; the card has already opened the book (links must open
+  // inside the click to get past popup blockers)
+  const tail = async (postId: string) => {
+    try {
+      const { data } = await api.post<FeedPost>(`/posts/${postId}/tail`);
+      setPosts((prev) => prev.map((p) => (p.id === postId ? data : p)));
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not record the tail'));
+    }
+  };
+
   const remove = async (postId: string) => {
-    // eslint-disable-next-line no-alert
-    if (!window.confirm('Delete this post?')) return;
+    const ok = await confirm({
+      title: 'Delete this slip?',
+      message: 'It will be removed from the feed for everyone.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/posts/${postId}`);
       setPosts((prev) => prev.filter((p) => p.id !== postId));
@@ -68,6 +86,7 @@ export default function Feed() {
 
   return (
     <div className="space-y-4">
+      {confirmDialog}
       {error && (
         <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {error}
@@ -96,6 +115,7 @@ export default function Feed() {
           currentUserId={profile?.id}
           onSettle={settle}
           onDelete={remove}
+          onTail={tail}
         />
       ))}
 
