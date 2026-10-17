@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import useMeta from '../lib/useMeta';
 import useStickyTop from '../lib/useStickyTop';
+import { inSiteZone } from '../../shared/time';
 import { PAGE_GRID, SIDE_COLUMN } from '../lib/layout';
 import {
   netColor,
@@ -332,10 +333,10 @@ export default function Profile() {
   const sportTitle = (key: string) =>
     meta?.sports.find((s) => s.key === key)?.title ?? key;
   const hasSettled = settledCount(overall) > 0;
-  const joined = new Date(user.createdAt).toLocaleDateString('en-US', {
-    month: 'short',
-    year: 'numeric',
-  });
+  const joined = new Date(user.createdAt).toLocaleDateString(
+    'en-US',
+    inSiteZone({ month: 'short', year: 'numeric' })
+  );
   // Multi-league parlays sit out of the league cards; say so when it shows
   const leagueBets = stats.bySport.reduce(
     (n, s) => n + settledCount(s.line) + s.line.pending,

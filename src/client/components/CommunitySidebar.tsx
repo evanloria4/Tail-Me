@@ -2,12 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api, { apiErrorMessage } from '../lib/api';
 import { netColor, record, signedUnits } from '../lib/statFormat';
-import { CommunityStats, DayTotal, dayKey } from '../../shared/community';
+import { CommunityStats, DayTotal } from '../../shared/community';
+import { siteDayKey } from '../../shared/time';
 
 // Feed side column: who's hot, the week's leaderboard, and a month calendar
 // of the group's green and red days.
-
-const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /** Top earners shown (the server sends at most this many too) */
 const LEADERS = 3;
@@ -92,7 +91,8 @@ function Calendar({
   const firstWeekday = new Date(y, m - 1, 1).getDay();
   const daysInMonth = new Date(y, m, 0).getDate();
   const byDay = new Map(days.map((d) => [d.day, d]));
-  const today = dayKey(new Date(), TIME_ZONE);
+  // Central, like every day on the site; the grid itself is plain calendar math
+  const today = siteDayKey(new Date());
   const thisMonth = today.slice(0, 7);
   const title = new Date(y, m - 1, 1).toLocaleDateString('en-US', {
     month: 'long',
@@ -262,7 +262,7 @@ export default function CommunitySidebar({
   useEffect(() => {
     api
       .get<CommunityStats>('/community', {
-        params: { tz: TIME_ZONE, month: month ?? undefined },
+        params: { month: month ?? undefined },
       })
       .then(({ data: body }) => {
         setData(body);

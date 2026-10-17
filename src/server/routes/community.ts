@@ -2,12 +2,8 @@ import { Router } from 'express';
 import prisma from '../db';
 import { requireAuth } from '../middleware/auth';
 import { isHot } from '../../shared/badges';
-import {
-  CommunityStats,
-  dailyTotals,
-  dayKey,
-  isTimeZone,
-} from '../../shared/community';
+import { CommunityStats, dailyTotals } from '../../shared/community';
+import { siteDayKey } from '../../shared/time';
 import {
   currentStreak,
   isPersonalType,
@@ -22,16 +18,15 @@ const router = Router();
 const LEADERS = 3;
 
 /**
- * Feed side column. `?tz=<IANA zone>` buckets days the way the viewer sees
- * them; `?month=YYYY-MM` picks the calendar month (default: this month).
+ * Feed side column. Days are Central time like the rest of the site;
+ * `?month=YYYY-MM` picks the calendar month (default: this month).
  * Worked out from every settled bet in memory; fine at friend-group scale.
  */
 router.get('/', requireAuth, async (req, res) => {
-  const tz = isTimeZone(req.query.tz) ? req.query.tz : 'UTC';
   const month =
     typeof req.query.month === 'string' && /^\d{4}-\d{2}$/.test(req.query.month)
       ? req.query.month
-      : dayKey(new Date(), tz).slice(0, 7);
+      : siteDayKey(new Date()).slice(0, 7);
 
   const [users, rows, groupLegs] = await Promise.all([
     prisma.user.findMany({
@@ -99,7 +94,7 @@ router.get('/', requireAuth, async (req, res) => {
       .sort((a, b) => b.week.net - a.week.net)
       .slice(0, LEADERS)
       .map((u) => ({ ...u.user, line: u.week })),
-    days: dailyTotals(bets, tz).filter((d) => d.day.startsWith(month)),
+    days: dailyTotals(bets).filter((d) => d.day.startsWith(month)),
     month,
     group: {
       wins: groupResults.filter((r) => r === 'WON').length,

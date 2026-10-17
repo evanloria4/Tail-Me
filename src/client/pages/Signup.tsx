@@ -70,7 +70,7 @@ export default function Signup() {
 
   if (!passcodeOk) {
     return (
-      <AuthLayout title="Join Tail Me" subtitle="Enter the group passcode">
+      <AuthLayout title="Join TailMe" subtitle="Enter the group passcode">
         <form onSubmit={checkPasscode}>
           <FormError message={error} />
           <Field

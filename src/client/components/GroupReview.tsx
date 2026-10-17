@@ -8,6 +8,7 @@ import {
   joinGroupSchema,
 } from '../../shared/posts';
 import { inputClass } from './ComposerParts';
+import { fromSiteInput, toSiteInput } from '../../shared/time';
 
 // Last step of the picker for group parlays: start one with your leg and a
 // deadline, or add your leg to a friend's.
@@ -25,14 +26,6 @@ export type JoinTarget = { postId: string; game: GroupGame | null };
 export type GroupMode = { kind: 'start' } | ({ kind: 'join' } & JoinTarget);
 
 export type PostedKind = 'slip' | 'group' | 'leg';
-
-/** <input type="datetime-local"> value for a Date, in local time */
-function localInput(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
-}
 
 /** Lock at your game's start when it's far enough off, else in three hours */
 function defaultDeadline(sel: Selection): Date {
@@ -59,7 +52,7 @@ export default function GroupReview({
   onPosted: (kind: PostedKind) => void;
 }) {
   const [lockAt, setLockAt] = useState(() =>
-    localInput(defaultDeadline(selection))
+    toSiteInput(defaultDeadline(selection))
   );
   const [caption, setCaption] = useState('');
   const [gameOnly, setGameOnly] = useState(false);
@@ -75,8 +68,9 @@ export default function GroupReview({
     const leg = toLeg(selection);
     try {
       if (mode.kind === 'start') {
-        const deadline = new Date(lockAt);
-        if (Number.isNaN(deadline.getTime()) || deadline <= new Date()) {
+        // The input is Central wall-clock time, like everything on the site
+        const deadline = fromSiteInput(lockAt);
+        if (!deadline || deadline <= new Date()) {
           setError('Pick a deadline in the future');
           return;
         }
@@ -178,15 +172,15 @@ export default function GroupReview({
             </label>
             <label htmlFor="group-lock" className="block">
               <span className="mb-1 block text-xs font-medium text-gray-400">
-                Lock by
+                Lock by (Central time)
               </span>
               <input
                 id="group-lock"
                 type="datetime-local"
                 required
                 value={lockAt}
-                min={localInput(now)}
-                max={localInput(latest)}
+                min={toSiteInput(now)}
+                max={toSiteInput(latest)}
                 onChange={(e) => setLockAt(e.target.value)}
                 className={inputClass}
               />

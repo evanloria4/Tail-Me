@@ -1,4 +1,5 @@
 import React from 'react';
+import Logo from './Logo';
 
 export function AuthLayout({
   title,
@@ -10,7 +11,9 @@ export function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-950 px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-950 px-4 py-10">
+      {/* Links back to the landing page */}
+      <Logo />
       <div className="w-full max-w-sm rounded-2xl border border-gray-800 bg-gray-900 p-8 shadow-xl">
         <h1 className="text-2xl font-bold text-white">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-gray-400">{subtitle}</p>}

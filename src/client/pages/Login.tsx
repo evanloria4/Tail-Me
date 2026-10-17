@@ -36,7 +36,7 @@ export default function Login() {
   };
 
   return (
-    <AuthLayout title="Tail Me" subtitle="Sign in to see the slips">
+    <AuthLayout title="Welcome back" subtitle="Sign in to see the slips">
       <form onSubmit={onSubmit}>
         <FormError message={error} />
         <Field

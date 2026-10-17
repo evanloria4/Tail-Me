@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import useTheme from '../lib/theme';
+import Logo from './Logo';
 import PostComposer from './PostComposer';
 import type { JoinTarget, PostedKind } from './GroupReview';
 import { useToast } from './Toast';
@@ -174,14 +175,7 @@ export default function AppLayout() {
         className="sticky top-0 z-20 border-b border-gray-800 bg-gray-950/90 backdrop-blur"
       >
         <div className="flex h-16 items-center px-5 sm:px-8 lg:px-16 xl:px-24">
-          <Link
-            to="/"
-            // Light mode sets the dark-mode wordmark in a dark chip; the
-            // literal colors keep it identical in both themes
-            className="rounded-lg bg-[#111827] px-3 pb-1.5 pt-1 text-2xl font-extrabold tracking-tight text-[#fff] sm:text-3xl dark:bg-transparent dark:p-0"
-          >
-            Tail<span className="text-[#34d399]">Me</span>
-          </Link>
+          <Logo />
 
           <div className="ml-auto hidden items-center gap-8 md:flex">
             <nav className="flex items-center gap-8">

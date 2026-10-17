@@ -1,3 +1,5 @@
+import { inSiteZone, SITE_ZONE_LABEL, siteDayDiff } from '../../shared/time';
+
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['day', 86400],
   ['hour', 3600],
@@ -10,10 +12,10 @@ const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 export default function timeAgo(iso: string): string {
   const seconds = (new Date(iso).getTime() - Date.now()) / 1000;
   if (Math.abs(seconds) > 7 * 86400) {
-    return new Date(iso).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
+    return new Date(iso).toLocaleDateString(
+      'en-US',
+      inSiteZone({ month: 'short', day: 'numeric' })
+    );
   }
   const match = UNITS.find(([, secs]) => Math.abs(seconds) >= secs);
   return match
@@ -21,21 +23,31 @@ export default function timeAgo(iso: string): string {
     : 'just now';
 }
 
-/** "Today 7:30 PM", "Tomorrow 1:00 PM", "Sun 1:00 PM", or "Oct 24, 1:00 PM" */
+/**
+ * When something happens, in Central: "Today 7:30 PM CT", "Tomorrow 1:00 PM CT",
+ * "Sun 1:00 PM CT", or "Oct 24, 1:00 PM CT"
+ */
 export function lockTime(iso: string, now = new Date()): string {
   const at = new Date(iso);
-  const time = at.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-  const dayStart = (d: Date) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((dayStart(at) - dayStart(now)) / 86400_000);
+  const clock = at.toLocaleTimeString(
+    'en-US',
+    inSiteZone({ hour: 'numeric', minute: '2-digit' })
+  );
+  const time = `${clock} ${SITE_ZONE_LABEL}`;
+  const days = siteDayDiff(at, now);
   if (days === 0) return `Today ${time}`;
   if (days === 1) return `Tomorrow ${time}`;
   if (days === -1) return `Yesterday ${time}`;
   if (Math.abs(days) < 7) {
-    return `${at.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`;
+    const weekday = at.toLocaleDateString(
+      'en-US',
+      inSiteZone({ weekday: 'short' })
+    );
+    return `${weekday} ${time}`;
   }
-  return `${at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`;
+  const date = at.toLocaleDateString(
+    'en-US',
+    inSiteZone({ month: 'short', day: 'numeric' })
+  );
+  return `${date}, ${time}`;
 }

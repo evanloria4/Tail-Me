@@ -30,6 +30,7 @@ import {
 } from '../../shared/markets';
 import { createPostSchema } from '../../shared/posts';
 import { inputClass } from './ComposerParts';
+import { inSiteZone, SITE_ZONE_LABEL } from '../../shared/time';
 import GroupReview, { GroupMode, PostedKind } from './GroupReview';
 
 // Sportsbook-style bet picker: choose a league, tap prices to build a
@@ -57,11 +58,11 @@ const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 function gameTime(iso: string) {
   const d = new Date(iso);
   if (d.getTime() <= Date.now()) return 'Live';
-  return d.toLocaleString([], {
-    weekday: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  const when = d.toLocaleString(
+    'en-US',
+    inSiteZone({ weekday: 'short', hour: 'numeric', minute: '2-digit' })
+  );
+  return `${when} ${SITE_ZONE_LABEL}`;
 }
 
 // ---------- Small pieces ----------

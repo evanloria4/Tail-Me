@@ -1,33 +1,9 @@
 import type { PersonRef } from './social';
 import { betNet, StatBet, StatLine, Streak } from './stats';
+import { siteDayKey } from './time';
 
 // The feed's side column: who's hot, the weekly leaderboard, and the
-// community's green/red days.
-
-/** "YYYY-MM-DD" for an instant in a time zone (falls back to UTC) */
-export function dayKey(date: Date, timeZone: string): string {
-  try {
-    // en-CA formats as YYYY-MM-DD
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(date);
-  } catch {
-    return date.toISOString().slice(0, 10);
-  }
-}
-
-export const isTimeZone = (tz: unknown): tz is string => {
-  if (typeof tz !== 'string' || !tz) return false;
-  try {
-    Intl.DateTimeFormat('en-US', { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-};
+// community's green/red days (Central time, like the rest of the site).
 
 export type DayTotal = {
   /** YYYY-MM-DD */
@@ -38,15 +14,14 @@ export type DayTotal = {
   bets: number;
 };
 
-/** Net units per day (by post date) for every day with a settled bet */
+/** Net units per Central day (by post date) for every day with a settled bet */
 export function dailyTotals(
-  bets: Pick<StatBet, 'createdAt' | 'units' | 'decimalOdds' | 'result'>[],
-  timeZone: string
+  bets: Pick<StatBet, 'createdAt' | 'units' | 'decimalOdds' | 'result'>[]
 ): DayTotal[] {
   const days = new Map<string, DayTotal>();
   bets.forEach((b) => {
     if (b.result === 'PENDING' || b.result === 'VOID') return;
-    const day = dayKey(b.createdAt, timeZone);
+    const day = siteDayKey(b.createdAt);
     const total = days.get(day) ?? { day, net: 0, bets: 0 };
     total.net += betNet(b);
     total.bets += 1;
