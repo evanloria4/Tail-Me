@@ -9,8 +9,15 @@ import { CommunityStats, DayTotal, dayKey } from '../../shared/community';
 
 const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-/** Top-3 earners, in place order (the server sends at most three) */
-const MEDALS = ['🥇', '🥈', '🥉'];
+/** Top earners shown (the server sends at most this many too) */
+const LEADERS = 3;
+
+/** Gold, silver, bronze rank badges; solid fills read in both themes */
+const RANK_STYLES = [
+  'bg-yellow-300 text-gray-950 shadow-[0_0_0_3px] shadow-yellow-300/25',
+  'bg-gray-300 text-gray-950 shadow-[0_0_0_3px] shadow-gray-300/25',
+  'bg-orange-400 text-gray-950 shadow-[0_0_0_3px] shadow-orange-400/25',
+];
 
 /** A day this far up or down (in units) gets the strong shade */
 const BIG_DAY_UNITS = 3;
@@ -232,18 +239,17 @@ export default function CommunitySidebar({
       <Panel title="Top earners this week">
         {data.leaders.length ? (
           <ol className="divide-y divide-gray-800">
-            {data.leaders.map((u, i) => (
+            {data.leaders.slice(0, LEADERS).map((u, i) => (
               <li key={u.id}>
                 <Link
                   to={`/u/${u.username}`}
                   className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition hover:bg-gray-800"
                 >
                   <span
-                    role="img"
                     aria-label={`${i + 1}${['st', 'nd', 'rd'][i]} place`}
-                    className="w-5 flex-none text-base leading-none"
+                    className={`flex h-6 w-6 flex-none items-center justify-center rounded-full text-xs font-extrabold tabular-nums ${RANK_STYLES[i]}`}
                   >
-                    {MEDALS[i]}
+                    {i + 1}
                   </span>
                   <span className="min-w-0 flex-1 truncate font-medium">
                     {u.fullName}
