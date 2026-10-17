@@ -33,6 +33,7 @@ import {
   groupLocked,
   GroupSlip,
 } from './GroupParlay';
+import SlipMenu from './SlipMenu';
 
 /** Where Tail lands when a pick has no add-to-betslip link (typed-in slips) */
 const BOOK_HOMEPAGES: Record<string, string> = {
@@ -205,6 +206,7 @@ export default function PostCard({
   onDelete,
   onTail,
   onReact,
+  onMoveSeries,
   groupHandlers,
 }: {
   post: FeedPost;
@@ -213,6 +215,7 @@ export default function PostCard({
   onDelete: (postId: string) => void;
   onTail: (postId: string) => void;
   onReact: (postId: string, emoji: ReactionEmoji) => void;
+  onMoveSeries: (postId: string, seriesId: string | null) => void;
   groupHandlers: GroupHandlers;
 }) {
   const isAuthor = post.author.id === currentUserId;
@@ -281,7 +284,25 @@ export default function PostCard({
           </p>
         </div>
         <CrowdChip badges={badges} />
+        {isAuthor && (
+          <SlipMenu
+            post={post}
+            onMove={(seriesId) => onMoveSeries(post.id, seriesId)}
+            onDelete={() => onDelete(post.id)}
+          />
+        )}
       </header>
+
+      {post.series && (
+        <div className="px-4 pt-3">
+          <Link
+            to={`/u/${post.author.username}/s/${post.series.id}`}
+            className="inline-flex items-center gap-1 rounded-full border border-gray-700 px-2.5 py-0.5 text-xs font-semibold text-gray-300 transition hover:border-emerald-500 hover:text-emerald-400"
+          >
+            📚 {post.series.name}
+          </Link>
+        </div>
+      )}
 
       {post.caption && (
         <p className="whitespace-pre-wrap px-4 pt-3 text-gray-200">
@@ -466,11 +487,7 @@ export default function PostCard({
       <footer className="space-y-3 px-4 pb-4 text-sm text-gray-500">
         {/* eslint-disable-next-line no-nested-ternary */}
         {isGroup && !locked ? (
-          <GroupActions
-            post={post}
-            handlers={groupHandlers}
-            onDelete={onDelete}
-          />
+          <GroupActions post={post} handlers={groupHandlers} />
         ) : canTail ? (
           <TailSection
             post={post}
@@ -480,18 +497,8 @@ export default function PostCard({
             {tailCount}
           </TailSection>
         ) : (
-          <div className="flex items-center justify-between">
-            {tailCount}
-            {isAuthor && (
-              <button
-                type="button"
-                onClick={() => onDelete(post.id)}
-                className="text-gray-500 hover:text-red-400"
-              >
-                Delete
-              </button>
-            )}
-          </div>
+          // Deleting lives in the author's ⋯ menu up top
+          <div className="flex items-center">{tailCount}</div>
         )}
 
         <div className="flex items-center justify-between gap-2 border-t border-gray-800 pt-3">

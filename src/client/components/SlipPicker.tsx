@@ -32,6 +32,7 @@ import { createPostSchema } from '../../shared/posts';
 import { inputClass } from './ComposerParts';
 import { inSiteZone, SITE_ZONE_LABEL } from '../../shared/time';
 import GroupReview, { GroupMode, PostedKind } from './GroupReview';
+import SeriesPicker from './SeriesPicker';
 
 // Sportsbook-style bet picker: choose a league, tap prices to build a
 // slip, then review and post. Prices, lines and add-to-betslip links all come
@@ -676,6 +677,7 @@ export default function SlipPicker({
   const [rungUnits, setRungUnits] = useState<Record<string, string>>({});
   const [slipOdds, setSlipOdds] = useState('');
   const [caption, setCaption] = useState('');
+  const [seriesId, setSeriesId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -748,6 +750,7 @@ export default function SlipPicker({
       ),
       slipOdds: sameGame ? sgp : undefined,
       caption: caption.trim(),
+      seriesId,
     });
     const parsed = createPostSchema.safeParse(input);
     if (!parsed.success) {
@@ -917,6 +920,8 @@ export default function SlipPicker({
               Enter the price your slip shows to post it exactly.
             </p>
           )}
+
+          <SeriesPicker value={seriesId} onChange={setSeriesId} />
 
           <label htmlFor="slip-caption" className="block">
             <span className="mb-1 block text-xs font-medium text-gray-400">

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BetResult,
   createPostSchema,
+  deleteRule,
   describeLeg,
   groupResult,
   hasBookPrice,
@@ -198,5 +200,50 @@ describe('isSameGameLegs', () => {
     expect(isSameGameLegs([a, a])).toBe(true);
     expect(isSameGameLegs([a])).toBe(false);
     expect(isSameGameLegs([a, { eventLabel: 'Jets @ Pats' }])).toBe(false);
+  });
+});
+
+describe('deleteRule', () => {
+  const now = new Date('2026-10-17T18:00:00Z');
+  const minsAgo = (m: number) => new Date(now.getTime() - m * 60_000);
+  const slip = (
+    results: BetResult[],
+    postedMinsAgo: number,
+    extra: Partial<Parameters<typeof deleteRule>[0]> = {}
+  ) => ({
+    createdAt: minsAgo(postedMinsAgo),
+    type: 'STRAIGHT' as const,
+    group: null,
+    bets: results.map((result) => ({ result })),
+    ...extra,
+  });
+
+  it('hides settled slips, which keep counting', () => {
+    expect(deleteRule(slip(['LOST'], 600), now)).toBe('hide');
+    expect(deleteRule(slip(['WON', 'LOST'], 1), now)).toBe('hide');
+  });
+
+  it('removes an unsettled slip posted by mistake, blocks it after', () => {
+    expect(deleteRule(slip(['PENDING'], 5), now)).toBe('remove');
+    expect(deleteRule(slip(['PENDING'], 20), now)).toBe('blocked');
+    // A ladder with one open rung is still unsettled
+    expect(deleteRule(slip(['WON', 'PENDING'], 60), now)).toBe('blocked');
+  });
+
+  it('removes a group parlay freely until it locks', () => {
+    const open = { lockAt: new Date(now.getTime() + 3600e3), lockedAt: null };
+    const locked = { lockAt: minsAgo(30), lockedAt: null };
+    expect(
+      deleteRule(
+        slip(['PENDING'], 600, { type: 'GROUP_PARLAY', group: open }),
+        now
+      )
+    ).toBe('remove');
+    expect(
+      deleteRule(
+        slip(['PENDING'], 600, { type: 'GROUP_PARLAY', group: locked }),
+        now
+      )
+    ).toBe('blocked');
   });
 });

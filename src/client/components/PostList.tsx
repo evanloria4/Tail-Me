@@ -4,6 +4,7 @@ import api, { apiErrorMessage } from '../lib/api';
 import PostCard from './PostCard';
 import type { GroupHandlers } from './GroupParlay';
 import useConfirm from './ConfirmDialog';
+import { DELETE_GRACE_MINUTES, deleteRule } from '../../shared/posts';
 import type { BetResult, FeedPost } from '../../shared/posts';
 import type { StatRange } from '../../shared/stats';
 import { REACTION_EMOJIS } from '../../shared/social';
@@ -36,12 +37,15 @@ function toggleReaction(
  */
 export default function PostList({
   author,
+  series,
   range,
   reloadKey,
   empty,
   onChange,
 }: {
   author?: string;
+  /** One series' slips */
+  series?: string;
   range?: StatRange;
   /** Change it to reload from the top (e.g. after a new post) */
   reloadKey?: unknown;
@@ -60,7 +64,7 @@ export default function PostList({
       setLoading(true);
       try {
         const { data } = await api.get<FeedPage>('/posts', {
-          params: { cursor: after, author, range },
+          params: { cursor: after, author, range, series },
         });
         setPosts((prev) => (after ? [...prev, ...data.posts] : data.posts));
         setCursor(data.nextCursor);
@@ -71,7 +75,7 @@ export default function PostList({
         setLoading(false);
       }
     },
-    [author, range]
+    [author, range, series]
   );
 
   useEffect(() => {
@@ -145,10 +149,27 @@ export default function PostList({
     }
   };
 
+  // Says up front what deleting does to the record (see deleteRule), so
+  // nobody deletes a loser expecting it to vanish from their stats
   const remove = async (postId: string) => {
+    const post = posts.find((p) => p.id === postId);
+    if (!post) return;
+    const rule = deleteRule(post);
+    if (rule === 'blocked') {
+      await confirm({
+        title: 'Settle it first',
+        message: `Slips with open bets can only be deleted within ${DELETE_GRACE_MINUTES} minutes of posting. Mark the result, then you can delete it. It will still count toward your record.`,
+        confirmLabel: 'Got it',
+        alert: true,
+      });
+      return;
+    }
     const ok = await confirm({
       title: 'Delete this slip?',
-      message: 'It will be removed from the feed for everyone.',
+      message:
+        rule === 'hide'
+          ? 'It comes off the feed for everyone, but it still counts toward your record. Deleting a slip never changes your wins, losses or units.'
+          : 'It comes off the feed for everyone and won’t count toward your record, since it hasn’t been settled yet.',
       confirmLabel: 'Delete',
       danger: true,
     });
@@ -164,6 +185,23 @@ export default function PostList({
 
   const replacePost = (data: FeedPost) =>
     setPosts((prev) => prev.map((p) => (p.id === data.id ? data : p)));
+
+  const moveSeries = async (postId: string, seriesId: string | null) => {
+    try {
+      const { data } = await api.put<FeedPost>(`/posts/${postId}/series`, {
+        seriesId,
+      });
+      // On a series page, a slip moved out of it leaves the list
+      if (series && data.series?.id !== series) {
+        setPosts((prev) => prev.filter((p) => p.id !== postId));
+      } else {
+        replacePost(data);
+      }
+      onChange?.();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not move the slip'));
+    }
+  };
 
   const groupHandlers: GroupHandlers = {
     settleLeg: async (postId, legId, result) => {
@@ -253,6 +291,7 @@ export default function PostList({
           onDelete={remove}
           onTail={tail}
           onReact={react}
+          onMoveSeries={moveSeries}
           groupHandlers={groupHandlers}
         />
       ))}

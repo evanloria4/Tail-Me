@@ -337,11 +337,9 @@ const actionClass =
 export function GroupActions({
   post,
   handlers,
-  onDelete,
 }: {
   post: FeedPost;
   handlers: GroupHandlers;
-  onDelete: (postId: string) => void;
 }) {
   const { profile, isSubscribed } = useAuth();
   const { openComposer } = useLayout();
@@ -381,18 +379,6 @@ export function GroupActions({
     <div className="flex flex-wrap items-center justify-between gap-3">
       <span>
         {count} {count === 1 ? 'leg' : 'legs'} in
-        {isCreator && (
-          <>
-            {' · '}
-            <button
-              type="button"
-              onClick={() => onDelete(post.id)}
-              className="hover:text-red-400"
-            >
-              Delete
-            </button>
-          </>
-        )}
       </span>
       <div className="flex items-center gap-2">
         {isCreator && (

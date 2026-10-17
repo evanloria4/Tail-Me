@@ -64,7 +64,7 @@ export function CrowdChip({ badges }: { badges: SlipBadge[] }) {
 }
 
 /** Closes a popover on Escape or a click outside `ref` */
-function useDismiss(
+export function useDismiss(
   open: boolean,
   close: () => void,
   ref: React.RefObject<HTMLElement | null>

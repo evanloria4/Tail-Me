@@ -13,6 +13,8 @@ import {
   BetResult,
   createPostSchema,
   CreatePostInput,
+  DELETE_GRACE_MINUTES,
+  deleteRule,
   GROUP_MAX_LEGS,
   GROUP_MAX_LOCK_DAYS,
   groupPriceSchema,
@@ -21,6 +23,7 @@ import {
   joinGroupSchema,
   LegInput,
 } from '../../shared/posts';
+import { postSeriesSchema } from '../../shared/series';
 import { isStatRange, rangeStart } from '../../shared/stats';
 
 const router = Router();
@@ -142,16 +145,20 @@ async function knownEvents(ids: string[]): Promise<KnownEvents> {
   return new Set(rows.map((e) => e.id));
 }
 
+const ownsSeries = async (ownerId: string, seriesId: string) =>
+  (await prisma.series.count({ where: { id: seriesId, ownerId } })) > 0;
+
 /** Prisma unique-constraint violation */
 const isUniqueViolation = (err: unknown) =>
   err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
 
 /**
  * Feed: everyone's posts, newest first. `?cursor=<last post id>` for the next
- * page, `?author=<username>` for one user's slips, `?range=7d|30d|all`.
+ * page, `?author=<username>` for one user's slips, `?series=<id>` for one
+ * series, `?range=7d|30d|all`.
  */
 router.get('/', requireAuth, async (req, res) => {
-  const { cursor, author, range } = req.query;
+  const { cursor, author, range, series } = req.query;
   const since = isStatRange(range) ? rangeStart(range) : null;
   const posts = await prisma.post.findMany({
     where: {
@@ -160,6 +167,7 @@ router.get('/', requireAuth, async (req, res) => {
         author: { username: { equals: author, mode: 'insensitive' } },
       }),
       ...(since && { createdAt: { gte: since } }),
+      ...(typeof series === 'string' && { seriesId: series }),
     },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: PAGE_SIZE + 1,
@@ -228,6 +236,13 @@ router.post('/', requireAuth, requireSubscription, async (req, res) => {
     }
   }
 
+  // A series has to be one of the poster's own
+  const seriesId = input.type === 'GROUP_PARLAY' ? undefined : input.seriesId;
+  if (seriesId && !(await ownsSeries(req.user!.id, seriesId))) {
+    res.status(400).json({ error: 'Unknown series' });
+    return;
+  }
+
   const events = await knownEvents(eventIdsOf(picks));
   const post = await prisma.post.create({
     data: {
@@ -237,6 +252,7 @@ router.post('/', requireAuth, requireSubscription, async (req, res) => {
       sportsbookId: sportsbook.id,
       lockAt,
       ...groupGame,
+      seriesId: seriesId ?? null,
       bets: { create: betsData(input, events, req.user!.id) },
     },
     include: feedInclude(req.user!.id),
@@ -610,14 +626,81 @@ router.patch<{ legId: string }>(
   }
 );
 
+/** File one of your slips under one of your series, or take it out */
+router.put<{ postId: string }>(
+  '/:postId/series',
+  requireAuth,
+  async (req, res) => {
+    const parsed = postSeriesSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid series' });
+      return;
+    }
+    const userId = req.user!.id;
+    const post = await prisma.post.findFirst({
+      where: { id: req.params.postId, deletedAt: null, authorId: userId },
+      select: { id: true, type: true },
+    });
+    if (!post) {
+      res.status(404).json({ error: 'Post not found' });
+      return;
+    }
+    if (post.type === 'GROUP_PARLAY') {
+      res.status(400).json({ error: 'Group parlays can’t go in a series' });
+      return;
+    }
+    const { seriesId } = parsed.data;
+    if (seriesId && !(await ownsSeries(userId, seriesId))) {
+      res.status(400).json({ error: 'Unknown series' });
+      return;
+    }
+    await prisma.post.update({ where: { id: post.id }, data: { seriesId } });
+    res.json(await loadFeedPost(post.id, userId));
+  }
+);
+
+/**
+ * Delete your slip (see deleteRule): a settled slip is hidden but keeps
+ * counting toward records; one posted by mistake (unsettled, within the
+ * grace window) or an unlocked group parlay is removed entirely; anything
+ * else has to be settled first.
+ */
 router.delete<{ postId: string }>('/:postId', requireAuth, async (req, res) => {
-  const { count } = await prisma.post.updateMany({
+  const post = await prisma.post.findFirst({
     where: { id: req.params.postId, authorId: req.user!.id, deletedAt: null },
-    data: { deletedAt: new Date() },
+    select: {
+      id: true,
+      type: true,
+      createdAt: true,
+      lockAt: true,
+      lockedAt: true,
+      bets: { select: { result: true } },
+    },
   });
-  if (!count) {
+  if (!post) {
     res.status(404).json({ error: 'Post not found' });
     return;
+  }
+  const rule = deleteRule({
+    ...post,
+    group:
+      post.type === 'GROUP_PARLAY' && post.lockAt
+        ? { lockAt: post.lockAt, lockedAt: post.lockedAt }
+        : null,
+  });
+  if (rule === 'blocked') {
+    res.status(400).json({
+      error: `Settle it first. Unsettled slips can only be deleted within ${DELETE_GRACE_MINUTES} minutes of posting.`,
+    });
+    return;
+  }
+  if (rule === 'remove') {
+    await prisma.post.delete({ where: { id: post.id } });
+  } else {
+    await prisma.post.update({
+      where: { id: post.id },
+      data: { deletedAt: new Date() },
+    });
   }
   res.status(204).end();
 });

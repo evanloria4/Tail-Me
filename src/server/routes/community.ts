@@ -33,7 +33,8 @@ router.get('/', requireAuth, async (req, res) => {
       select: { id: true, username: true, fullName: true },
     }),
     prisma.bet.findMany({
-      where: { post: { deletedAt: null }, result: { not: 'VOID' } },
+      // Deleted slips still count toward records and the calendar
+      where: { result: { not: 'VOID' } },
       select: {
         order: true,
         units: true,
@@ -44,7 +45,7 @@ router.get('/', requireAuth, async (req, res) => {
     }),
     prisma.betLeg.findMany({
       where: {
-        bet: { post: { deletedAt: null, type: 'GROUP_PARLAY' } },
+        bet: { post: { type: 'GROUP_PARLAY' } },
         addedById: { not: null },
         result: { in: ['WON', 'LOST'] },
       },

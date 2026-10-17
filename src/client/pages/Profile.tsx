@@ -16,6 +16,8 @@ import {
 } from '../lib/statFormat';
 import { useLayout } from '../components/AppLayout';
 import PostList from '../components/PostList';
+import SeriesPanel from '../components/SeriesPanel';
+import StatTile from '../components/StatTile';
 import {
   POST_TYPES,
   PostType,
@@ -57,28 +59,6 @@ const FORM_STYLES: Record<SettledResult, string> = {
 };
 
 // ---------- Pieces ----------
-
-function Tile({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: React.ReactNode;
-  sub?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-bold tabular-nums leading-tight">
-        {value}
-      </p>
-      {sub && <p className="mt-0.5 text-xs text-gray-400">{sub}</p>}
-    </div>
-  );
-}
 
 /** Dot beside a row: green up, red down, grey flat or unsettled */
 const dotColor = (l: StatLine) => {
@@ -422,14 +402,14 @@ export default function Profile() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Tile
+            <StatTile
               label="Record"
               value={hasSettled ? record(overall) : '–'}
               sub={
                 hasSettled ? `${pct(winPct(overall))} wins` : 'No settled bets'
               }
             />
-            <Tile
+            <StatTile
               label="Units"
               value={
                 <span className={netColor(overall.net)}>
@@ -438,14 +418,14 @@ export default function Profile() {
               }
               sub={`${pct(overall.roi, true)} ROI`}
             />
-            <Tile
+            <StatTile
               label="Streak"
               value={streakValue}
               sub={
                 stats.bestWinStreak ? `Best W${stats.bestWinStreak}` : undefined
               }
             />
-            <Tile
+            <StatTile
               label="Tailed"
               value={tails.received}
               sub={`by ${tails.tailers} ${tails.tailers === 1 ? 'person' : 'people'}`}
@@ -461,6 +441,12 @@ export default function Profile() {
         style={{ top: side.top }}
         className={`${SIDE_COLUMN} grid content-start gap-3 sm:grid-cols-2 lg:row-span-2 lg:row-start-1 lg:grid-cols-1`}
       >
+        <SeriesPanel
+          username={user.username}
+          isOwner={isMe}
+          reloadKey={feedVersion}
+        />
+
         <StatPanel title="By bet type">
           {POST_TYPES.map((t) => (
             <StatRow key={t} label={TYPE_LABELS[t]} line={stats.byType[t]} />

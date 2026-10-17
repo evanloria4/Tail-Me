@@ -101,9 +101,15 @@ export function buildPost(opts: {
   rungUnits: Record<string, number>;
   slipOdds?: number;
   caption?: string;
+  /** One of the poster's series, or null for none */
+  seriesId?: string | null;
 }): CreatePostInput {
   const { mode, selections, sportsbookKey } = opts;
-  const base = { sportsbookKey, caption: opts.caption || undefined };
+  const base = {
+    sportsbookKey,
+    caption: opts.caption || undefined,
+    seriesId: opts.seriesId ?? undefined,
+  };
   if (mode === 'STRAIGHT') {
     return {
       ...base,

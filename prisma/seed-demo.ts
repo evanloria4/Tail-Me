@@ -669,8 +669,24 @@ async function main() {
 
   const groups = await seedGroupParlays(bookId.get('fanduel')!, userId, now);
 
+  // Jordan files every ladder under a series
+  const jordan = userId.get('jpace')!;
+  const series = await prisma.series.upsert({
+    where: { ownerId_name: { ownerId: jordan, name: 'Ladder Szn' } },
+    update: {},
+    create: {
+      ownerId: jordan,
+      name: 'Ladder Szn',
+      description: 'One prop, every rung. Posted every week.',
+    },
+  });
+  const { count: inSeries } = await prisma.post.updateMany({
+    where: { authorId: jordan, type: 'LADDER' },
+    data: { seriesId: series.id },
+  });
+
   console.log(
-    `Seeded ${USERS.length} demo users, ${created.length} posts, ${groups} group parlays, ${tails.length} tails, ${comments.length} comments, ${reactions.length} reactions`
+    `Seeded ${USERS.length} demo users, ${created.length} posts, ${groups} group parlays, 1 series (${inSeries} slips), ${tails.length} tails, ${comments.length} comments, ${reactions.length} reactions`
   );
 }
 

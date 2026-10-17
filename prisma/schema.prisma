@@ -43,6 +43,7 @@ model User {
   reactions    Reaction[]
   commentVotes CommentVote[]
   groupLegs    BetLeg[]
+  series       Series[]
 }
 
 // ---------- Reference data (mirrors The Odds API) ----------
@@ -136,15 +137,34 @@ model Post {
   groupEventLabel String?
   /// Group parlays: when the creator locked it early
   lockedAt        DateTime?
+  /// The author's series this slip is filed under, if any (personal slips only)
+  seriesId        String?
 
   author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   sportsbook Sportsbook @relation(fields: [sportsbookId], references: [id])
+  series     Series?    @relation(fields: [seriesId], references: [id], onDelete: SetNull)
   bets       Bet[]
   comments   Comment[]
   reactions  Reaction[]
 
   @@index([createdAt])
   @@index([authorId, createdAt])
+  @@index([seriesId, createdAt])
+}
+
+/// A named run of slips a user posts under, e.g. "CharLadder". Followable later.
+model Series {
+  id          String   @id @default(cuid())
+  ownerId     String   @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  posts Post[]
+
+  @@unique([ownerId, name])
 }
 
 /// A single slip. Straight/parlay posts have one; ladder posts have one per rung.

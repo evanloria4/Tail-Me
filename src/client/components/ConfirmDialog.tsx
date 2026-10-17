@@ -12,6 +12,8 @@ export type ConfirmOptions = {
   cancelLabel?: string;
   /** Red confirm button for destructive actions */
   danger?: boolean;
+  /** Just a notice: one button, no Cancel */
+  alert?: boolean;
 };
 
 function ConfirmDialog({
@@ -20,6 +22,7 @@ function ConfirmDialog({
   confirmLabel,
   cancelLabel = 'Cancel',
   danger,
+  alert,
   onDone,
 }: ConfirmOptions & { onDone: (confirmed: boolean) => void }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -52,18 +55,22 @@ function ConfirmDialog({
         <h2 className="text-lg font-bold">{title}</h2>
         {message && <p className="mt-1.5 text-sm text-gray-400">{message}</p>}
         <div className="mt-5 flex justify-end gap-2">
+          {!alert && (
+            <button
+              type="button"
+              // Safe choice gets focus, so Enter doesn't destroy anything
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus
+              onClick={() => onDone(false)}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-800 hover:text-white"
+            >
+              {cancelLabel}
+            </button>
+          )}
           <button
             type="button"
-            // Safe choice gets focus, so Enter doesn't destroy anything
             // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus
-            onClick={() => onDone(false)}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-800 hover:text-white"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
+            autoFocus={alert}
             onClick={() => onDone(true)}
             className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
               danger

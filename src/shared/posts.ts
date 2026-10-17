@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { decimalToAmerican, isValidAmerican, parlayDecimal } from './odds';
+import type { SeriesRef } from './series';
 import type { PersonRef, ReactionSummary } from './social';
 import type { Streak } from './stats';
 
@@ -81,15 +82,18 @@ const base = {
   caption: z.string().trim().max(500).optional(),
 };
 
+/** Personal slips can be filed under one of the author's series */
+const personal = { ...base, seriesId: z.string().min(1).max(64).optional() };
+
 export const createPostSchema = z.discriminatedUnion('type', [
   z.object({
-    ...base,
+    ...personal,
     type: z.literal('STRAIGHT'),
     units,
     leg: legSchema,
   }),
   z.object({
-    ...base,
+    ...personal,
     type: z.literal('PARLAY'),
     units,
     legs: z.array(legSchema).min(2, 'A parlay needs at least 2 legs').max(20),
@@ -97,7 +101,7 @@ export const createPostSchema = z.discriminatedUnion('type', [
     slipOdds: americanOdds.optional(),
   }),
   z.object({
-    ...base,
+    ...personal,
     type: z.literal('LADDER'),
     pick: pickSchema.superRefine((p, ctx) => checkPick(p, ctx, false)),
     rungs: z
@@ -215,6 +219,8 @@ export type FeedPost = {
   sportsbook: { key: string; name: string };
   bets: FeedBet[];
   reactions: ReactionSummary[];
+  /** The author's series it's filed under */
+  series: SeriesRef | null;
   /** Set on group parlays only */
   group: {
     lockAt: string;
@@ -259,4 +265,35 @@ export function hasBookPrice(bet: {
     parlayDecimal(bet.legs.map((l) => l.americanOdds))
   );
   return bet.americanOdds !== multiplied;
+}
+
+// ---------- Deleting ----------
+
+/** Minutes after posting that an unsettled slip can still be taken back */
+export const DELETE_GRACE_MINUTES = 15;
+
+/**
+ * What deleting a slip does, so records can't be gamed by deleting losers:
+ * - 'hide': settled; it leaves the feed but still counts toward records
+ * - 'remove': posted by mistake (unsettled, within the grace window) or a
+ *   group parlay that hasn't locked; it's gone entirely
+ * - 'blocked': unsettled and past the grace window; settle it first
+ */
+export type DeleteRule = 'hide' | 'remove' | 'blocked';
+
+export function deleteRule(
+  post: {
+    createdAt: string | Date;
+    type: FeedPost['type'];
+    group: { lockAt: string | Date; lockedAt: string | Date | null } | null;
+    bets: { result: BetResult }[];
+  },
+  now = new Date()
+): DeleteRule {
+  if (post.type === 'GROUP_PARLAY' && post.group) {
+    if (!isGroupLocked(post.group, now)) return 'remove';
+  }
+  if (!post.bets.some((b) => b.result === 'PENDING')) return 'hide';
+  const age = now.getTime() - new Date(post.createdAt).getTime();
+  return age < DELETE_GRACE_MINUTES * 60_000 ? 'remove' : 'blocked';
 }

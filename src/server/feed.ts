@@ -11,6 +11,7 @@ export const feedInclude = (viewerId: string) =>
       select: { id: true, username: true, fullName: true, avatarUrl: true },
     },
     sportsbook: { select: { key: true, name: true } },
+    series: { select: { id: true, name: true } },
     bets: {
       orderBy: { order: 'asc' },
       include: {
@@ -42,7 +43,7 @@ async function streaksFor(
     where: {
       post: {
         authorId: { in: ids },
-        deletedAt: null,
+        // Deleted slips still count toward streaks
         type: { in: POST_TYPES },
       },
       result: { in: ['WON', 'LOST', 'PUSH'] },
@@ -97,6 +98,7 @@ function toFeedPost(
     sportsbook: post.sportsbook,
     reactions: reactionSummary(post.reactions, viewerId),
     commentCount: post._count.comments,
+    series: post.series,
     group:
       post.type === 'GROUP_PARLAY' && post.lockAt
         ? {

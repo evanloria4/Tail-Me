@@ -47,9 +47,10 @@ router.get<{ username: string }>(
     const since = rangeStart(range);
     const viewerId = req.user!.id;
 
-    // Group parlays keep their own record, so they never touch these stats
+    // Group parlays keep their own record, so they never touch these stats.
+    // Deleted slips still count: deleting a loser can't clean up a record.
     const posts = await prisma.post.findMany({
-      where: { authorId: user.id, deletedAt: null, type: { in: POST_TYPES } },
+      where: { authorId: user.id, type: { in: POST_TYPES } },
       select: {
         id: true,
         type: true,

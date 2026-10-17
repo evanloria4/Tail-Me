@@ -10,6 +10,7 @@ import postsRouter from './routes/posts';
 import usersRouter from './routes/users';
 import socialRouter from './routes/social';
 import communityRouter from './routes/community';
+import seriesRouter from './routes/series';
 
 const DIST_DIR = path.resolve(__dirname, '..', '..', 'dist');
 
@@ -45,6 +46,8 @@ app.use('/api/users', usersRouter);
 app.use('/api/community', communityRouter);
 // Tailers, reactions, comments: /api/posts/:id/... and /api/comments/:id/...
 app.use('/api', socialRouter);
+// Series: /api/users/:username/series and /api/series/...
+app.use('/api', seriesRouter);
 app.use('/api/odds', oddsRouter);
 
 app.use('/api', (_req, res) => {
