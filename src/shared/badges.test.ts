@@ -20,6 +20,7 @@ function post(
     },
     sportsbook: { key: 'fanduel', name: 'FanDuel' },
     reactions: [],
+    group: null,
     commentCount: 0,
     bets: bets.map(
       (b, i): FeedBet => ({

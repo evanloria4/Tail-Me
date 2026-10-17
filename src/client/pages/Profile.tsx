@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import useMeta from '../lib/useMeta';
+import useStickyTop from '../lib/useStickyTop';
+import { PAGE_GRID, SIDE_COLUMN } from '../lib/layout';
 import {
   netColor,
   pct,
@@ -289,6 +291,7 @@ export default function Profile() {
   const [data, setData] = useState<UserProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const side = useStickyTop<HTMLElement>();
 
   const load = useCallback(async () => {
     try {
@@ -363,8 +366,10 @@ export default function Profile() {
   // Desktop: two columns, breakdowns in a sticky side column next to the
   // slips. Smaller screens: one column, breakdowns between the tiles and slips.
   return (
-    <div className="mx-auto max-w-2xl space-y-5 lg:grid lg:max-w-none lg:grid-cols-[minmax(0,1fr)_18rem] lg:grid-rows-[auto_1fr] lg:gap-x-6 lg:gap-y-5 lg:space-y-0">
-      <div className="space-y-5 lg:col-start-1 lg:row-start-1">
+    <div
+      className={`${PAGE_GRID} lg:grid-rows-[auto_1fr] lg:gap-y-5 lg:space-y-0 space-y-5`}
+    >
+      <div className="space-y-5 lg:col-start-1 lg:row-start-1 xl:col-start-2">
         <section className="rounded-2xl border border-gray-800 bg-gray-900 p-4">
           <div className="flex items-start gap-4">
             <div className="flex h-16 w-16 flex-none items-center justify-center rounded-full bg-emerald-500/20 text-2xl font-bold uppercase text-emerald-400">
@@ -450,7 +455,11 @@ export default function Profile() {
         </div>
       </div>
 
-      <aside className="grid content-start gap-3 sm:grid-cols-2 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:grid-cols-1 lg:self-start">
+      <aside
+        ref={side.ref}
+        style={{ top: side.top }}
+        className={`${SIDE_COLUMN} grid content-start gap-3 sm:grid-cols-2 lg:row-span-2 lg:row-start-1 lg:grid-cols-1`}
+      >
         <StatPanel title="By bet type">
           {POST_TYPES.map((t) => (
             <StatRow key={t} label={TYPE_LABELS[t]} line={stats.byType[t]} />
@@ -486,7 +495,7 @@ export default function Profile() {
         )}
       </aside>
 
-      <section className="lg:col-start-1 lg:row-start-2">
+      <section className="lg:col-start-1 lg:row-start-2 xl:col-start-2">
         <h2 className="mb-2 text-sm font-semibold text-gray-300">
           Slips
           {range !== 'all' && (

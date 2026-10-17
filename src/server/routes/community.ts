@@ -10,6 +10,7 @@ import {
 } from '../../shared/community';
 import {
   currentStreak,
+  isPersonalType,
   rangeStart,
   StatBet,
   statLine,
@@ -32,15 +33,12 @@ router.get('/', requireAuth, async (req, res) => {
       ? req.query.month
       : dayKey(new Date(), tz).slice(0, 7);
 
-  const [users, rows] = await Promise.all([
+  const [users, rows, groupLegs] = await Promise.all([
     prisma.user.findMany({
       select: { id: true, username: true, fullName: true },
     }),
     prisma.bet.findMany({
-      where: {
-        post: { deletedAt: null },
-        result: { in: ['WON', 'LOST', 'PUSH'] },
-      },
+      where: { post: { deletedAt: null }, result: { not: 'VOID' } },
       select: {
         order: true,
         units: true,
@@ -49,18 +47,37 @@ router.get('/', requireAuth, async (req, res) => {
         post: { select: { authorId: true, type: true, createdAt: true } },
       },
     }),
+    prisma.betLeg.findMany({
+      where: {
+        bet: { post: { deletedAt: null, type: 'GROUP_PARLAY' } },
+        addedById: { not: null },
+        result: { in: ['WON', 'LOST'] },
+      },
+      select: { addedById: true, result: true },
+    }),
   ]);
 
-  const bets = rows.map((b) => ({
-    authorId: b.post.authorId,
-    type: b.post.type,
-    sportKey: null,
-    createdAt: b.post.createdAt,
-    order: b.order,
-    units: b.units.toNumber(),
-    decimalOdds: b.decimalOdds.toNumber(),
-    result: b.result,
-  })) satisfies (StatBet & { authorId: string })[];
+  // Personal bets drive streaks, earners and the calendar; group parlays
+  // only feed the group record
+  const bets = rows.flatMap((b) => {
+    const { type } = b.post;
+    if (!isPersonalType(type)) return [];
+    return [
+      {
+        authorId: b.post.authorId,
+        type,
+        sportKey: null,
+        createdAt: b.post.createdAt,
+        order: b.order,
+        units: b.units.toNumber(),
+        decimalOdds: b.decimalOdds.toNumber(),
+        result: b.result,
+      },
+    ];
+  }) satisfies (StatBet & { authorId: string })[];
+  const groupResults = rows
+    .filter((b) => b.post.type === 'GROUP_PARLAY')
+    .map((b) => b.result);
 
   const weekStart = rangeStart('7d')!;
   const byUser = users.map((u) => {
@@ -84,6 +101,23 @@ router.get('/', requireAuth, async (req, res) => {
       .map((u) => ({ ...u.user, line: u.week })),
     days: dailyTotals(bets, tz).filter((d) => d.day.startsWith(month)),
     month,
+    group: {
+      wins: groupResults.filter((r) => r === 'WON').length,
+      losses: groupResults.filter((r) => r === 'LOST').length,
+      pushes: groupResults.filter((r) => r === 'PUSH').length,
+      open: groupResults.filter((r) => r === 'PENDING').length,
+      legs: users
+        .map((u) => {
+          const mine = groupLegs.filter((l) => l.addedById === u.id);
+          return {
+            ...u,
+            hit: mine.filter((l) => l.result === 'WON').length,
+            busted: mine.filter((l) => l.result === 'LOST').length,
+          };
+        })
+        .filter((u) => u.hit + u.busted > 0)
+        .sort((a, b) => b.hit - a.hit || a.busted - b.busted),
+    },
   };
   res.json(body);
 });

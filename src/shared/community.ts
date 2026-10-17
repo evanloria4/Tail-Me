@@ -69,4 +69,14 @@ export type CommunityStats = {
   days: DayTotal[];
   /** The month `days` covers, YYYY-MM */
   month: string;
+  /** Group parlays' own record; never part of anyone's personal stats */
+  group: {
+    wins: number;
+    losses: number;
+    pushes: number;
+    /** Still open or waiting on legs */
+    open: number;
+    /** Each person's graded legs, most hits first */
+    legs: (PersonRef & { hit: number; busted: number })[];
+  };
 };

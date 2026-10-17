@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../auth/AuthProvider';
 import useTheme from '../lib/theme';
 import PostComposer from './PostComposer';
+import type { JoinTarget, PostedKind } from './GroupReview';
 import { useToast } from './Toast';
 
 const NAV_ITEMS = [{ to: '/', label: 'Feed', end: true }];
@@ -102,7 +103,8 @@ function DarkModeSwitch({ className = '' }: { className?: string }) {
 type OpenMenu = 'mobile' | 'user' | null;
 
 export type LayoutContext = {
-  openComposer: () => void;
+  /** Opens the slip builder; pass a group parlay to add your leg to it */
+  openComposer: (join?: JoinTarget) => void;
   /** Bumps after each new post so the feed knows to reload */
   feedVersion: number;
 };
@@ -116,6 +118,7 @@ export default function AppLayout() {
   const toast = useToast();
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [join, setJoin] = useState<JoinTarget | null>(null);
   const [feedVersion, setFeedVersion] = useState(0);
   const headerRef = useRef<HTMLElement>(null);
 
@@ -138,15 +141,21 @@ export default function AppLayout() {
     };
   }, [openMenu]);
 
-  const openComposer = () => {
+  const openComposer = (target?: JoinTarget) => {
     setOpenMenu(null);
+    setJoin(target ?? null);
     setComposerOpen(true);
   };
-  const onPosted = () => {
+  const onPosted = (kind: PostedKind) => {
     setComposerOpen(false);
     setFeedVersion((v) => v + 1);
+    // A new leg updates a slip already on screen; stay put
+    if (kind === 'leg') {
+      toast('Your leg is in');
+      return;
+    }
     navigate('/');
-    toast('Slip posted');
+    toast(kind === 'group' ? 'Group parlay started' : 'Slip posted');
     // After the popup releases its scroll lock, jump to the new post at the top
     requestAnimationFrame(() =>
       window.scrollTo({
@@ -288,9 +297,9 @@ export default function AppLayout() {
           </div>
         )}
       </header>
-      {/* Pages set their own column width (the feed stays narrow). Bottom
+      {/* Pages set their own column widths (see lib/layout). Bottom
           padding keeps the floating button off the last card */}
-      <main className="mx-auto max-w-5xl px-4 pb-24 pt-6">
+      <main className="mx-auto max-w-screen-2xl px-4 pb-24 pt-6">
         <Outlet
           context={{ openComposer, feedVersion } satisfies LayoutContext}
         />
@@ -299,7 +308,7 @@ export default function AppLayout() {
       {!composerOpen && (
         <button
           type="button"
-          onClick={openComposer}
+          onClick={() => openComposer()}
           aria-label="New bet"
           title="New bet"
           className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-gray-950 shadow-lg shadow-black/30 transition hover:bg-emerald-400 active:scale-95 md:bottom-8 md:right-8"
@@ -321,6 +330,7 @@ export default function AppLayout() {
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
         onPosted={onPosted}
+        join={join}
       />
     </div>
   );

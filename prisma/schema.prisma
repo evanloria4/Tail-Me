@@ -42,6 +42,7 @@ model User {
   comments     Comment[]
   reactions    Reaction[]
   commentVotes CommentVote[]
+  groupLegs    BetLeg[]
 }
 
 // ---------- Reference data (mirrors The Odds API) ----------
@@ -108,6 +109,7 @@ enum PostType {
   STRAIGHT // one bet, one leg
   PARLAY // one bet, many legs
   LADDER // many single-leg bets: same pick at climbing lines
+  GROUP_PARLAY // one bet; each friend adds one leg (BetLeg.addedById) until it locks
 }
 
 enum BetResult {
@@ -119,14 +121,21 @@ enum BetResult {
 }
 
 model Post {
-  id           String    @id @default(cuid())
-  authorId     String    @db.Uuid
-  type         PostType
-  caption      String?
-  sportsbookId String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  id              String    @id @default(cuid())
+  authorId        String    @db.Uuid
+  type            PostType
+  caption         String?
+  sportsbookId    String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  /// Group parlays: no more legs after this deadline
+  lockAt          DateTime?
+  /// Group parlays: set when the creator keeps it to one game (Odds API event id + label)
+  groupEventId    String?
+  groupEventLabel String?
+  /// Group parlays: when the creator locked it early
+  lockedAt        DateTime?
 
   author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   sportsbook Sportsbook @relation(fields: [sportsbookId], references: [id])
@@ -184,12 +193,16 @@ model BetLeg {
   /// Book's selection id + single-leg deep link from The Odds API (includeSids / includeLinks)
   bookSelectionId String?
   deepLink        String?
+  /// Group parlays: whose leg this is (one per person per parlay)
+  addedById       String?   @db.Uuid
 
-  bet    Bet     @relation(fields: [betId], references: [id], onDelete: Cascade)
-  event  Event?  @relation(fields: [eventId], references: [id])
-  player Player? @relation(fields: [playerId], references: [id])
+  bet     Bet     @relation(fields: [betId], references: [id], onDelete: Cascade)
+  event   Event?  @relation(fields: [eventId], references: [id])
+  player  Player? @relation(fields: [playerId], references: [id])
+  addedBy User?   @relation(fields: [addedById], references: [id], onDelete: SetNull)
 
   @@unique([betId, order])
+  @@unique([betId, addedById])
   @@index([eventId])
 }
 

@@ -14,6 +14,8 @@ export type Selection = {
   marketKey: string;
   marketLabel: string;
   outcome: OddsOutcome;
+  /** Game start, ISO; a group parlay's default deadline */
+  commenceTime?: string;
 };
 
 export type SlipMode = 'STRAIGHT' | 'PARLAY' | 'LADDER';
@@ -66,7 +68,8 @@ export function slipDecimal(sels: Selection[]): number | null {
   return parlayDecimal(sels.map((s) => s.outcome.price));
 }
 
-function toLeg(s: Selection): LegInput {
+/** One picked outcome as a leg (also a group parlay leg on its own) */
+export function toLeg(s: Selection): LegInput {
   const base = baseMarket(s.marketKey);
   const marketKey =
     base === 'h2h' || base === 'spreads' || base === 'totals'

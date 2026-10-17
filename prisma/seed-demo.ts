@@ -461,6 +461,132 @@ async function clear() {
   console.log(`Removed ${count} demo users and their posts`);
 }
 
+type GroupLeg = Leg & { by: string; result?: Result };
+
+/**
+ * One group parlay still taking legs, and one that locked and got busted by a
+ * single leg, so both states show in the feed.
+ */
+async function seedGroupParlays(
+  sportsbookId: string,
+  userId: Map<string, string>,
+  now: number
+) {
+  const groups: {
+    author: string;
+    minutesAgo: number;
+    lockInMinutes: number;
+    locked?: boolean;
+    caption: string;
+    legs: GroupLeg[];
+  }[] = [
+    {
+      author: 'tonyparlays',
+      minutesAgo: 25,
+      lockInMinutes: 60 * 5,
+      caption: 'Sunday group parlay. One leg each, no cowards.',
+      legs: [
+        {
+          by: 'tonyparlays',
+          sportKey: NFL,
+          eventLabel: 'Bengals @ Ravens',
+          marketKey: 'h2h',
+          selection: 'Baltimore Ravens',
+          americanOdds: -150,
+        },
+        {
+          by: 'jpace',
+          sportKey: NFL,
+          eventLabel: 'Seahawks @ 49ers',
+          marketKey: 'totals',
+          selection: 'Over',
+          line: 45.5,
+          americanOdds: -110,
+        },
+      ],
+    },
+    {
+      author: 'mikeylocks',
+      minutesAgo: 60 * 24 * 2,
+      lockInMinutes: -60 * 24 * 2 + 60,
+      locked: true,
+      caption: 'Group parlay #1. Let’s eat.',
+      legs: [
+        {
+          by: 'mikeylocks',
+          result: 'WON',
+          sportKey: NFL,
+          eventLabel: 'Chiefs @ Raiders',
+          marketKey: 'spreads',
+          selection: 'Kansas City Chiefs',
+          line: -6.5,
+          americanOdds: -110,
+        },
+        {
+          by: 'jpace',
+          result: 'WON',
+          sportKey: NHL,
+          eventLabel: 'Oilers @ Flames',
+          marketKey: 'h2h',
+          selection: 'Edmonton Oilers',
+          americanOdds: -130,
+        },
+        {
+          by: 'nickfades',
+          result: 'LOST',
+          sportKey: NFL,
+          eventLabel: 'Giants @ Commanders',
+          marketKey: 'h2h',
+          selection: 'New York Giants',
+          americanOdds: 210,
+        },
+      ],
+    },
+  ];
+  // eslint-disable-next-line no-restricted-syntax
+  for (const g of groups) {
+    const decimal = parlayDecimal(g.legs.map((l) => l.americanOdds));
+    const results = g.legs.map((l) => l.result ?? 'PENDING');
+    // Matches groupResult in shared/posts: any loss sinks it
+    let result: Result = 'PENDING';
+    if (results.includes('LOST')) result = 'LOST';
+    else if (results.every((r) => r === 'WON')) result = 'WON';
+    const createdAt = new Date(now - g.minutesAgo * 60_000);
+    // eslint-disable-next-line no-await-in-loop
+    await prisma.post.create({
+      data: {
+        authorId: userId.get(g.author)!,
+        type: 'GROUP_PARLAY',
+        caption: g.caption,
+        sportsbookId,
+        createdAt,
+        lockAt: new Date(now + g.lockInMinutes * 60_000),
+        lockedAt: g.locked ? new Date(createdAt.getTime() + 60 * 60_000) : null,
+        bets: {
+          create: [
+            {
+              order: 0,
+              units: 1,
+              americanOdds: decimalToAmerican(decimal),
+              decimalOdds: decimal,
+              result,
+              settledAt: result === 'PENDING' ? null : new Date(now),
+              legs: {
+                create: g.legs.map(({ by, result: legResult, ...leg }, i) => ({
+                  ...legData(leg, i),
+                  result: legResult ?? 'PENDING',
+                  addedById: userId.get(by)!,
+                })),
+              },
+            },
+          ],
+        },
+      },
+    });
+  }
+  return groups.length;
+}
+
 async function main() {
   if (process.argv.includes('--clear')) {
     await clear();
@@ -541,8 +667,10 @@ async function main() {
   }));
   await prisma.reaction.createMany({ data: reactions, skipDuplicates: true });
 
+  const groups = await seedGroupParlays(bookId.get('fanduel')!, userId, now);
+
   console.log(
-    `Seeded ${USERS.length} demo users, ${created.length} posts, ${tails.length} tails, ${comments.length} comments, ${reactions.length} reactions`
+    `Seeded ${USERS.length} demo users, ${created.length} posts, ${groups} group parlays, ${tails.length} tails, ${comments.length} comments, ${reactions.length} reactions`
   );
 }
 

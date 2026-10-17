@@ -30,6 +30,7 @@ import {
 } from '../../shared/markets';
 import { createPostSchema } from '../../shared/posts';
 import { inputClass } from './ComposerParts';
+import GroupReview, { GroupMode, PostedKind } from './GroupReview';
 
 // Sportsbook-style bet picker: choose a league, tap prices to build a
 // slip, then review and post. Prices, lines and add-to-betslip links all come
@@ -206,6 +207,7 @@ function GamesList({
   toggle,
   isPicked,
   onOpen,
+  onlyGameId,
 }: {
   sportKey: string;
   book: string;
@@ -213,10 +215,21 @@ function GamesList({
   toggle: Toggle;
   isPicked: IsPicked;
   onOpen: (game: OddsGame) => void;
+  /** Show just this game (one-game group parlays) */
+  onlyGameId?: string;
 }) {
-  const { data: games, loading, error } = useGames(sportKey);
+  const { data: all, loading, error } = useGames(sportKey);
+  const games = onlyGameId ? all?.filter((g) => g.id === onlyGameId) : all;
+  // One-game group parlay: skip the list and open the game itself
+  const only = onlyGameId ? games?.[0] : undefined;
+  useEffect(() => {
+    if (only) onOpen(only);
+  }, [only, onOpen]);
   if (loading) return <Notice>Loading games…</Notice>;
   if (error) return <Notice>{error}</Notice>;
+  if (onlyGameId && !games?.length) {
+    return <Notice>That game&apos;s lines are off the board now.</Notice>;
+  }
   if (!games?.length) return <Notice>No upcoming games right now.</Notice>;
 
   return (
@@ -523,7 +536,8 @@ function GameView({
   bookName: string;
   toggle: Toggle;
   isPicked: IsPicked;
-  onBack: () => void;
+  /** Omitted when the game is the only one on offer */
+  onBack?: () => void;
 }) {
   const categories = PICKER_CATEGORIES[sportKey] ?? [];
   const [tab, setTab] = useState('lines');
@@ -531,13 +545,15 @@ function GameView({
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={onBack}
-        className="mb-2 text-sm font-medium text-gray-400 hover:text-white"
-      >
-        ‹ All games
-      </button>
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="mb-2 text-sm font-medium text-gray-400 hover:text-white"
+        >
+          ‹ All games
+        </button>
+      )}
       <p className="font-bold leading-tight">
         {game.awayTeam} @ {game.homeTeam}
       </p>
@@ -635,18 +651,23 @@ function SlipSummary({
 
 export default function SlipPicker({
   header,
-  onManual,
   onPosted,
   dirtyRef,
+  group = null,
 }: {
   header: React.ReactNode;
-  onManual: () => void;
-  onPosted: () => void;
+  onPosted: (kind: PostedKind) => void;
   dirtyRef: React.MutableRefObject<boolean>;
+  /** Group parlay: pick exactly one leg, to start one or join one */
+  group?: GroupMode | null;
 }) {
   const meta = useMeta();
   const book = LIVE_ODDS_BOOK;
-  const [sportKey, setSportKey] = useState(SPORT_ORDER[0]);
+  /** One-game group parlay being joined: only its game is pickable */
+  const onlyGame = group?.kind === 'join' ? group.game : null;
+  const [sportKey, setSportKey] = useState(
+    onlyGame?.sportKey || SPORT_ORDER[0]
+  );
   const [openGame, setOpenGame] = useState<OddsGame | null>(null);
   const [selections, setSelections] = useState<Selection[]>([]);
   const [step, setStep] = useState<'pick' | 'review'>('pick');
@@ -673,24 +694,27 @@ export default function SlipPicker({
     selections.some((s) => s.key === selectionKey(game.id, marketKey, o));
 
   const toggle: Toggle = (game, marketKey, o) => {
+    // The list only shows the one game, but the server checks it too
+    if (onlyGame && game.id !== onlyGame.eventId) return;
     const key = selectionKey(game.id, marketKey, o);
     setError(null);
     setSelections((prev) => {
       if (prev.some((s) => s.key === key))
         return prev.filter((s) => s.key !== key);
+      const picked: Selection = {
+        key,
+        sportKey: game.sportKey,
+        eventId: game.id,
+        eventLabel: eventLabelOf(game),
+        marketKey,
+        marketLabel: marketLabel(game.sportKey, marketKey),
+        outcome: o,
+        commenceTime: game.commenceTime,
+      };
+      // A group parlay leg is one pick; tapping another swaps it
+      if (group) return [picked];
       if (prev.length >= MAX_PICKS) return prev;
-      return [
-        ...prev,
-        {
-          key,
-          sportKey: game.sportKey,
-          eventId: game.id,
-          eventLabel: eventLabelOf(game),
-          marketKey,
-          marketLabel: marketLabel(game.sportKey, marketKey),
-          outcome: o,
-        },
-      ];
+      return [...prev, picked];
     });
   };
 
@@ -732,12 +756,26 @@ export default function SlipPicker({
     setSubmitting(true);
     try {
       await api.post('/posts', parsed.data);
-      onPosted();
+      onPosted('slip');
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not post'));
       setSubmitting(false);
     }
   };
+
+  if (group && step === 'review' && selections.length) {
+    return (
+      <GroupReview
+        mode={group}
+        selection={selections[0]}
+        book={book}
+        bookName={bookName}
+        header={header}
+        onBack={() => setStep('pick')}
+        onPosted={onPosted}
+      />
+    );
+  }
 
   if (step === 'review' && selections.length) {
     const sgpDecimal =
@@ -937,29 +975,35 @@ export default function SlipPicker({
           </span>
           Live odds and lines from {bookName}
         </p>
-        <div
-          className="flex gap-1 rounded-xl bg-gray-900 p-1"
-          aria-label="League"
-        >
-          {sports.map((k) => (
-            <button
-              key={k}
-              type="button"
-              aria-pressed={k === sportKey}
-              onClick={() => {
-                setSportKey(k);
-                setOpenGame(null);
-              }}
-              className={`flex-1 rounded-lg py-1.5 text-sm font-semibold transition ${
-                k === sportKey
-                  ? 'bg-gray-800 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {SPORT_TABS[k] ?? k}
-            </button>
-          ))}
-        </div>
+        {onlyGame ? (
+          <p className="rounded-xl bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-400">
+            🎯 This group parlay is {onlyGame.eventLabel} only
+          </p>
+        ) : (
+          <div
+            className="flex gap-1 rounded-xl bg-gray-900 p-1"
+            aria-label="League"
+          >
+            {sports.map((k) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={k === sportKey}
+                onClick={() => {
+                  setSportKey(k);
+                  setOpenGame(null);
+                }}
+                className={`flex-1 rounded-lg py-1.5 text-sm font-semibold transition ${
+                  k === sportKey
+                    ? 'bg-gray-800 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {SPORT_TABS[k] ?? k}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4">
@@ -971,7 +1015,7 @@ export default function SlipPicker({
             bookName={bookName}
             toggle={toggle}
             isPicked={isPicked}
-            onBack={() => setOpenGame(null)}
+            onBack={onlyGame ? undefined : () => setOpenGame(null)}
           />
         ) : (
           <GamesList
@@ -981,6 +1025,7 @@ export default function SlipPicker({
             toggle={toggle}
             isPicked={isPicked}
             onOpen={setOpenGame}
+            onlyGameId={onlyGame?.eventId}
           />
         )}
       </div>
@@ -996,19 +1041,14 @@ export default function SlipPicker({
               onClick={() => setStep('review')}
               className="shrink-0 rounded-lg bg-emerald-500 px-4 py-2.5 font-semibold text-gray-950 transition hover:bg-emerald-400"
             >
-              Review slip ({selections.length})
+              {group ? 'Use this leg' : `Review slip (${selections.length})`}
             </button>
           </div>
         ) : (
           <p className="text-center text-sm text-gray-500">
-            Tap a price to add it to your slip.{' '}
-            <button
-              type="button"
-              onClick={onManual}
-              className="font-medium text-gray-400 underline hover:text-white"
-            >
-              Enter manually
-            </button>
+            {group
+              ? 'Tap a price to pick your leg.'
+              : 'Tap a price to add it to your slip.'}
           </p>
         )}
       </div>

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createPostSchema, describeLeg } from './posts';
+import {
+  createPostSchema,
+  describeLeg,
+  groupResult,
+  hasBookPrice,
+  isGroupLocked,
+  isSameGameLegs,
+} from './posts';
 
 const leg = {
   sportKey: 'americanfootball_nfl',
@@ -118,5 +125,78 @@ describe('describeLeg', () => {
         marketLabel: 'Passing TDs',
       })
     ).toBe('Patrick Mahomes Over 1.5 Passing TDs');
+  });
+});
+
+describe('groupResult', () => {
+  it('sinks on any lost leg, even with others open', () => {
+    expect(groupResult(['WON', 'LOST', 'PENDING'])).toBe('LOST');
+  });
+  it('stays pending while a leg is open', () => {
+    expect(groupResult(['WON', 'PENDING'])).toBe('PENDING');
+  });
+  it('wins past pushes and voids', () => {
+    expect(groupResult(['WON', 'PUSH', 'VOID'])).toBe('WON');
+  });
+  it('pushes when every live leg pushed, voids when all voided', () => {
+    expect(groupResult(['PUSH', 'VOID'])).toBe('PUSH');
+    expect(groupResult(['VOID', 'VOID'])).toBe('VOID');
+  });
+});
+
+describe('isGroupLocked', () => {
+  const now = new Date('2026-10-17T12:00:00Z');
+  it('locks at the deadline or when the creator locks it', () => {
+    expect(
+      isGroupLocked({ lockAt: '2026-10-17T13:00:00Z', lockedAt: null }, now)
+    ).toBe(false);
+    expect(
+      isGroupLocked({ lockAt: '2026-10-17T12:00:00Z', lockedAt: null }, now)
+    ).toBe(true);
+    expect(
+      isGroupLocked(
+        { lockAt: '2026-10-17T13:00:00Z', lockedAt: '2026-10-17T11:00:00Z' },
+        now
+      )
+    ).toBe(true);
+  });
+});
+
+describe('createPostSchema group parlays', () => {
+  it('needs an ISO deadline and one leg', () => {
+    expect(
+      createPostSchema.safeParse({
+        type: 'GROUP_PARLAY',
+        sportsbookKey: 'fanduel',
+        lockAt: '2026-10-18T00:00:00.000Z',
+        leg,
+      }).success
+    ).toBe(true);
+    expect(
+      createPostSchema.safeParse({
+        type: 'GROUP_PARLAY',
+        sportsbookKey: 'fanduel',
+        lockAt: 'tomorrow',
+        leg,
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('hasBookPrice', () => {
+  const legs = [{ americanOdds: 120 }, { americanOdds: -110 }];
+  it('is false at the legs multiplied, true at any other price', () => {
+    // 2.2 x 1.909 = 4.2 -> +320
+    expect(hasBookPrice({ americanOdds: 320, legs })).toBe(false);
+    expect(hasBookPrice({ americanOdds: 275, legs })).toBe(true);
+  });
+});
+
+describe('isSameGameLegs', () => {
+  it('needs 2+ legs from one game', () => {
+    const a = { eventLabel: 'Bills @ Chiefs' };
+    expect(isSameGameLegs([a, a])).toBe(true);
+    expect(isSameGameLegs([a])).toBe(false);
+    expect(isSameGameLegs([a, { eventLabel: 'Jets @ Pats' }])).toBe(false);
   });
 });

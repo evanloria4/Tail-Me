@@ -20,3 +20,22 @@ export default function timeAgo(iso: string): string {
     ? rtf.format(Math.round(seconds / match[1]), match[0])
     : 'just now';
 }
+
+/** "Today 7:30 PM", "Tomorrow 1:00 PM", "Sun 1:00 PM", or "Oct 24, 1:00 PM" */
+export function lockTime(iso: string, now = new Date()): string {
+  const at = new Date(iso);
+  const time = at.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  const dayStart = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((dayStart(at) - dayStart(now)) / 86400_000);
+  if (days === 0) return `Today ${time}`;
+  if (days === 1) return `Tomorrow ${time}`;
+  if (days === -1) return `Yesterday ${time}`;
+  if (Math.abs(days) < 7) {
+    return `${at.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`;
+  }
+  return `${at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`;
+}

@@ -2,7 +2,7 @@ import { Prisma } from '../generated/prisma/client';
 import prisma from './db';
 import { FeedPost, MarketKey } from '../shared/posts';
 import { REACTION_EMOJIS, ReactionSummary } from '../shared/social';
-import { currentStreak, Streak } from '../shared/stats';
+import { currentStreak, POST_TYPES, Streak } from '../shared/stats';
 
 /** Feed shape; `tails` only loads the viewer's own tail so we can show "Tailed" */
 export const feedInclude = (viewerId: string) =>
@@ -14,7 +14,12 @@ export const feedInclude = (viewerId: string) =>
     bets: {
       orderBy: { order: 'asc' },
       include: {
-        legs: { orderBy: { order: 'asc' } },
+        legs: {
+          orderBy: { order: 'asc' },
+          include: {
+            addedBy: { select: { id: true, username: true, fullName: true } },
+          },
+        },
         _count: { select: { tails: true } },
         tails: { where: { userId: viewerId }, select: { id: true } },
       },
@@ -27,7 +32,7 @@ type PostWithFeed = Prisma.PostGetPayload<{
   include: ReturnType<typeof feedInclude>;
 }>;
 
-/** Each author's current all-time streak, from their settled bets */
+/** Each author's current all-time streak, from their settled personal bets */
 async function streaksFor(
   authorIds: string[]
 ): Promise<Map<string, Streak | null>> {
@@ -35,7 +40,11 @@ async function streaksFor(
   if (!ids.length) return new Map();
   const bets = await prisma.bet.findMany({
     where: {
-      post: { authorId: { in: ids }, deletedAt: null },
+      post: {
+        authorId: { in: ids },
+        deletedAt: null,
+        type: { in: POST_TYPES },
+      },
       result: { in: ['WON', 'LOST', 'PUSH'] },
     },
     select: {
@@ -88,6 +97,22 @@ function toFeedPost(
     sportsbook: post.sportsbook,
     reactions: reactionSummary(post.reactions, viewerId),
     commentCount: post._count.comments,
+    group:
+      post.type === 'GROUP_PARLAY' && post.lockAt
+        ? {
+            lockAt: post.lockAt.toISOString(),
+            lockedAt: post.lockedAt?.toISOString() ?? null,
+            // Every leg is from this game, so any leg gives its league
+            game:
+              post.groupEventId && post.groupEventLabel
+                ? {
+                    eventId: post.groupEventId,
+                    eventLabel: post.groupEventLabel,
+                    sportKey: post.bets[0]?.legs[0]?.sportKey ?? '',
+                  }
+                : null,
+          }
+        : null,
     bets: post.bets.map((bet) => ({
       id: bet.id,
       order: bet.order,
@@ -109,6 +134,8 @@ function toFeedPost(
         line: leg.line?.toNumber() ?? null,
         americanOdds: leg.americanOdds,
         deepLink: leg.deepLink,
+        result: leg.result,
+        addedBy: leg.addedBy,
       })),
     })),
   };

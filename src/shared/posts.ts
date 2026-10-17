@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { isValidAmerican } from './odds';
-import type { ReactionSummary } from './social';
+import { decimalToAmerican, isValidAmerican, parlayDecimal } from './odds';
+import type { PersonRef, ReactionSummary } from './social';
 import type { Streak } from './stats';
 
 // Validation + shapes for creating posts, shared by the slip builder and the API
@@ -109,10 +109,60 @@ export const createPostSchema = z.discriminatedUnion('type', [
         'Each rung needs a different line'
       ),
   }),
+  z.object({
+    ...base,
+    type: z.literal('GROUP_PARLAY'),
+    /** No more legs after this; the server checks it's in the future */
+    lockAt: z.iso.datetime({ offset: true }),
+    /** The creator's own leg; friends add theirs with `joinGroupSchema` */
+    leg: legSchema,
+    /** Keep every leg to the creator's game (needs a live-odds leg) */
+    gameOnly: z.boolean().optional(),
+  }),
 ]);
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;
 export type LegInput = z.infer<typeof legSchema>;
+
+// ---------- Group parlays ----------
+
+/** Most legs a group parlay can hold (one per friend) */
+export const GROUP_MAX_LEGS = 12;
+/** Furthest out a lock deadline can be set */
+export const GROUP_MAX_LOCK_DAYS = 7;
+
+export const joinGroupSchema = z.object({ leg: legSchema });
+
+/** The book's own price for the locked slip (same-game parlays price below the legs multiplied) */
+export const groupPriceSchema = z.object({ americanOdds });
+
+/**
+ * Legs all from one game. Books price those with their own correlation
+ * models, so multiplying the legs only estimates it until the creator enters
+ * the book's price.
+ */
+export const isSameGameLegs = (legs: { eventLabel: string }[]) =>
+  legs.length > 1 && legs.every((l) => l.eventLabel === legs[0].eventLabel);
+
+/** Open for legs until the creator locks it or the deadline passes */
+export function isGroupLocked(
+  group: { lockAt: string | Date; lockedAt: string | Date | null },
+  now = new Date()
+): boolean {
+  return !!group.lockedAt || new Date(group.lockAt) <= now;
+}
+
+/**
+ * A group parlay's result from its legs: any loss sinks it, it stays pending
+ * while a leg is open, voided legs drop out, and all pushes is a push.
+ */
+export function groupResult(legs: BetResult[]): BetResult {
+  if (legs.includes('LOST')) return 'LOST';
+  if (legs.includes('PENDING')) return 'PENDING';
+  const live = legs.filter((r) => r !== 'VOID');
+  if (!live.length) return 'VOID';
+  return live.every((r) => r === 'PUSH') ? 'PUSH' : 'WON';
+}
 
 // ---------- API response shapes ----------
 
@@ -129,6 +179,10 @@ export type FeedLeg = {
   line: number | null;
   americanOdds: number;
   deepLink: string | null;
+  /** Graded per leg on group parlays; regular legs follow their bet */
+  result: BetResult;
+  /** Group parlays: whose leg it is */
+  addedBy: PersonRef | null;
 };
 
 export type FeedBet = {
@@ -147,7 +201,7 @@ export type FeedBet = {
 
 export type FeedPost = {
   id: string;
-  type: 'STRAIGHT' | 'PARLAY' | 'LADDER';
+  type: 'STRAIGHT' | 'PARLAY' | 'LADDER' | 'GROUP_PARLAY';
   caption: string | null;
   createdAt: string;
   author: {
@@ -161,6 +215,13 @@ export type FeedPost = {
   sportsbook: { key: string; name: string };
   bets: FeedBet[];
   reactions: ReactionSummary[];
+  /** Set on group parlays only */
+  group: {
+    lockAt: string;
+    lockedAt: string | null;
+    /** Set when every leg has to come from this one game */
+    game: { eventId: string; eventLabel: string; sportKey: string } | null;
+  } | null;
   commentCount: number;
 };
 
@@ -182,4 +243,20 @@ export function describeLeg(
     default:
       return `${leg.selection}${line}`;
   }
+}
+
+/**
+ * Whether a group parlay's price came from the book rather than its legs
+ * multiplied. Legs are fixed once it locks, so a different number means the
+ * creator entered the book's price.
+ */
+export function hasBookPrice(bet: {
+  americanOdds: number;
+  legs: { americanOdds: number }[];
+}): boolean {
+  if (!bet.legs.length) return false;
+  const multiplied = decimalToAmerican(
+    parlayDecimal(bet.legs.map((l) => l.americanOdds))
+  );
+  return bet.americanOdds !== multiplied;
 }

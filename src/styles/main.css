@@ -57,3 +57,13 @@
     @apply bg-gray-950 text-white;
   }
 }
+
+@layer components {
+  /*
+   * Desktop side column: sticky, with its top set by useStickyTop so a column
+   * taller than the screen scrolls with the page instead of scrolling itself.
+   */
+  .side-column {
+    @apply lg:sticky lg:self-start;
+  }
+}

@@ -2,7 +2,9 @@ import { Router } from 'express';
 import prisma from '../db';
 import { requireAuth } from '../middleware/auth';
 import {
+  isPersonalType,
   isStatRange,
+  POST_TYPES,
   profileStats,
   rangeStart,
   sinceFilter,
@@ -45,8 +47,9 @@ router.get<{ username: string }>(
     const since = rangeStart(range);
     const viewerId = req.user!.id;
 
+    // Group parlays keep their own record, so they never touch these stats
     const posts = await prisma.post.findMany({
-      where: { authorId: user.id, deletedAt: null },
+      where: { authorId: user.id, deletedAt: null, type: { in: POST_TYPES } },
       select: {
         id: true,
         type: true,
@@ -65,10 +68,12 @@ router.get<{ username: string }>(
     });
 
     type Bet = StatBet & { postId: string; tailers: string[] };
-    const all: Bet[] = posts.flatMap((p) =>
-      p.bets.map((b) => ({
+    const all: Bet[] = posts.flatMap((p) => {
+      const { type } = p;
+      if (!isPersonalType(type)) return [];
+      return p.bets.map((b) => ({
         postId: p.id,
-        type: p.type,
+        type,
         createdAt: p.createdAt,
         order: b.order,
         sportKey: b.legs.every((l) => l.sportKey === b.legs[0]?.sportKey)
@@ -78,8 +83,8 @@ router.get<{ username: string }>(
         decimalOdds: b.decimalOdds.toNumber(),
         result: b.result,
         tailers: b.tails.map((t) => t.userId),
-      }))
-    );
+      }));
+    });
     const bets = all.filter(sinceFilter(since));
     const viewerTailed = bets.filter((b) => b.tailers.includes(viewerId));
     // A ladder tail lands on every rung; count each person once per slip

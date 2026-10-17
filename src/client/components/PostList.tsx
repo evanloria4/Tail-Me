@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import PostCard from './PostCard';
+import type { GroupHandlers } from './GroupParlay';
 import useConfirm from './ConfirmDialog';
 import type { BetResult, FeedPost } from '../../shared/posts';
 import type { StatRange } from '../../shared/stats';
@@ -161,6 +162,77 @@ export default function PostList({
     }
   };
 
+  const replacePost = (data: FeedPost) =>
+    setPosts((prev) => prev.map((p) => (p.id === data.id ? data : p)));
+
+  const groupHandlers: GroupHandlers = {
+    settleLeg: async (postId, legId, result) => {
+      const before = posts.find((p) => p.id === postId);
+      if (before) {
+        replacePost({
+          ...before,
+          bets: before.bets.map((b) => ({
+            ...b,
+            legs: b.legs.map((l) => (l.id === legId ? { ...l, result } : l)),
+          })),
+        });
+      }
+      try {
+        const { data } = await api.patch<FeedPost>(`/posts/legs/${legId}`, {
+          result,
+        });
+        replacePost(data);
+        onChange?.();
+      } catch (err) {
+        if (before) replacePost(before);
+        setError(apiErrorMessage(err, 'Could not settle the leg'));
+      }
+    },
+    removeLeg: async (postId, legId) => {
+      const ok = await confirm({
+        title: 'Take this leg out?',
+        message:
+          'It comes off the group parlay. A new leg can go in its place.',
+        confirmLabel: 'Remove',
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        const { data } = await api.delete<FeedPost>(
+          `/posts/${postId}/legs/${legId}`
+        );
+        replacePost(data);
+      } catch (err) {
+        setError(apiErrorMessage(err, 'Could not remove the leg'));
+      }
+    },
+    lock: async (postId) => {
+      const ok = await confirm({
+        title: 'Lock the group parlay?',
+        message:
+          'No more legs can be added. Everyone can place it once it’s locked.',
+        confirmLabel: 'Lock it',
+      });
+      if (!ok) return;
+      try {
+        const { data } = await api.post<FeedPost>(`/posts/${postId}/lock`);
+        replacePost(data);
+      } catch (err) {
+        setError(apiErrorMessage(err, 'Could not lock it'));
+      }
+    },
+    setPrice: async (postId, americanOdds) => {
+      try {
+        const { data } = await api.put<FeedPost>(`/posts/${postId}/price`, {
+          americanOdds,
+        });
+        replacePost(data);
+      } catch (err) {
+        setError(apiErrorMessage(err, 'Could not save the price'));
+      }
+    },
+  };
+
   return (
     <div className="space-y-4">
       {confirmDialog}
@@ -181,6 +253,7 @@ export default function PostList({
           onDelete={remove}
           onTail={tail}
           onReact={react}
+          groupHandlers={groupHandlers}
         />
       ))}
 

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { Prisma } from '../../generated/prisma/client';
 import prisma from '../db';
 import { feedInclude, loadFeedPost, toFeedPosts } from '../feed';
 import { requireAuth, requireSubscription } from '../middleware/auth';
@@ -9,8 +10,15 @@ import {
   parlayDecimal,
 } from '../../shared/odds';
 import {
+  BetResult,
   createPostSchema,
   CreatePostInput,
+  GROUP_MAX_LEGS,
+  GROUP_MAX_LOCK_DAYS,
+  groupPriceSchema,
+  groupResult,
+  isGroupLocked,
+  joinGroupSchema,
   LegInput,
 } from '../../shared/posts';
 import { isStatRange, rangeStart } from '../../shared/stats';
@@ -38,9 +46,30 @@ function legData(leg: LegInput, order: number, events: KnownEvents) {
   };
 }
 
-/** Turns validated input into Bet rows (one for straight/parlay, one per ladder rung) */
-function betsData(input: CreatePostInput, events: KnownEvents) {
+/**
+ * Turns validated input into Bet rows (one for straight/parlay/group, one per
+ * ladder rung). `authorId` owns a group parlay's first leg.
+ */
+function betsData(
+  input: CreatePostInput,
+  events: KnownEvents,
+  authorId: string
+) {
   switch (input.type) {
+    case 'GROUP_PARLAY':
+      // Priced like a parlay as legs arrive (see repriceGroup); units are
+      // nominal since everyone places it with their own stake
+      return [
+        {
+          order: 0,
+          units: 1,
+          americanOdds: input.leg.americanOdds,
+          decimalOdds: americanToDecimal(input.leg.americanOdds),
+          legs: {
+            create: [{ ...legData(input.leg, 0, events), addedById: authorId }],
+          },
+        },
+      ];
     case 'STRAIGHT':
       return [
         {
@@ -82,22 +111,40 @@ function betsData(input: CreatePostInput, events: KnownEvents) {
   }
 }
 
-function eventIdsOf(input: CreatePostInput): string[] {
-  const ids =
-    // eslint-disable-next-line no-nested-ternary
-    input.type === 'STRAIGHT'
-      ? [input.leg.eventId]
-      : input.type === 'PARLAY'
-        ? input.legs.map((l) => l.eventId)
-        : [input.pick.eventId];
-  return ids.filter((id): id is string => Boolean(id));
+/** The picks a post is made of (a ladder's rungs share one pick) */
+function picksOf(input: CreatePostInput) {
+  if (input.type === 'STRAIGHT' || input.type === 'GROUP_PARLAY')
+    return [input.leg];
+  if (input.type === 'PARLAY') return input.legs;
+  return [input.pick];
 }
 
-function sportKeysOf(input: CreatePostInput): string[] {
-  if (input.type === 'STRAIGHT') return [input.leg.sportKey];
-  if (input.type === 'PARLAY') return input.legs.map((l) => l.sportKey);
-  return [input.pick.sportKey];
+const eventIdsOf = (picks: { eventId?: string }[]) =>
+  picks.map((p) => p.eventId).filter((id): id is string => Boolean(id));
+
+/** Every sport key is a known, active league */
+async function sportsAreActive(picks: { sportKey: string }[]) {
+  const keys = [...new Set(picks.map((p) => p.sportKey))];
+  const count = await prisma.sport.count({
+    where: { key: { in: keys }, active: true },
+  });
+  return count === keys.length;
 }
+
+/** Which of these Odds API events we have stored */
+async function knownEvents(ids: string[]): Promise<KnownEvents> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return new Set();
+  const rows = await prisma.event.findMany({
+    where: { id: { in: unique } },
+    select: { id: true },
+  });
+  return new Set(rows.map((e) => e.id));
+}
+
+/** Prisma unique-constraint violation */
+const isUniqueViolation = (err: unknown) =>
+  err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
 
 /**
  * Feed: everyone's posts, newest first. `?cursor=<last post id>` for the next
@@ -144,34 +191,53 @@ router.post('/', requireAuth, requireSubscription, async (req, res) => {
     res.status(400).json({ error: 'Unknown sportsbook' });
     return;
   }
-  const sportKeys = [...new Set(sportKeysOf(input))];
-  const sportCount = await prisma.sport.count({
-    where: { key: { in: sportKeys }, active: true },
-  });
-  if (sportCount !== sportKeys.length) {
+  const picks = picksOf(input);
+  if (!(await sportsAreActive(picks))) {
     res.status(400).json({ error: 'Unknown sport' });
     return;
   }
 
-  const eventIds = [...new Set(eventIdsOf(input))];
-  const events: KnownEvents = new Set(
-    eventIds.length
-      ? (
-          await prisma.event.findMany({
-            where: { id: { in: eventIds } },
-            select: { id: true },
-          })
-        ).map((e) => e.id)
-      : []
-  );
+  let lockAt: Date | null = null;
+  // One-game group parlays pin the creator's game; legs are checked on join
+  let groupGame: { groupEventId: string; groupEventLabel: string } | null =
+    null;
+  if (input.type === 'GROUP_PARLAY') {
+    if (input.gameOnly) {
+      if (!input.leg.eventId) {
+        res
+          .status(400)
+          .json({ error: 'Pick your leg from live odds to keep it to a game' });
+        return;
+      }
+      groupGame = {
+        groupEventId: input.leg.eventId,
+        groupEventLabel: input.leg.eventLabel,
+      };
+    }
+    lockAt = new Date(input.lockAt);
+    const latest = Date.now() + GROUP_MAX_LOCK_DAYS * 86400 * 1000;
+    if (lockAt.getTime() <= Date.now() + 60_000) {
+      res.status(400).json({ error: 'Set the deadline in the future' });
+      return;
+    }
+    if (lockAt.getTime() > latest) {
+      res.status(400).json({
+        error: `The deadline can be at most ${GROUP_MAX_LOCK_DAYS} days out`,
+      });
+      return;
+    }
+  }
 
+  const events = await knownEvents(eventIdsOf(picks));
   const post = await prisma.post.create({
     data: {
       authorId: req.user!.id,
       type: input.type,
       caption: input.caption || null,
       sportsbookId: sportsbook.id,
-      bets: { create: betsData(input, events) },
+      lockAt,
+      ...groupGame,
+      bets: { create: betsData(input, events, req.user!.id) },
     },
     include: feedInclude(req.user!.id),
   });
@@ -192,10 +258,18 @@ router.patch<{ betId: string }>(
     }
     const bet = await prisma.bet.findUnique({
       where: { id: req.params.betId },
-      include: { post: { select: { authorId: true, deletedAt: true } } },
+      include: {
+        post: { select: { authorId: true, deletedAt: true, type: true } },
+      },
     });
     if (!bet || bet.post.deletedAt) {
       res.status(404).json({ error: 'Bet not found' });
+      return;
+    }
+    if (bet.post.type === 'GROUP_PARLAY') {
+      res
+        .status(400)
+        .json({ error: 'Settle a group parlay one leg at a time' });
       return;
     }
     if (bet.post.authorId !== req.user!.id) {
@@ -214,7 +288,8 @@ router.patch<{ betId: string }>(
 
 /**
  * Tail a slip: records a tail on every bet in the post (each ladder rung is its
- * own bet). Free users can tail. Repeat tails are no-ops.
+ * own bet). Free users can tail. Repeat tails are no-ops. A group parlay can
+ * be placed by anyone, its creator included, once it's locked.
  */
 router.post<{ postId: string }>(
   '/:postId/tail',
@@ -223,13 +298,26 @@ router.post<{ postId: string }>(
     const viewerId = req.user!.id;
     const post = await prisma.post.findFirst({
       where: { id: req.params.postId, deletedAt: null },
-      select: { authorId: true, bets: { select: { id: true } } },
+      select: {
+        authorId: true,
+        type: true,
+        lockAt: true,
+        lockedAt: true,
+        bets: { select: { id: true } },
+      },
     });
     if (!post) {
       res.status(404).json({ error: 'Post not found' });
       return;
     }
-    if (post.authorId === viewerId) {
+    if (post.type === 'GROUP_PARLAY') {
+      if (!isGroupLocked({ lockAt: post.lockAt!, lockedAt: post.lockedAt })) {
+        res
+          .status(400)
+          .json({ error: 'This group parlay is still taking legs' });
+        return;
+      }
+    } else if (post.authorId === viewerId) {
       res.status(400).json({ error: "You can't tail your own slip" });
       return;
     }
@@ -238,6 +326,287 @@ router.post<{ postId: string }>(
       skipDuplicates: true,
     });
     res.json(await loadFeedPost(req.params.postId, viewerId));
+  }
+);
+
+// ---------- Group parlays ----------
+
+type Tx = Prisma.TransactionClient;
+
+/** A live group parlay and its single bet, or null */
+const findGroup = (postId: string, db: Tx | typeof prisma = prisma) =>
+  db.post.findFirst({
+    where: { id: postId, deletedAt: null, type: 'GROUP_PARLAY' },
+    select: {
+      id: true,
+      authorId: true,
+      sportsbookId: true,
+      lockAt: true,
+      lockedAt: true,
+      groupEventId: true,
+      groupEventLabel: true,
+      bets: {
+        select: {
+          id: true,
+          legs: {
+            orderBy: { order: 'asc' },
+            select: {
+              id: true,
+              order: true,
+              addedById: true,
+              americanOdds: true,
+              result: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+const groupIsLocked = (group: { lockAt: Date | null; lockedAt: Date | null }) =>
+  isGroupLocked({ lockAt: group.lockAt!, lockedAt: group.lockedAt });
+
+/** Re-price the group bet as the product of its legs */
+async function repriceGroup(tx: Tx, betId: string) {
+  const legs = await tx.betLeg.findMany({
+    where: { betId },
+    select: { americanOdds: true },
+  });
+  const decimal = parlayDecimal(legs.map((l) => l.americanOdds));
+  await tx.bet.update({
+    where: { id: betId },
+    data: { decimalOdds: decimal, americanOdds: decimalToAmerican(decimal) },
+  });
+}
+
+/** Add your one leg to an open group parlay */
+router.post<{ postId: string }>(
+  '/:postId/legs',
+  requireAuth,
+  requireSubscription,
+  async (req, res) => {
+    const parsed = joinGroupSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: parsed.error.issues[0]?.message ?? 'Invalid leg' });
+      return;
+    }
+    const { leg } = parsed.data;
+    const userId = req.user!.id;
+    const group = await findGroup(req.params.postId);
+    if (!group) {
+      res.status(404).json({ error: 'Group parlay not found' });
+      return;
+    }
+    if (groupIsLocked(group)) {
+      res.status(400).json({ error: 'This group parlay is locked' });
+      return;
+    }
+    const bet = group.bets[0];
+    if (bet.legs.some((l) => l.addedById === userId)) {
+      res.status(409).json({ error: 'You already have a leg in this one' });
+      return;
+    }
+    if (bet.legs.length >= GROUP_MAX_LEGS) {
+      res.status(400).json({ error: `It's full at ${GROUP_MAX_LEGS} legs` });
+      return;
+    }
+    if (group.groupEventId && leg.eventId !== group.groupEventId) {
+      res
+        .status(400)
+        .json({ error: `This one is ${group.groupEventLabel} only` });
+      return;
+    }
+    if (!(await sportsAreActive([leg]))) {
+      res.status(400).json({ error: 'Unknown sport' });
+      return;
+    }
+
+    const events = await knownEvents(eventIdsOf([leg]));
+    try {
+      await prisma.$transaction(async (tx) => {
+        const last = await tx.betLeg.aggregate({
+          where: { betId: bet.id },
+          _max: { order: true },
+        });
+        await tx.betLeg.create({
+          data: {
+            ...legData(leg, (last._max.order ?? -1) + 1, events),
+            betId: bet.id,
+            addedById: userId,
+          },
+        });
+        await repriceGroup(tx, bet.id);
+      });
+    } catch (err) {
+      // Lost a race: same person twice, or two joins grabbed the same slot
+      if (isUniqueViolation(err)) {
+        res.status(409).json({ error: 'Someone just joined. Try again.' });
+        return;
+      }
+      throw err;
+    }
+    res.status(201).json(await loadFeedPost(group.id, userId));
+  }
+);
+
+/** Take a leg out while it's open: your own, or any leg if you started it */
+router.delete<{ postId: string; legId: string }>(
+  '/:postId/legs/:legId',
+  requireAuth,
+  async (req, res) => {
+    const userId = req.user!.id;
+    const group = await findGroup(req.params.postId);
+    const leg = group?.bets[0].legs.find((l) => l.id === req.params.legId);
+    if (!group || !leg) {
+      res.status(404).json({ error: 'Leg not found' });
+      return;
+    }
+    if (leg.addedById !== userId && group.authorId !== userId) {
+      res.status(403).json({ error: 'That isn’t your leg' });
+      return;
+    }
+    if (groupIsLocked(group)) {
+      res.status(400).json({ error: 'This group parlay is locked' });
+      return;
+    }
+    if (group.bets[0].legs.length === 1) {
+      res
+        .status(400)
+        .json({ error: 'It needs at least one leg. Delete the slip instead.' });
+      return;
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.betLeg.delete({ where: { id: leg.id } });
+      await repriceGroup(tx, group.bets[0].id);
+    });
+    res.json(await loadFeedPost(group.id, userId));
+  }
+);
+
+/** The creator locks it early; needs two legs to be a parlay */
+router.post<{ postId: string }>(
+  '/:postId/lock',
+  requireAuth,
+  async (req, res) => {
+    const userId = req.user!.id;
+    const group = await findGroup(req.params.postId);
+    if (!group) {
+      res.status(404).json({ error: 'Group parlay not found' });
+      return;
+    }
+    if (group.authorId !== userId) {
+      res.status(403).json({ error: 'Only the creator can lock it' });
+      return;
+    }
+    if (groupIsLocked(group)) {
+      res.status(400).json({ error: 'It’s already locked' });
+      return;
+    }
+    if (group.bets[0].legs.length < 2) {
+      res.status(400).json({ error: 'Wait for at least 2 legs' });
+      return;
+    }
+    await prisma.post.update({
+      where: { id: group.id },
+      data: { lockedAt: new Date() },
+    });
+    res.json(await loadFeedPost(group.id, userId));
+  }
+);
+
+/**
+ * The creator enters the book's price once it's locked. Same-game parlays
+ * price below the legs multiplied, and there's no public formula for it.
+ */
+router.put<{ postId: string }>(
+  '/:postId/price',
+  requireAuth,
+  async (req, res) => {
+    const parsed = groupPriceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: parsed.error.issues[0]?.message ?? 'Invalid odds' });
+      return;
+    }
+    const userId = req.user!.id;
+    const group = await findGroup(req.params.postId);
+    if (!group) {
+      res.status(404).json({ error: 'Group parlay not found' });
+      return;
+    }
+    if (group.authorId !== userId) {
+      res.status(403).json({ error: 'Only the creator can set the price' });
+      return;
+    }
+    if (!groupIsLocked(group)) {
+      res.status(400).json({ error: 'Lock it first so the legs are final' });
+      return;
+    }
+    const { americanOdds } = parsed.data;
+    await prisma.bet.update({
+      where: { id: group.bets[0].id },
+      data: { americanOdds, decimalOdds: americanToDecimal(americanOdds) },
+    });
+    res.json(await loadFeedPost(group.id, userId));
+  }
+);
+
+/**
+ * Grade one group parlay leg (its owner or the creator, once locked). The
+ * parlay's result follows from its legs.
+ */
+router.patch<{ legId: string }>(
+  '/legs/:legId',
+  requireAuth,
+  async (req, res) => {
+    const parsed = z
+      .object({ result: z.enum(['PENDING', 'WON', 'LOST', 'PUSH', 'VOID']) })
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid result' });
+      return;
+    }
+    const userId = req.user!.id;
+    const found = await prisma.betLeg.findUnique({
+      where: { id: req.params.legId },
+      select: { bet: { select: { postId: true } } },
+    });
+    const group = found && (await findGroup(found.bet.postId));
+    if (!group) {
+      res.status(404).json({ error: 'Leg not found' });
+      return;
+    }
+    const bet = group.bets[0];
+    const leg = bet.legs.find((l) => l.id === req.params.legId)!;
+    if (leg.addedById !== userId && group.authorId !== userId) {
+      res
+        .status(403)
+        .json({ error: 'Only the leg’s owner or the creator can settle it' });
+      return;
+    }
+    if (!groupIsLocked(group)) {
+      res.status(400).json({ error: 'Lock it before settling legs' });
+      return;
+    }
+    const { result } = parsed.data;
+    const results: BetResult[] = bet.legs.map((l) =>
+      l.id === leg.id ? result : l.result
+    );
+    const overall = groupResult(results);
+    await prisma.$transaction([
+      prisma.betLeg.update({ where: { id: leg.id }, data: { result } }),
+      prisma.bet.update({
+        where: { id: bet.id },
+        data: {
+          result: overall,
+          settledAt: overall === 'PENDING' ? null : new Date(),
+        },
+      }),
+    ]);
+    res.json(await loadFeedPost(group.id, userId));
   }
 );
 

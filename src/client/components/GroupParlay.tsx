@@ -1,0 +1,415 @@
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../auth/AuthProvider';
+import timeAgo, { lockTime } from '../lib/time';
+import {
+  formatAmerican,
+  formatMoney,
+  isValidAmerican,
+} from '../../shared/odds';
+import {
+  hasBookPrice,
+  isGroupLocked,
+  isSameGameLegs,
+} from '../../shared/posts';
+import type { BetResult, FeedLeg, FeedPost } from '../../shared/posts';
+import { useLayout } from './AppLayout';
+import {
+  legText,
+  PAYOUT_LABELS,
+  payoutColor,
+  RESULT_OPTIONS,
+  RESULT_STYLES,
+  returned,
+  TimelineRow,
+  Total,
+} from './SlipParts';
+
+// A group parlay on a slip card: one leg per friend, open until the
+// deadline or the creator locks it, then placed by anyone and graded leg by
+// leg so everyone can see whose leg cashed it or busted it.
+
+export type GroupHandlers = {
+  settleLeg: (postId: string, legId: string, result: BetResult) => void;
+  removeLeg: (postId: string, legId: string) => void;
+  lock: (postId: string) => void;
+  /** Creator enters the book's price once locked */
+  setPrice: (postId: string, americanOdds: number) => void;
+};
+
+export const groupLocked = (post: FeedPost) =>
+  !!post.group && isGroupLocked(post.group);
+
+const firstName = (fullName: string) => fullName.split(' ')[0];
+
+function LegControl({
+  leg,
+  canSettle,
+  canRemove,
+  onSettle,
+  onRemove,
+}: {
+  leg: FeedLeg;
+  canSettle: boolean;
+  canRemove: boolean;
+  onSettle: (result: BetResult) => void;
+  onRemove: () => void;
+}) {
+  const style = `rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${RESULT_STYLES[leg.result]}`;
+  if (canSettle) {
+    return (
+      <select
+        aria-label="Leg result"
+        value={leg.result}
+        onChange={(e) => onSettle(e.target.value as BetResult)}
+        className={`${style} cursor-pointer border-none outline-none`}
+      >
+        {RESULT_OPTIONS.map((r) => (
+          <option key={r} value={r}>
+            {r}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  if (canRemove) {
+    return (
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-xs font-medium text-gray-500 hover:text-red-400"
+      >
+        Remove
+      </button>
+    );
+  }
+  return leg.result === 'PENDING' ? null : (
+    <span className={style}>{leg.result}</span>
+  );
+}
+
+/** Who a leg belongs to: their initial and first name ("You" for yours) */
+function Owner({ owner, mine }: { owner: FeedLeg['addedBy']; mine: boolean }) {
+  if (!owner) return <span className="text-gray-500">Former member</span>;
+  return (
+    <Link
+      to={`/u/${owner.username}`}
+      className="inline-flex items-center gap-1.5 font-semibold text-gray-300 hover:underline"
+    >
+      <span
+        aria-hidden="true"
+        className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-bold uppercase text-emerald-400"
+      >
+        {owner.fullName[0]}
+      </span>
+      {mine ? 'You' : firstName(owner.fullName)}
+    </Link>
+  );
+}
+
+/** Odds in the title bar, with the book's price (or a way to enter it) */
+function GroupOdds({
+  post,
+  canPrice,
+  onPrice,
+}: {
+  post: FeedPost;
+  canPrice: boolean;
+  onPrice: (americanOdds: number) => void;
+}) {
+  const bet = post.bets[0];
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const priced = hasBookPrice(bet);
+  // Different games multiply exactly; one game only estimates until priced
+  const estimate = isSameGameLegs(bet.legs) && !priced;
+
+  if (editing) {
+    const save = (e: React.FormEvent) => {
+      e.preventDefault();
+      const odds = Number(draft.trim().replace(/^\+/, ''));
+      if (!isValidAmerican(odds)) {
+        setError('Like +850 or -120');
+        return;
+      }
+      onPrice(odds);
+      setEditing(false);
+    };
+    return (
+      <form onSubmit={save} className="flex flex-col items-end gap-1">
+        <div className="flex items-center gap-1.5">
+          <input
+            aria-label={`${post.sportsbook.name} price`}
+            inputMode="numeric"
+            placeholder="+850"
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="w-20 rounded-md border border-gray-700 bg-gray-950 px-2 py-1 text-right font-mono text-sm text-white outline-none focus:border-emerald-500"
+          />
+          <button
+            type="submit"
+            className="rounded-md bg-emerald-500 px-2 py-1 text-xs font-semibold text-gray-950 hover:bg-emerald-400"
+          >
+            Save
+          </button>
+        </div>
+        {error && <span className="text-xs text-red-400">{error}</span>}
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex flex-none flex-col items-end">
+      <span className="font-mono text-lg font-bold tabular-nums">
+        {formatAmerican(bet.americanOdds)}
+      </span>
+      {estimate && (
+        <span
+          title="Same-game parlays price lower at the book than the legs multiplied"
+          className="text-[10px] font-semibold uppercase tracking-wider text-gray-500"
+        >
+          est.
+        </span>
+      )}
+      {priced && (
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+          {post.sportsbook.name} price
+        </span>
+      )}
+      {canPrice && (
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(priced ? formatAmerican(bet.americanOdds) : '');
+            setError(null);
+            setEditing(true);
+          }}
+          className="mt-0.5 text-xs font-semibold text-emerald-400 hover:underline"
+        >
+          {priced ? 'Edit price' : `Set ${post.sportsbook.name} price`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Title bar, legs and totals inside the slip box */
+export function GroupSlip({
+  post,
+  handlers,
+}: {
+  post: FeedPost;
+  handlers: GroupHandlers;
+}) {
+  const { profile } = useAuth();
+  const bet = post.bets[0];
+  const group = post.group!;
+  const locked = groupLocked(post);
+  const isCreator = post.author.id === profile?.id;
+  const statusClass =
+    'rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide';
+
+  let status: React.ReactNode;
+  let when: string;
+  if (!locked) {
+    status = (
+      <span className={`${statusClass} bg-emerald-500/15 text-emerald-400`}>
+        OPEN
+      </span>
+    );
+    when = `Locks ${lockTime(group.lockAt)} · ${timeAgo(group.lockAt)}`;
+  } else {
+    status = (
+      <span className={`${statusClass} ${RESULT_STYLES[bet.result]}`}>
+        {bet.result === 'PENDING' ? 'LOCKED' : bet.result}
+      </span>
+    );
+    when = `Locked ${lockTime(group.lockedAt ?? group.lockAt)}`;
+  }
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-3 border-b border-gray-800 px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-lg font-bold leading-tight">👥 Group Parlay</p>
+          <p
+            className={`mt-1 text-xs font-medium ${locked ? 'text-gray-500' : 'text-emerald-400'}`}
+          >
+            🔒 {when}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="rounded border border-gray-700 px-1.5 py-px text-[11px] font-semibold text-gray-400">
+              {post.sportsbook.name}
+            </span>
+            {status}
+            {group.game && (
+              <span className={`${statusClass} bg-gray-800 text-gray-300`}>
+                🎯 {group.game.eventLabel} only
+              </span>
+            )}
+          </div>
+        </div>
+        <GroupOdds
+          post={post}
+          canPrice={isCreator && locked && bet.result === 'PENDING'}
+          onPrice={(odds) => handlers.setPrice(post.id, odds)}
+        />
+      </div>
+
+      <ol>
+        {bet.legs.map((leg, i) => {
+          const { title, market } = legText(leg);
+          const owner = leg.addedBy;
+          const mine = owner?.id === profile?.id;
+          const canEdit = mine || isCreator;
+          return (
+            <TimelineRow
+              key={leg.id}
+              result={leg.result}
+              last={i === bet.legs.length - 1}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-bold leading-snug">{title}</p>
+                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    {market}
+                  </p>
+                </div>
+                <span className="font-mono font-bold tabular-nums">
+                  {formatAmerican(leg.americanOdds)}
+                </span>
+              </div>
+              {/* A one-game parlay already says its game up top */}
+              {!group.game && (
+                <p className="mt-1.5 text-xs text-emerald-400">
+                  {leg.eventLabel}
+                </p>
+              )}
+              <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="inline-flex items-center gap-2 text-gray-400">
+                  <Owner owner={owner} mine={mine} />
+                  {leg.result === 'LOST' && (
+                    <span className="font-bold text-red-400">💀 Busted it</span>
+                  )}
+                  {leg.result === 'WON' && (
+                    <span className="font-bold text-emerald-400">✓ Hit</span>
+                  )}
+                </span>
+                <LegControl
+                  leg={leg}
+                  canSettle={locked && canEdit}
+                  canRemove={!locked && canEdit && bet.legs.length > 1}
+                  onSettle={(r) => handlers.settleLeg(post.id, leg.id, r)}
+                  onRemove={() => handlers.removeLeg(post.id, leg.id)}
+                />
+              </div>
+            </TimelineRow>
+          );
+        })}
+      </ol>
+
+      <div className="flex items-end justify-between gap-4 border-t border-gray-800 bg-gray-950 px-4 py-3">
+        <Total
+          label={bet.legs.length === 1 ? 'Pick' : 'Picks'}
+          value={bet.legs.length}
+        />
+        <Total
+          align="right"
+          label={PAYOUT_LABELS[bet.result]}
+          value={
+            <span className={payoutColor(bet.result)}>
+              {formatMoney(returned(10, bet.decimalOdds, bet.result))}
+            </span>
+          }
+        />
+      </div>
+    </>
+  );
+}
+
+const actionClass =
+  'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition';
+
+/** Footer while it's open: who's in, add your leg, lock it */
+export function GroupActions({
+  post,
+  handlers,
+  onDelete,
+}: {
+  post: FeedPost;
+  handlers: GroupHandlers;
+  onDelete: (postId: string) => void;
+}) {
+  const { profile, isSubscribed } = useAuth();
+  const { openComposer } = useLayout();
+  const { legs } = post.bets[0];
+  const isCreator = post.author.id === profile?.id;
+  const joined = legs.some((l) => l.addedBy?.id === profile?.id);
+  const count = legs.length;
+
+  let join: React.ReactNode;
+  if (joined) {
+    join = (
+      <span className={`${actionClass} bg-emerald-500/15 text-emerald-400`}>
+        ✓ You&apos;re in
+      </span>
+    );
+  } else if (isSubscribed) {
+    join = (
+      <button
+        type="button"
+        onClick={() =>
+          openComposer({ postId: post.id, game: post.group?.game ?? null })
+        }
+        className={`${actionClass} bg-emerald-500 text-gray-950 hover:bg-emerald-400`}
+      >
+        + Add your leg
+      </button>
+    );
+  } else {
+    join = (
+      <span className="text-xs text-gray-500">
+        Subscribers add legs. You can place it once it locks.
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <span>
+        {count} {count === 1 ? 'leg' : 'legs'} in
+        {isCreator && (
+          <>
+            {' · '}
+            <button
+              type="button"
+              onClick={() => onDelete(post.id)}
+              className="hover:text-red-400"
+            >
+              Delete
+            </button>
+          </>
+        )}
+      </span>
+      <div className="flex items-center gap-2">
+        {isCreator && (
+          <button
+            type="button"
+            onClick={() => handlers.lock(post.id)}
+            disabled={count < 2}
+            title={
+              count < 2 ? 'Needs at least 2 legs' : 'No more legs after this'
+            }
+            className={`${actionClass} border border-gray-700 text-gray-300 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40`}
+          >
+            🔒 Lock it
+          </button>
+        )}
+        {join}
+      </div>
+    </div>
+  );
+}

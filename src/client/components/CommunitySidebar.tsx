@@ -182,6 +182,73 @@ function Calendar({
   );
 }
 
+/** The group parlays' own record, plus whose legs carry and whose bust */
+function GroupRecord({ group }: { group: CommunityStats['group'] }) {
+  const settled = group.wins + group.losses + group.pushes;
+  if (!settled && !group.open) return null;
+  return (
+    <Panel
+      title="Group parlays"
+      action={
+        group.open > 0 && (
+          <span className="text-xs text-gray-500">{group.open} open</span>
+        )
+      }
+    >
+      <p className="py-1 text-2xl font-bold tabular-nums">
+        {settled ? (
+          <>
+            <span className="text-win">{group.wins}</span>
+            <span className="text-gray-500">-</span>
+            <span className="text-red-400">{group.losses}</span>
+            {group.pushes > 0 && (
+              <span className="text-gray-500">-{group.pushes}</span>
+            )}
+          </>
+        ) : (
+          <span className="text-base font-medium text-gray-500">
+            First one&apos;s still open
+          </span>
+        )}
+      </p>
+      {group.legs.length > 0 && (
+        <ul className="divide-y divide-gray-800">
+          {group.legs.map((u) => (
+            <li key={u.id}>
+              <Link
+                to={`/u/${u.username}`}
+                className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition hover:bg-gray-800"
+              >
+                <Initial name={u.fullName} />
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {u.fullName}
+                </span>
+                <span
+                  title={`${u.hit} of ${u.hit + u.busted} legs hit`}
+                  className="tabular-nums text-gray-400"
+                >
+                  <span className="font-semibold text-emerald-400">
+                    {u.hit}
+                  </span>
+                  /{u.hit + u.busted}
+                </span>
+                {u.busted > 0 && (
+                  <span
+                    title={`Busted ${u.busted} group ${u.busted === 1 ? 'parlay' : 'parlays'}`}
+                    className="w-9 text-right text-xs font-semibold text-red-400"
+                  >
+                    💀{u.busted}
+                  </span>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
 export default function CommunitySidebar({
   reloadKey,
 }: {
@@ -270,6 +337,8 @@ export default function CommunitySidebar({
           <Empty>Nobody&apos;s up this week.</Empty>
         )}
       </Panel>
+
+      <GroupRecord group={data.group} />
 
       <Calendar month={data.month} days={data.days} onMonth={setMonth} />
     </div>

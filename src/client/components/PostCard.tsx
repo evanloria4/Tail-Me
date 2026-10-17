@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { formatAmerican, formatMoney, payout } from '../../shared/odds';
-import { BetResult, FeedBet, FeedLeg, FeedPost } from '../../shared/posts';
+import { formatAmerican, formatMoney } from '../../shared/odds';
+import { BetResult, FeedPost } from '../../shared/posts';
 import timeAgo from '../lib/time';
 import { slipBadges } from '../../shared/badges';
 import type { ReactionEmoji } from '../../shared/social';
@@ -15,188 +15,24 @@ import {
   TailersButton,
   WinBanner,
 } from './SlipSocial';
-
-// Slip layout follows a sportsbook bet slip: a title bar with the total
-// odds, picks strung on a vertical timeline, then wager/payout totals.
-
-const RESULT_STYLES: Record<BetResult, string> = {
-  PENDING: 'bg-gray-800 text-gray-300',
-  WON: 'bg-emerald-500/15 text-emerald-400',
-  LOST: 'bg-red-500/15 text-red-400',
-  PUSH: 'bg-yellow-500/15 text-yellow-300',
-  VOID: 'bg-gray-800 text-gray-500',
-};
-
-/** Timeline dot per result: hollow while pending, filled once settled */
-const NODE_STYLES: Record<BetResult, string> = {
-  PENDING: 'border-gray-600 bg-gray-900',
-  WON: 'border-emerald-500 bg-emerald-500',
-  LOST: 'border-red-400 bg-red-400',
-  PUSH: 'border-yellow-300 bg-yellow-300',
-  VOID: 'border-gray-600 bg-gray-800',
-};
-
-const RESULT_OPTIONS: BetResult[] = ['PENDING', 'WON', 'LOST', 'PUSH', 'VOID'];
-
-const units = (n: number) => `${Math.round(n * 100) / 100}u`;
-
-/** What a stake returns: nothing on a loss, the stake back on push/void.
- *  Pending bets show what they'd return if they hit. */
-function returned(stake: number, decimal: number, result: BetResult) {
-  if (result === 'LOST') return 0;
-  if (result === 'PUSH' || result === 'VOID') return stake;
-  return payout(stake, decimal);
-}
-
-const PAYOUT_LABELS: Record<BetResult, string> = {
-  PENDING: '$10 pays',
-  WON: '$10 paid',
-  LOST: 'Payout',
-  PUSH: 'Payout',
-  VOID: 'Payout',
-};
-
-/** Green only for money actually won; plain while pending, muted for $0 or a refund */
-const payoutColor = (result: BetResult) => {
-  if (result === 'WON') return 'text-win';
-  if (result === 'PENDING') return '';
-  return 'text-gray-400';
-};
-
-/** Big pick line + small uppercase market line, e.g. "Bills -3.5" / "SPREAD" */
-function legText(leg: FeedLeg): { title: string; market: string } {
-  const line = leg.line == null ? '' : ` ${leg.line}`;
-  switch (leg.marketKey) {
-    case 'h2h':
-      return { title: leg.selection, market: 'Moneyline' };
-    case 'spreads':
-      return {
-        title: `${leg.selection} ${leg.line != null && leg.line > 0 ? '+' : ''}${leg.line ?? ''}`,
-        market: 'Spread',
-      };
-    case 'totals':
-      return { title: `${leg.selection}${line}`, market: 'Total' };
-    default: {
-      // Yes/no props ("Anytime TD") read better without the "Yes"
-      const pick =
-        leg.selection === 'Yes' ? leg.marketLabel : `${leg.selection}${line}`;
-      return {
-        title: `${leg.playerName} ${pick}`,
-        market: `${leg.playerName} - ${leg.marketLabel}`,
-      };
-    }
-  }
-}
-
-function slipTitle(post: FeedPost): string {
-  const { legs } = post.bets[0];
-  if (post.type === 'LADDER') return `${post.bets.length} Rung Ladder`;
-  const sameGame = legs.every((l) => l.eventLabel === legs[0].eventLabel);
-  return `${legs.length} Leg ${sameGame ? 'Same Game ' : ''}Parlay`;
-}
-
-function ResultControl({
-  bet,
-  isAuthor,
-  onSettle,
-}: {
-  bet: FeedBet;
-  isAuthor: boolean;
-  onSettle: (betId: string, result: BetResult) => void;
-}) {
-  const style = `rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${RESULT_STYLES[bet.result]}`;
-  if (!isAuthor) return <span className={style}>{bet.result}</span>;
-  return (
-    <select
-      aria-label="Bet result"
-      value={bet.result}
-      onChange={(e) => onSettle(bet.id, e.target.value as BetResult)}
-      className={`${style} cursor-pointer border-none outline-none`}
-    >
-      {RESULT_OPTIONS.map((r) => (
-        <option key={r} value={r}>
-          {r}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-/** One stop on the slip's timeline; the connector runs down to the next stop */
-function TimelineRow({
-  result,
-  last,
-  children,
-}: {
-  result: BetResult;
-  last: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <li className="relative pl-10 pr-4">
-      <span
-        aria-hidden="true"
-        className={`absolute left-4 top-4 h-3 w-3 rounded-full border-2 ${NODE_STYLES[result]}`}
-      />
-      {!last && (
-        <span
-          aria-hidden="true"
-          className="absolute -bottom-4 left-[21.5px] top-7 w-px bg-gray-700"
-        />
-      )}
-      <div className={`py-3 ${last ? '' : 'border-b border-gray-800'}`}>
-        {children}
-      </div>
-    </li>
-  );
-}
-
-function LegRow({
-  leg,
-  result,
-  last,
-}: {
-  leg: FeedLeg;
-  result: BetResult;
-  last: boolean;
-}) {
-  const { title, market } = legText(leg);
-  return (
-    <TimelineRow result={result} last={last}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-bold leading-snug">{title}</p>
-          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            {market}
-          </p>
-        </div>
-        <span className="font-mono font-bold tabular-nums">
-          {formatAmerican(leg.americanOdds)}
-        </span>
-      </div>
-      <p className="mt-1.5 text-xs text-emerald-400">{leg.eventLabel}</p>
-    </TimelineRow>
-  );
-}
-
-function Total({
-  label,
-  value,
-  align = 'left',
-}: {
-  label: string;
-  value: React.ReactNode;
-  align?: 'left' | 'right';
-}) {
-  return (
-    <div className={align === 'right' ? 'text-right' : ''}>
-      <p className="font-bold tabular-nums">{value}</p>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-        {label}
-      </p>
-    </div>
-  );
-}
+import {
+  LegRow,
+  legText,
+  PAYOUT_LABELS,
+  payoutColor,
+  ResultControl,
+  returned,
+  slipTitle,
+  TimelineRow,
+  Total,
+  units,
+} from './SlipParts';
+import {
+  GroupActions,
+  GroupHandlers,
+  groupLocked,
+  GroupSlip,
+} from './GroupParlay';
 
 /** Where Tail lands when a pick has no add-to-betslip link (typed-in slips) */
 const BOOK_HOMEPAGES: Record<string, string> = {
@@ -240,10 +76,10 @@ const tailButtonClass =
   'inline-flex items-center gap-1.5 rounded-lg border border-emerald-500 px-3 py-1.5 text-sm font-semibold text-emerald-400 transition hover:bg-emerald-500/10';
 
 /** Shown once tailed: a status, not a control */
-function TailedBadge() {
+function TailedBadge({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-3 py-1.5 text-sm font-semibold text-emerald-400">
-      ✓ Tailed
+      ✓ {label}
     </span>
   );
 }
@@ -257,11 +93,14 @@ function TailSection({
   post,
   onTail,
   children,
+  verb = 'Tail',
 }: {
   post: FeedPost;
   onTail: (postId: string) => void;
   /** Left side of the row (the tail count) */
   children: React.ReactNode;
+  /** Group parlays are placed, not tailed */
+  verb?: 'Tail' | 'Place it';
 }) {
   const [open, setOpen] = useState(false);
   const tailed = post.bets.some((b) => b.tailedByMe);
@@ -272,7 +111,8 @@ function TailSection({
   const single = picks.length === 1 && (picks[0].link || home);
 
   let control: React.ReactNode;
-  if (tailed) control = <TailedBadge />;
+  if (tailed)
+    control = <TailedBadge label={verb === 'Tail' ? 'Tailed' : 'Placed'} />;
   else if (single)
     control = (
       <a
@@ -282,7 +122,7 @@ function TailSection({
         onClick={() => onTail(post.id)}
         className={tailButtonClass}
       >
-        Tail ↗
+        {verb} ↗
       </a>
     );
   else
@@ -295,7 +135,7 @@ function TailSection({
         }}
         className={tailButtonClass}
       >
-        Tail
+        {verb}
       </button>
     );
 
@@ -365,6 +205,7 @@ export default function PostCard({
   onDelete,
   onTail,
   onReact,
+  groupHandlers,
 }: {
   post: FeedPost;
   currentUserId?: string;
@@ -372,8 +213,11 @@ export default function PostCard({
   onDelete: (postId: string) => void;
   onTail: (postId: string) => void;
   onReact: (postId: string, emoji: ReactionEmoji) => void;
+  groupHandlers: GroupHandlers;
 }) {
   const isAuthor = post.author.id === currentUserId;
+  const isGroup = post.type === 'GROUP_PARLAY';
+  const locked = groupLocked(post);
   const tails = Math.max(...post.bets.map((b) => b.tailCount));
   const tailCount = <TailersButton postId={post.id} count={tails} />;
   const badges = slipBadges(post);
@@ -381,10 +225,12 @@ export default function PostCard({
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentCount, setCommentCount] = useState(post.commentCount);
   useEffect(() => setCommentCount(post.commentCount), [post.commentCount]);
-  // Others can tail while a bet is open; a tailed slip keeps its badge after
+  // Others can tail while a bet is open; a tailed slip keeps its badge after.
+  // A group parlay can be placed by anyone, creator included, once locked.
+  const open = post.bets.some((b) => b.result === 'PENDING');
   const canTail =
     post.bets.some((b) => b.tailedByMe) ||
-    (!isAuthor && post.bets.some((b) => b.result === 'PENDING'));
+    (isGroup ? locked && open : !isAuthor && open);
   const first = post.bets[0];
   const isLadder = post.type === 'LADDER';
   const isStraight = post.type === 'STRAIGHT';
@@ -449,167 +295,188 @@ export default function PostCard({
         }`}
       >
         <WinBanner badges={badges} />
-        {/* Title bar */}
-        <div className="flex items-start justify-between gap-3 border-b border-gray-800 px-4 py-3">
-          <div className="min-w-0">
-            {isStraight ? (
-              // A single pick is the slip's headline, like a book's bet receipt
-              <>
-                <p className="text-lg font-bold leading-tight">
-                  {legText(pick).title}
-                </p>
-                <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                  {legText(pick).market}
-                </p>
-                <p className="mt-1.5 text-xs text-emerald-400">
-                  {pick.eventLabel}
-                </p>
-              </>
-            ) : (
-              <p className="text-lg font-bold leading-tight">
-                {slipTitle(post)}
-              </p>
-            )}
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="rounded border border-gray-700 px-1.5 py-px text-[11px] font-semibold text-gray-400">
-                {post.sportsbook.name}
-              </span>
+        {isGroup ? (
+          <GroupSlip post={post} handlers={groupHandlers} />
+        ) : (
+          <>
+            {/* Title bar */}
+            <div className="flex items-start justify-between gap-3 border-b border-gray-800 px-4 py-3">
+              <div className="min-w-0">
+                {isStraight ? (
+                  // A single pick is the slip's headline, like a book's bet receipt
+                  <>
+                    <p className="text-lg font-bold leading-tight">
+                      {legText(pick).title}
+                    </p>
+                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                      {legText(pick).market}
+                    </p>
+                    <p className="mt-1.5 text-xs text-emerald-400">
+                      {pick.eventLabel}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-lg font-bold leading-tight">
+                    {slipTitle(post)}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded border border-gray-700 px-1.5 py-px text-[11px] font-semibold text-gray-400">
+                    {post.sportsbook.name}
+                  </span>
+                  {!isLadder && (
+                    <ResultControl
+                      bet={first}
+                      isAuthor={isAuthor}
+                      onSettle={onSettle}
+                    />
+                  )}
+                </div>
+              </div>
               {!isLadder && (
-                <ResultControl
-                  bet={first}
-                  isAuthor={isAuthor}
-                  onSettle={onSettle}
-                />
+                <span className="font-mono text-lg font-bold tabular-nums">
+                  {formatAmerican(first.americanOdds)}
+                </span>
+              )}
+              {isLadder && ladderSettled && (
+                <div className="text-right">
+                  <p className="text-lg font-bold leading-tight tabular-nums">
+                    {rungsHit}/{post.bets.length}
+                  </p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                    Hit
+                  </p>
+                </div>
               )}
             </div>
-          </div>
-          {!isLadder && (
-            <span className="font-mono text-lg font-bold tabular-nums">
-              {formatAmerican(first.americanOdds)}
-            </span>
-          )}
-          {isLadder && ladderSettled && (
-            <div className="text-right">
-              <p className="text-lg font-bold leading-tight tabular-nums">
-                {rungsHit}/{post.bets.length}
-              </p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                Hit
-              </p>
-            </div>
-          )}
-        </div>
 
-        {isLadder ? (
-          <>
-            <div className="border-b border-gray-800 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                {pick.playerName
-                  ? `${pick.playerName} - ${pick.marketLabel}`
-                  : legText(pick).market}
-              </p>
-              <p className="mt-1 text-xs text-emerald-400">{pick.eventLabel}</p>
-            </div>
-            <ol>
-              {post.bets.map((bet, i) => {
-                const leg = bet.legs[0];
-                return (
-                  <TimelineRow
-                    key={bet.id}
-                    result={bet.result}
-                    last={i === post.bets.length - 1}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="font-bold">
-                        {leg.selection} {leg.line}
-                      </p>
-                      <span className="font-mono font-bold tabular-nums">
-                        {formatAmerican(bet.americanOdds)}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400">
-                      <span>
-                        {units(bet.units)}{' '}
-                        {bet.result === 'PENDING' ? 'pays' : 'paid'}{' '}
-                        <span
-                          className={`font-semibold ${payoutColor(bet.result)}`}
-                        >
-                          {units(
-                            returned(bet.units, bet.decimalOdds, bet.result)
-                          )}
-                        </span>
-                      </span>
-                      <ResultControl
-                        bet={bet}
-                        isAuthor={isAuthor}
-                        onSettle={onSettle}
-                      />
-                    </div>
-                  </TimelineRow>
-                );
-              })}
-            </ol>
-          </>
-        ) : (
-          !isStraight && (
-            <ol>
-              {first.legs.map((leg, i) => (
-                <LegRow
-                  key={leg.id}
-                  leg={leg}
-                  result={legResult}
-                  last={i === first.legs.length - 1}
-                />
-              ))}
-            </ol>
-          )
-        )}
+            {isLadder ? (
+              <>
+                <div className="border-b border-gray-800 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    {pick.playerName
+                      ? `${pick.playerName} - ${pick.marketLabel}`
+                      : legText(pick).market}
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-400">
+                    {pick.eventLabel}
+                  </p>
+                </div>
+                <ol>
+                  {post.bets.map((bet, i) => {
+                    const leg = bet.legs[0];
+                    return (
+                      <TimelineRow
+                        key={bet.id}
+                        result={bet.result}
+                        last={i === post.bets.length - 1}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-bold">
+                            {leg.selection} {leg.line}
+                          </p>
+                          <span className="font-mono font-bold tabular-nums">
+                            {formatAmerican(bet.americanOdds)}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400">
+                          <span>
+                            {units(bet.units)}{' '}
+                            {bet.result === 'PENDING' ? 'pays' : 'paid'}{' '}
+                            <span
+                              className={`font-semibold ${payoutColor(bet.result)}`}
+                            >
+                              {units(
+                                returned(bet.units, bet.decimalOdds, bet.result)
+                              )}
+                            </span>
+                          </span>
+                          <ResultControl
+                            bet={bet}
+                            isAuthor={isAuthor}
+                            onSettle={onSettle}
+                          />
+                        </div>
+                      </TimelineRow>
+                    );
+                  })}
+                </ol>
+              </>
+            ) : (
+              !isStraight && (
+                <ol>
+                  {first.legs.map((leg, i) => (
+                    <LegRow
+                      key={leg.id}
+                      leg={leg}
+                      result={legResult}
+                      last={i === first.legs.length - 1}
+                    />
+                  ))}
+                </ol>
+              )
+            )}
 
-        {/* Totals */}
-        <div className="flex items-end justify-between gap-4 border-t border-gray-800 bg-gray-950 px-4 py-3">
-          {isLadder ? (
-            <>
-              <Total label="Units risked" value={units(ladderRisked)} />
-              <Total
-                align="right"
-                // Until every rung settles, assume the open ones hit
-                label={allSettled ? 'Payout' : 'Max payout'}
-                value={
-                  <span
-                    className={
-                      // eslint-disable-next-line no-nested-ternary
-                      !allSettled
-                        ? ''
-                        : rungsHit > 0
-                          ? 'text-win'
-                          : 'text-gray-400'
+            {/* Totals */}
+            <div className="flex items-end justify-between gap-4 border-t border-gray-800 bg-gray-950 px-4 py-3">
+              {isLadder ? (
+                <>
+                  <Total label="Units risked" value={units(ladderRisked)} />
+                  <Total
+                    align="right"
+                    // Until every rung settles, assume the open ones hit
+                    label={allSettled ? 'Payout' : 'Max payout'}
+                    value={
+                      <span
+                        className={
+                          // eslint-disable-next-line no-nested-ternary
+                          !allSettled
+                            ? ''
+                            : rungsHit > 0
+                              ? 'text-win'
+                              : 'text-gray-400'
+                        }
+                      >
+                        {units(ladderReturn)}
+                      </span>
                     }
-                  >
-                    {units(ladderReturn)}
-                  </span>
-                }
-              />
-            </>
-          ) : (
-            <>
-              <Total label="Units" value={units(first.units)} />
-              <Total
-                align="right"
-                label={PAYOUT_LABELS[first.result]}
-                value={
-                  <span className={payoutColor(first.result)}>
-                    {formatMoney(returned(10, first.decimalOdds, first.result))}
-                  </span>
-                }
-              />
-            </>
-          )}
-        </div>
+                  />
+                </>
+              ) : (
+                <>
+                  <Total label="Units" value={units(first.units)} />
+                  <Total
+                    align="right"
+                    label={PAYOUT_LABELS[first.result]}
+                    value={
+                      <span className={payoutColor(first.result)}>
+                        {formatMoney(
+                          returned(10, first.decimalOdds, first.result)
+                        )}
+                      </span>
+                    }
+                  />
+                </>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <footer className="space-y-3 px-4 pb-4 text-sm text-gray-500">
-        {canTail ? (
-          <TailSection post={post} onTail={onTail}>
+        {/* eslint-disable-next-line no-nested-ternary */}
+        {isGroup && !locked ? (
+          <GroupActions
+            post={post}
+            handlers={groupHandlers}
+            onDelete={onDelete}
+          />
+        ) : canTail ? (
+          <TailSection
+            post={post}
+            onTail={onTail}
+            verb={isGroup ? 'Place it' : 'Tail'}
+          >
             {tailCount}
           </TailSection>
         ) : (

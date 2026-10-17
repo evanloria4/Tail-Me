@@ -6,9 +6,14 @@ import type { BetResult, FeedPost } from './posts';
 // its own win or loss. Voided bets don't count at all. A parlay that mixes
 // leagues counts once overall but under no single league.
 
-export type PostType = FeedPost['type'];
+/** Personal post types; group parlays keep their own record */
+export type PostType = Exclude<FeedPost['type'], 'GROUP_PARLAY'>;
 
 export const POST_TYPES: PostType[] = ['STRAIGHT', 'PARLAY', 'LADDER'];
+
+/** Posts that count toward personal records (not group parlays) */
+export const isPersonalType = (t: string): t is PostType =>
+  (POST_TYPES as string[]).includes(t);
 
 /** One bet, plus the bits of its slip the breakdowns need */
 export type StatBet = {
