@@ -6,6 +6,7 @@ import AppLayout from './components/AppLayout';
 import { ToastProvider } from './components/Toast';
 import Feed from './pages/Feed';
 import Login from './pages/Login';
+import Profile from './pages/Profile';
 import Signup from './pages/Signup';
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
             }
           >
             <Route path="/" element={<Feed />} />
+            <Route path="/u/:username" element={<Profile />} />
             <Route path="/new" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

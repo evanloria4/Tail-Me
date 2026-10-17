@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../db';
-import { Prisma } from '../../generated/prisma/client';
+import { feedInclude, toFeedPost } from '../feed';
 import { requireAuth, requireSubscription } from '../middleware/auth';
 import {
   americanToDecimal,
@@ -11,68 +11,12 @@ import {
 import {
   createPostSchema,
   CreatePostInput,
-  FeedPost,
   LegInput,
-  MarketKey,
 } from '../../shared/posts';
+import { isStatRange, rangeStart } from '../../shared/stats';
 
 const router = Router();
 const PAGE_SIZE = 20;
-
-/** Feed shape; `tails` only loads the viewer's own tail so we can show "Tailed" */
-const feedInclude = (viewerId: string) =>
-  ({
-    author: {
-      select: { id: true, username: true, fullName: true, avatarUrl: true },
-    },
-    sportsbook: { select: { key: true, name: true } },
-    bets: {
-      orderBy: { order: 'asc' },
-      include: {
-        legs: { orderBy: { order: 'asc' } },
-        _count: { select: { tails: true } },
-        tails: { where: { userId: viewerId }, select: { id: true } },
-      },
-    },
-  }) satisfies Prisma.PostInclude;
-
-type PostWithFeed = Prisma.PostGetPayload<{
-  include: ReturnType<typeof feedInclude>;
-}>;
-
-function toFeedPost(post: PostWithFeed): FeedPost {
-  return {
-    id: post.id,
-    type: post.type,
-    caption: post.caption,
-    createdAt: post.createdAt.toISOString(),
-    author: post.author,
-    sportsbook: post.sportsbook,
-    bets: post.bets.map((bet) => ({
-      id: bet.id,
-      order: bet.order,
-      units: bet.units.toNumber(),
-      americanOdds: bet.americanOdds,
-      decimalOdds: bet.decimalOdds.toNumber(),
-      result: bet.result,
-      deepLink: bet.deepLink,
-      tailCount: bet._count.tails,
-      tailedByMe: bet.tails.length > 0,
-      legs: bet.legs.map((leg) => ({
-        id: leg.id,
-        sportKey: leg.sportKey,
-        eventLabel: leg.eventLabel,
-        marketKey: leg.marketKey as MarketKey,
-        marketLabel: leg.marketLabel,
-        playerName: leg.playerName,
-        selection: leg.selection,
-        line: leg.line?.toNumber() ?? null,
-        americanOdds: leg.americanOdds,
-        deepLink: leg.deepLink,
-      })),
-    })),
-  };
-}
 
 /** Odds API event ids we've stored; legs pointing anywhere else drop the link */
 type KnownEvents = Set<string>;
@@ -155,15 +99,24 @@ function sportKeysOf(input: CreatePostInput): string[] {
   return [input.pick.sportKey];
 }
 
-/** Feed: everyone's posts, newest first. `?cursor=<last post id>` for the next page. */
+/**
+ * Feed: everyone's posts, newest first. `?cursor=<last post id>` for the next
+ * page, `?author=<username>` for one user's slips, `?range=7d|30d|all`.
+ */
 router.get('/', requireAuth, async (req, res) => {
-  const cursor =
-    typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+  const { cursor, author, range } = req.query;
+  const since = isStatRange(range) ? rangeStart(range) : null;
   const posts = await prisma.post.findMany({
-    where: { deletedAt: null },
+    where: {
+      deletedAt: null,
+      ...(typeof author === 'string' && {
+        author: { username: { equals: author, mode: 'insensitive' } },
+      }),
+      ...(since && { createdAt: { gte: since } }),
+    },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: PAGE_SIZE + 1,
-    ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+    ...(typeof cursor === 'string' && { cursor: { id: cursor }, skip: 1 }),
     include: feedInclude(req.user!.id),
   });
   const hasMore = posts.length > PAGE_SIZE;

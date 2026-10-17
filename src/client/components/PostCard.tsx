@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { formatAmerican, formatMoney, payout } from '../../shared/odds';
 import { BetResult, FeedBet, FeedLeg, FeedPost } from '../../shared/posts';
 import timeAgo from '../lib/time';
@@ -386,13 +387,21 @@ export default function PostCard({
   return (
     <article className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900">
       <header className="flex items-center gap-3 px-4 pt-4">
-        <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-emerald-500/20 font-bold uppercase text-emerald-400">
+        <Link
+          to={`/u/${post.author.username}`}
+          aria-hidden="true"
+          tabIndex={-1}
+          className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-emerald-500/20 font-bold uppercase text-emerald-400"
+        >
           {post.author.fullName[0]}
-        </div>
+        </Link>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold leading-tight">
+          <Link
+            to={`/u/${post.author.username}`}
+            className="block truncate font-semibold leading-tight hover:underline"
+          >
             {post.author.fullName}
-          </p>
+          </Link>
           <p className="truncate text-sm text-gray-500">
             @{post.author.username} · {timeAgo(post.createdAt)}
           </p>

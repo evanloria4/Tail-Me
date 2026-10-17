@@ -24,6 +24,8 @@ Social sports-betting app for one friend group: users post straight / parlay / l
 - Users have required `fullName` + unique `username`; show both.
 - Post model: Post -> Bet[] -> BetLeg[]. Straight/parlay = 1 bet; ladder = 1 single-leg bet per rung (same pick, climbing lines). Units on bets; straight/parlay slips show "$10 pays $X" (`payout(10, decimalOdds)`; $0 once lost, $10 back on push/void). Ladders show payouts in the poster's units plus an "N/M hit" count. Parlay `americanOdds` may be the book's slip price (same-game parlays) instead of multiplied legs.
 - Users settle their own bets (no auto-settlement). One shared feed.
+- Stats (`src/shared/stats.ts`, served by `GET /api/users/:username?range=7d|30d|all`) count bets: straight/parlay = 1, every ladder rung is its own W/L. Voids don't count. Multi-league parlays count overall and per type but under no league. Pushes don't break streaks; current streak ignores the date range. Computed in memory per request (fine at friend-group size).
+- Profiles live at `/u/:username`: date range is the only filter; per-type / per-league / tailing stats are compact rows in a sticky side column on `lg` (above the slips on smaller screens). `AppLayout` main is `max-w-5xl`; each page sets its own column width (feed = `max-w-2xl`). `GET /api/posts?author=&range=` feeds their slip list. `PATCH /api/me` edits name + bio (username is fixed).
 - Tails are never shown on the tailer's profile; tracked for tail counts and per-poster tail records.
 - Leagues: NFL, NCAA Football, NHL. Books: DraftKings, FanDuel, BetMGM, Caesars (`williamhill_us`), Fanatics, ESPN BET — stored in tables (seed in `prisma/seed.ts`).
 - Only `SUPABASE_URL` and `SUPABASE_ANON_KEY` reach the browser (webpack DefinePlugin). Never import `src/server/*` from client code.
@@ -46,4 +48,4 @@ Social sports-betting app for one friend group: users post straight / parlay / l
 - Picked legs store `eventId`, `bookSelectionId` and the book's add-to-betslip `deepLink`; straight bets and ladder rungs also set `Bet.deepLink`. The old typed-in form remains as "Enter manually".
 
 ## Not built yet
-Tail button + tail records (deep links are already stored on legs), profile pages, avatars/headshots (Supabase Storage), Stripe ($5/mo), password reset (needs Resend SMTP + domain), deploy (planned: DigitalOcean App Platform).
+Avatars/headshots (Supabase Storage), Stripe ($5/mo), password reset (needs Resend SMTP + domain), deploy (planned: DigitalOcean App Platform).
