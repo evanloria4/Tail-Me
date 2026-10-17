@@ -64,6 +64,11 @@ const USERS = [
     username: 'tonyparlays',
     fullName: 'Tony Alvarez',
   },
+  {
+    id: 'd3a0f6c1-0000-4000-8000-000000000004',
+    username: 'nickfades',
+    fullName: 'Nick Fadden',
+  },
 ];
 
 const NFL = 'americanfootball_nfl';
@@ -229,7 +234,170 @@ const POSTS: DemoPost[] = [
       americanOdds: 145,
     },
   },
+  // Older settled slips: Tony's 4-win heater (capped by a +650 parlay), a
+  // clean ladder sweep, and a spread of green and red days for the calendar
+  {
+    author: 'nickfades',
+    book: 'draftkings',
+    minutesAgo: 60 * 24 * 3,
+    type: 'STRAIGHT',
+    units: 2,
+    result: 'LOST',
+    caption: 'Fading the public again.',
+    leg: {
+      sportKey: NFL,
+      eventLabel: 'Cowboys @ Eagles',
+      marketKey: 'spreads',
+      selection: 'Dallas Cowboys',
+      line: 6.5,
+      americanOdds: -110,
+    },
+  },
+  {
+    author: 'tonyparlays',
+    book: 'fanduel',
+    minutesAgo: 60 * 24 * 4,
+    type: 'PARLAY',
+    units: 0.5,
+    result: 'WON',
+    caption: 'Told you. Pay the man.',
+    legs: [
+      {
+        sportKey: NFL,
+        eventLabel: 'Ravens @ Steelers',
+        marketKey: 'h2h',
+        selection: 'Pittsburgh Steelers',
+        americanOdds: 130,
+      },
+      {
+        sportKey: NFL,
+        eventLabel: 'Packers @ Bears',
+        marketKey: 'spreads',
+        selection: 'Chicago Bears',
+        line: 3.5,
+        americanOdds: -110,
+      },
+      {
+        sportKey: NFL,
+        eventLabel: 'Jets @ Dolphins',
+        marketKey: 'totals',
+        selection: 'Under',
+        line: 44.5,
+        americanOdds: -105,
+      },
+    ],
+  },
+  {
+    author: 'jpace',
+    book: 'fanduel',
+    minutesAgo: 60 * 24 * 5,
+    type: 'LADDER',
+    caption: 'Ladder szn. Every rung.',
+    pick: {
+      sportKey: NHL,
+      eventLabel: 'Bruins @ Maple Leafs',
+      marketKey: 'player_prop',
+      marketLabel: 'Shots on Goal',
+      playerName: 'Auston Matthews',
+      selection: 'Over',
+    },
+    rungs: [
+      { line: 3.5, americanOdds: -140, units: 1, result: 'WON' },
+      { line: 4.5, americanOdds: 160, units: 0.5, result: 'WON' },
+      { line: 5.5, americanOdds: 320, units: 0.25, result: 'WON' },
+    ],
+  },
+  {
+    author: 'tonyparlays',
+    book: 'draftkings',
+    minutesAgo: 60 * 24 * 6,
+    type: 'STRAIGHT',
+    units: 1,
+    result: 'WON',
+    leg: {
+      sportKey: NHL,
+      eventLabel: 'Rangers @ Devils',
+      marketKey: 'h2h',
+      selection: 'New York Rangers',
+      americanOdds: 105,
+    },
+  },
+  {
+    author: 'nickfades',
+    book: 'betmgm',
+    minutesAgo: 60 * 24 * 7,
+    type: 'STRAIGHT',
+    units: 3,
+    result: 'LOST',
+    leg: {
+      sportKey: NCAAF,
+      eventLabel: 'Texas @ Oklahoma',
+      marketKey: 'totals',
+      selection: 'Over',
+      line: 58.5,
+      americanOdds: -110,
+    },
+  },
+  {
+    author: 'tonyparlays',
+    book: 'fanduel',
+    minutesAgo: 60 * 24 * 8,
+    type: 'STRAIGHT',
+    units: 1,
+    result: 'WON',
+    leg: {
+      sportKey: NFL,
+      eventLabel: 'Lions @ Vikings',
+      marketKey: 'spreads',
+      selection: 'Detroit Lions',
+      line: -2.5,
+      americanOdds: -115,
+    },
+  },
+  {
+    author: 'tonyparlays',
+    book: 'fanduel',
+    minutesAgo: 60 * 24 * 9,
+    type: 'STRAIGHT',
+    units: 1,
+    result: 'WON',
+    leg: {
+      sportKey: NCAAF,
+      eventLabel: 'Georgia @ Alabama',
+      marketKey: 'h2h',
+      selection: 'Georgia Bulldogs',
+      americanOdds: -125,
+    },
+  },
 ];
+
+/** Comments + reactions by post index in POSTS: [username, text] */
+const COMMENTS: Record<number, [string, string][]> = {
+  0: [
+    ['jpace', 'Bills in the snow is free money'],
+    ['tonyparlays', 'Fading. Dolphins cover easy'],
+    ['mikeylocks', 'We’ll see who’s laughing Sunday'],
+  ],
+  8: [
+    ['mikeylocks', 'Tony is cooking right now'],
+    ['nickfades', 'Lucky. Under hit by half a point'],
+  ],
+  9: [['tonyparlays', 'Matthews never misses at home']],
+};
+const REACTIONS: Record<number, [string, string][]> = {
+  0: [
+    ['jpace', '🔒'],
+    ['tonyparlays', '🤡'],
+    ['nickfades', '🔒'],
+  ],
+  8: [
+    ['mikeylocks', '💰'],
+    ['jpace', '💰'],
+    ['nickfades', '😬'],
+    ['jpace', '🔥'],
+  ],
+  9: [['tonyparlays', '🔥']],
+};
 
 function legData(leg: Leg, order: number) {
   return {
@@ -316,7 +484,8 @@ async function main() {
 
   const userId = new Map(USERS.map((u) => [u.username, u.id]));
   const now = Date.now();
-  const created = [];
+  const created: { id: string; authorId: string; bets: { id: string }[] }[] =
+    [];
   // Sequential so createdAt ordering and ids stay predictable
   // eslint-disable-next-line no-restricted-syntax
   for (const post of POSTS) {
@@ -336,19 +505,44 @@ async function main() {
   }
 
   // Friends tail each other's bets (never their own) so tail counts show up
-  // (0, 1 or 2 tailers per post, varying down the feed)
+  // (0, 1 or 2 tailers per post down the feed; the top slip gets everyone,
+  // which makes it a crowd pick)
   const tails = created.flatMap((post, i) =>
     post.bets.flatMap((bet) =>
       userIds
         .filter((id) => id !== post.authorId)
-        .slice(0, (i + 1) % 3)
+        .slice(0, i === 0 ? undefined : (i + 1) % 3)
         .map((id) => ({ userId: id, betId: bet.id }))
     )
   );
   await prisma.tail.createMany({ data: tails, skipDuplicates: true });
 
+  const byIndex = <T>(
+    rows: Record<number, [string, string][]>,
+    make: (postId: string, userId: string, text: string, n: number) => T
+  ) =>
+    Object.entries(rows).flatMap(([i, list]) =>
+      list.map(([username, text], n) =>
+        make(created[Number(i)].id, userId.get(username)!, text, n)
+      )
+    );
+  const comments = byIndex(COMMENTS, (postId, authorId, body, n) => ({
+    postId,
+    authorId,
+    body,
+    // A minute apart so the thread reads in order
+    createdAt: new Date(now - (60 - n) * 60_000),
+  }));
+  await prisma.comment.createMany({ data: comments });
+  const reactions = byIndex(REACTIONS, (postId, uid, emoji) => ({
+    postId,
+    userId: uid,
+    emoji,
+  }));
+  await prisma.reaction.createMany({ data: reactions, skipDuplicates: true });
+
   console.log(
-    `Seeded ${USERS.length} demo users, ${created.length} posts, ${tails.length} tails`
+    `Seeded ${USERS.length} demo users, ${created.length} posts, ${tails.length} tails, ${comments.length} comments, ${reactions.length} reactions`
   );
 }
 

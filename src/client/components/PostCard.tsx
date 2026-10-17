@@ -1,8 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatAmerican, formatMoney, payout } from '../../shared/odds';
 import { BetResult, FeedBet, FeedLeg, FeedPost } from '../../shared/posts';
 import timeAgo from '../lib/time';
+import { slipBadges } from '../../shared/badges';
+import type { ReactionEmoji } from '../../shared/social';
+import {
+  Comments,
+  CommentsToggle,
+  CrowdChip,
+  isCelebrated,
+  ReactionBar,
+  StreakChip,
+  TailersButton,
+  WinBanner,
+} from './SlipSocial';
 
 // Slip layout follows a sportsbook bet slip: a title bar with the total
 // odds, picks strung on a vertical timeline, then wager/payout totals.
@@ -352,16 +364,23 @@ export default function PostCard({
   onSettle,
   onDelete,
   onTail,
+  onReact,
 }: {
   post: FeedPost;
   currentUserId?: string;
   onSettle: (betId: string, result: BetResult) => void;
   onDelete: (postId: string) => void;
   onTail: (postId: string) => void;
+  onReact: (postId: string, emoji: ReactionEmoji) => void;
 }) {
   const isAuthor = post.author.id === currentUserId;
   const tails = Math.max(...post.bets.map((b) => b.tailCount));
-  const tailCountLabel = `${tails} ${tails === 1 ? 'tail' : 'tails'}`;
+  const tailCount = <TailersButton postId={post.id} count={tails} />;
+  const badges = slipBadges(post);
+  const celebrated = isCelebrated(badges);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentCount, setCommentCount] = useState(post.commentCount);
+  useEffect(() => setCommentCount(post.commentCount), [post.commentCount]);
   // Others can tail while a bet is open; a tailed slip keeps its badge after
   const canTail =
     post.bets.some((b) => b.tailedByMe) ||
@@ -384,8 +403,14 @@ export default function PostCard({
   // parlay doesn't say which leg missed, so those dots stay neutral.
   const legResult: BetResult = first.result === 'WON' ? 'WON' : 'PENDING';
 
+  // No overflow-hidden here: the tailer and reaction popovers open upward
+  // past the card's edge
   return (
-    <article className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900">
+    <article
+      className={`rounded-2xl border bg-gray-900 ${
+        celebrated ? 'border-yellow-300/50' : 'border-gray-800'
+      }`}
+    >
       <header className="flex items-center gap-3 px-4 pt-4">
         <Link
           to={`/u/${post.author.username}`}
@@ -396,16 +421,20 @@ export default function PostCard({
           {post.author.fullName[0]}
         </Link>
         <div className="min-w-0 flex-1">
-          <Link
-            to={`/u/${post.author.username}`}
-            className="block truncate font-semibold leading-tight hover:underline"
-          >
-            {post.author.fullName}
-          </Link>
+          <div className="flex min-w-0 items-center gap-2">
+            <Link
+              to={`/u/${post.author.username}`}
+              className="truncate font-semibold leading-tight hover:underline"
+            >
+              {post.author.fullName}
+            </Link>
+            <StreakChip streak={post.author.streak} />
+          </div>
           <p className="truncate text-sm text-gray-500">
             @{post.author.username} · {timeAgo(post.createdAt)}
           </p>
         </div>
+        <CrowdChip badges={badges} />
       </header>
 
       {post.caption && (
@@ -414,7 +443,12 @@ export default function PostCard({
         </p>
       )}
 
-      <div className="m-4 overflow-hidden rounded-xl border border-gray-800">
+      <div
+        className={`m-4 overflow-hidden rounded-xl border ${
+          celebrated ? 'border-yellow-300/40' : 'border-gray-800'
+        }`}
+      >
+        <WinBanner badges={badges} />
         {/* Title bar */}
         <div className="flex items-start justify-between gap-3 border-b border-gray-800 px-4 py-3">
           <div className="min-w-0">
@@ -573,26 +607,41 @@ export default function PostCard({
         </div>
       </div>
 
-      {canTail ? (
-        <footer className="px-4 pb-4 text-sm text-gray-500">
+      <footer className="space-y-3 px-4 pb-4 text-sm text-gray-500">
+        {canTail ? (
           <TailSection post={post} onTail={onTail}>
-            <span>{tailCountLabel}</span>
+            {tailCount}
           </TailSection>
-        </footer>
-      ) : (
-        <footer className="flex items-center justify-between px-4 pb-4 text-sm text-gray-500">
-          <span>{tailCountLabel}</span>
-          {isAuthor && (
-            <button
-              type="button"
-              onClick={() => onDelete(post.id)}
-              className="text-gray-500 hover:text-red-400"
-            >
-              Delete
-            </button>
-          )}
-        </footer>
-      )}
+        ) : (
+          <div className="flex items-center justify-between">
+            {tailCount}
+            {isAuthor && (
+              <button
+                type="button"
+                onClick={() => onDelete(post.id)}
+                className="text-gray-500 hover:text-red-400"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-2 border-t border-gray-800 pt-3">
+          <ReactionBar
+            reactions={post.reactions}
+            onReact={(emoji) => onReact(post.id, emoji)}
+          />
+          <CommentsToggle
+            count={commentCount}
+            open={commentsOpen}
+            onClick={() => setCommentsOpen((o) => !o)}
+          />
+        </div>
+        {commentsOpen && (
+          <Comments postId={post.id} onCount={setCommentCount} />
+        )}
+      </footer>
     </article>
   );
 }

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { isValidAmerican } from './odds';
+import type { ReactionSummary } from './social';
+import type { Streak } from './stats';
 
 // Validation + shapes for creating posts, shared by the slip builder and the API
 
@@ -153,9 +155,13 @@ export type FeedPost = {
     username: string;
     fullName: string;
     avatarUrl: string | null;
+    /** Current all-time run of wins or losses */
+    streak: Streak | null;
   };
   sportsbook: { key: string; name: string };
   bets: FeedBet[];
+  reactions: ReactionSummary[];
+  commentCount: number;
 };
 
 /** One-line description of a leg, e.g. "Chiefs -3.5", "Over 47.5", "Mahomes Over 1.5 Passing TDs" */

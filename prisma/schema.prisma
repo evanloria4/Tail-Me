@@ -37,10 +37,11 @@ model User {
   /// Admins bypass the subscription paywall
   isAdmin Boolean @default(false)
 
-  posts     Post[]
-  tails     Tail[]
-  comments  Comment[]
-  reactions Reaction[]
+  posts        Post[]
+  tails        Tail[]
+  comments     Comment[]
+  reactions    Reaction[]
+  commentVotes CommentVote[]
 }
 
 // ---------- Reference data (mirrors The Odds API) ----------
@@ -217,10 +218,24 @@ model Comment {
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 
-  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post   Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes  CommentVote[]
 
   @@index([postId, createdAt])
+}
+
+/// Like (+1) or dislike (-1) on a comment; one per user
+model CommentVote {
+  commentId String
+  userId    String   @db.Uuid
+  value     Int
+  createdAt DateTime @default(now())
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, userId])
 }
 
 model Reaction {

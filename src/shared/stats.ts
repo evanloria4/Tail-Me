@@ -92,8 +92,11 @@ export function statLine(bets: StatBet[]): StatLine {
   return line;
 }
 
+/** What streaks need from a bet (the feed passes just this) */
+export type StreakBet = Pick<StatBet, 'createdAt' | 'order' | 'result'>;
+
 /** Settled results, oldest first (ladder rungs in rung order) */
-function settledResults(bets: StatBet[]): SettledResult[] {
+function settledResults(bets: StreakBet[]): SettledResult[] {
   return [...bets]
     .sort(
       (a, b) =>
@@ -103,7 +106,7 @@ function settledResults(bets: StatBet[]): SettledResult[] {
     .filter((r): r is SettledResult => r !== 'PENDING' && r !== 'VOID');
 }
 
-export function currentStreak(bets: StatBet[]): Streak | null {
+export function currentStreak(bets: StreakBet[]): Streak | null {
   const results = settledResults(bets).filter((r) => r !== 'PUSH');
   const last = results[results.length - 1];
   if (!last) return null;
@@ -114,7 +117,7 @@ export function currentStreak(bets: StatBet[]): Streak | null {
   return { kind: last === 'WON' ? 'W' : 'L', count };
 }
 
-export function bestWinStreak(bets: StatBet[]): number {
+export function bestWinStreak(bets: StreakBet[]): number {
   let best = 0;
   let run = 0;
   settledResults(bets).forEach((r) => {

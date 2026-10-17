@@ -5,8 +5,28 @@ import PostCard from './PostCard';
 import useConfirm from './ConfirmDialog';
 import type { BetResult, FeedPost } from '../../shared/posts';
 import type { StatRange } from '../../shared/stats';
+import { REACTION_EMOJIS } from '../../shared/social';
+import type { ReactionEmoji, ReactionSummary } from '../../shared/social';
 
 type FeedPage = { posts: FeedPost[]; nextCursor: string | null };
+
+/** Optimistic flip of the viewer's reaction, kept in the fixed emoji order */
+function toggleReaction(
+  reactions: ReactionSummary[],
+  emoji: ReactionEmoji
+): ReactionSummary[] {
+  const current = reactions.find((r) => r.emoji === emoji);
+  const next = current
+    ? {
+        ...current,
+        mine: !current.mine,
+        count: current.count + (current.mine ? -1 : 1),
+      }
+    : { emoji, count: 1, mine: true };
+  return REACTION_EMOJIS.map((e) =>
+    e === emoji ? next : reactions.find((r) => r.emoji === e)
+  ).filter((r): r is ReactionSummary => !!r && r.count > 0);
+}
 
 /**
  * Paged list of slips with settle / tail / delete wired up. The feed shows
@@ -70,11 +90,45 @@ export default function PostList({
       .find((b) => b.id === betId)?.result;
     update(result);
     try {
-      await api.patch(`/posts/bets/${betId}`, { result });
+      const { data } = await api.patch<FeedPost>(`/posts/bets/${betId}`, {
+        result,
+      });
+      // The poster's streak shows on every one of their slips
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p.id === data.id) return data;
+          if (p.author.id === data.author.id) {
+            return {
+              ...p,
+              author: { ...p.author, streak: data.author.streak },
+            };
+          }
+          return p;
+        })
+      );
       onChange?.();
     } catch (err) {
       if (previous) update(previous);
       setError(apiErrorMessage(err, 'Could not update the result'));
+    }
+  };
+
+  const react = async (postId: string, emoji: ReactionEmoji) => {
+    const setReactions = (reactions: ReactionSummary[]) =>
+      setPosts((prev) =>
+        prev.map((p) => (p.id === postId ? { ...p, reactions } : p))
+      );
+    const before = posts.find((p) => p.id === postId)?.reactions ?? [];
+    setReactions(toggleReaction(before, emoji));
+    try {
+      const { data } = await api.post<ReactionSummary[]>(
+        `/posts/${postId}/reactions`,
+        { emoji }
+      );
+      setReactions(data);
+    } catch (err) {
+      setReactions(before);
+      setError(apiErrorMessage(err, 'Could not save the reaction'));
     }
   };
 
@@ -126,6 +180,7 @@ export default function PostList({
           onSettle={settle}
           onDelete={remove}
           onTail={tail}
+          onReact={react}
         />
       ))}
 

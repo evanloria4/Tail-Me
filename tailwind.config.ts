@@ -25,6 +25,8 @@ module.exports = {
         emerald: scale('emerald', [400, 500]),
         red: scale('red', [400]),
         yellow: scale('yellow', [300]),
+        // Hot streaks
+        orange: scale('orange', [400]),
       },
       keyframes: {
         'toast-in': {

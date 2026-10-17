@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../db';
-import { feedInclude, toFeedPost } from '../feed';
+import { feedInclude, loadFeedPost, toFeedPosts } from '../feed';
 import { requireAuth, requireSubscription } from '../middleware/auth';
 import {
   americanToDecimal,
@@ -122,7 +122,7 @@ router.get('/', requireAuth, async (req, res) => {
   const hasMore = posts.length > PAGE_SIZE;
   const page = posts.slice(0, PAGE_SIZE);
   res.json({
-    posts: page.map(toFeedPost),
+    posts: await toFeedPosts(page, req.user!.id),
     nextCursor: hasMore ? page[page.length - 1].id : null,
   });
 });
@@ -175,7 +175,7 @@ router.post('/', requireAuth, requireSubscription, async (req, res) => {
     },
     include: feedInclude(req.user!.id),
   });
-  res.status(201).json(toFeedPost(post));
+  res.status(201).json((await toFeedPosts([post], req.user!.id))[0]);
 });
 
 /** Author marks a bet (or ladder rung) won/lost/push/void, or back to pending */
@@ -207,7 +207,8 @@ router.patch<{ betId: string }>(
       where: { id: bet.id },
       data: { result, settledAt: result === 'PENDING' ? null : new Date() },
     });
-    res.json({ ok: true });
+    // The whole slip comes back since the poster's streak may have moved
+    res.json(await loadFeedPost(bet.postId, req.user!.id));
   }
 );
 
@@ -236,11 +237,7 @@ router.post<{ postId: string }>(
       data: post.bets.map((b) => ({ userId: viewerId, betId: b.id })),
       skipDuplicates: true,
     });
-    const updated = await prisma.post.findUniqueOrThrow({
-      where: { id: req.params.postId },
-      include: feedInclude(viewerId),
-    });
-    res.json(toFeedPost(updated));
+    res.json(await loadFeedPost(req.params.postId, viewerId));
   }
 );
 

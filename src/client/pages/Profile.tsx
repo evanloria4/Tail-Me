@@ -3,6 +3,14 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import useMeta from '../lib/useMeta';
+import {
+  netColor,
+  pct,
+  record,
+  settledCount,
+  signedUnits,
+  winPct,
+} from '../lib/statFormat';
 import { useLayout } from '../components/AppLayout';
 import PostList from '../components/PostList';
 import {
@@ -16,29 +24,6 @@ import {
 } from '../../shared/stats';
 
 // ---------- Formatting ----------
-
-const record = (l: StatLine) =>
-  `${l.wins}-${l.losses}${l.pushes ? `-${l.pushes}` : ''}`;
-
-const signedUnits = (n: number) =>
-  `${n > 0 ? '+' : ''}${(Math.round(n * 100) / 100).toFixed(2)}u`;
-
-const pct = (n: number | null, signed = false) => {
-  if (n == null) return '–';
-  const v = Math.round(n * 1000) / 10;
-  return `${signed && v > 0 ? '+' : ''}${v}%`;
-};
-
-const winPct = (l: StatLine) =>
-  l.wins + l.losses ? l.wins / (l.wins + l.losses) : null;
-
-const netColor = (n: number) => {
-  if (n > 0) return 'text-win';
-  if (n < 0) return 'text-red-400';
-  return '';
-};
-
-const settledCount = (l: StatLine) => l.wins + l.losses + l.pushes;
 
 const EMPTY_LINE: StatLine = {
   wins: 0,
