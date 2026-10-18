@@ -145,7 +145,7 @@ function HeroSlip() {
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-3 px-4 pb-4 text-sm text-gray-500">
+      <div className="flex items-center justify-end gap-3 px-4 pb-4 text-sm text-gray-500">
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-3 py-1.5 font-semibold text-emerald-400">
           ✓ Tailed
         </span>
@@ -158,7 +158,7 @@ function HeroSlip() {
 /** Small floating cards around the hero slip */
 function GroupCard() {
   return (
-    <div className="w-56 rounded-2xl border border-gray-800 bg-gray-900 p-4 shadow-xl shadow-black/30">
+    <div className="w-44 rounded-2xl border border-gray-800 bg-gray-900 p-3 shadow-xl shadow-black/30 sm:w-56 sm:p-4">
       <p className="font-bold">👥 Group Parlay</p>
       <p className="mt-0.5 text-xs font-medium text-emerald-400">
         🔒 Locks Sun 1:00 PM CT
@@ -173,7 +173,9 @@ function GroupCard() {
           <li key={who} className="flex items-center gap-2">
             <Avatar name={who} size="h-6 w-6 text-[10px]" />
             <span className="font-semibold">{who}</span>
-            <span className="ml-auto truncate text-gray-400">{pick}</span>
+            <span className="ml-auto min-w-0 truncate text-gray-400">
+              {pick}
+            </span>
           </li>
         ))}
       </ul>
@@ -191,7 +193,7 @@ function LeaderCard() {
     ['3', 'Your Mom', '+1.20u', 'bg-orange-400'],
   ];
   return (
-    <div className="w-56 rounded-2xl border border-gray-800 bg-gray-900 p-4 shadow-xl shadow-black/30">
+    <div className="w-44 rounded-2xl border border-gray-800 bg-gray-900 p-3 shadow-xl shadow-black/30 sm:w-56 sm:p-4">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
         Top earners this week
       </p>
@@ -344,11 +346,7 @@ export default function Landing() {
           />
           <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-5 pb-20 pt-10 sm:px-8 lg:grid-cols-2 lg:pt-16 xl:pb-48">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-gray-800 bg-gray-900 px-3 py-1 text-sm text-gray-400">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Invite-only, for your crew
-              </p>
-              <h1 className="mt-5 text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+              <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
                 Bet with your crew.{' '}
                 <span className="text-emerald-400">Tail the hot hand.</span>
               </h1>
@@ -371,14 +369,16 @@ export default function Landing() {
             </div>
 
             <div className="relative mx-auto w-full max-w-md lg:max-w-none">
-              {/* On wide screens the slip sits left so the cards can peek out
-                  on its right, covering only its edge */}
-              <div className="relative mx-auto max-w-sm xl:ml-4">
+              {/* Tilted cards pin the slip's corners: top earners top-right,
+                  the group parlay bottom-left (the slip's Tailed row sits
+                  right so it stays visible). They hang further out as the
+                  screen widens; the margins keep room for the overhang. */}
+              <div className="relative mx-auto mb-24 mt-10 max-w-sm xl:mb-0">
                 <HeroSlip />
-                <div className="absolute -right-40 top-6 hidden rotate-3 xl:block">
+                <div className="absolute -top-12 right-0 z-10 rotate-3 sm:-right-16 xl:-right-28 xl:top-10">
                   <LeaderCard />
                 </div>
-                <div className="absolute -bottom-44 -right-44 hidden -rotate-2 xl:block">
+                <div className="absolute -bottom-20 left-0 z-10 -rotate-2 sm:-left-16 xl:-bottom-24 xl:-left-28">
                   <GroupCard />
                 </div>
               </div>
@@ -457,24 +457,6 @@ export default function Landing() {
                 ]}
               />
             </div>
-          </div>
-        </section>
-
-        {/* Closing call to action */}
-        <section className="mx-auto max-w-6xl px-5 py-20 text-center sm:px-8">
-          <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Your crew&apos;s already arguing about it.
-          </h2>
-          <p className="mx-auto mt-3 max-w-xl text-lg text-gray-400">
-            Get the code from a friend and bring the receipts.
-          </p>
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link to="/signup" className={primaryCta}>
-              Join with a code
-            </Link>
-            <Link to="/login" className={secondaryCta}>
-              Log in
-            </Link>
           </div>
         </section>
       </main>

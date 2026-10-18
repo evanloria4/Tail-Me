@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import PostList from '../components/PostList';
-import CommunitySidebar from '../components/CommunitySidebar';
+import CommunitySidebar, {
+  CommunityHighlights,
+  useCommunityStats,
+} from '../components/CommunitySidebar';
 import { useLayout } from '../components/AppLayout';
 import useStickyTop from '../lib/useStickyTop';
 import { PAGE_GRID, SIDE_COLUMN } from '../lib/layout';
@@ -9,15 +12,18 @@ import { PAGE_GRID, SIDE_COLUMN } from '../lib/layout';
 export default function Feed() {
   const { isSubscribed } = useAuth();
   const { openComposer, feedVersion } = useLayout();
-  // Bumps when a result changes so the sidebar's streaks and days catch up
+  // Bumps when a result changes so the group stats' streaks and days catch up
   const [resultsVersion, setResultsVersion] = useState(0);
   const side = useStickyTop<HTMLElement>();
+  const stats = useCommunityStats(`${feedVersion}-${resultsVersion}`);
 
   // Slips centered, the sticky side column to their right (see lib/layout).
-  // Smaller screens: slips only.
+  // Top earners + group parlays sit above the slips on every screen; the side
+  // column (who's hot, calendar) only shows on wide screens.
   return (
     <div className={PAGE_GRID}>
-      <div className="xl:col-start-2">
+      <div className="space-y-4 xl:col-start-2">
+        <CommunityHighlights stats={stats} />
         <PostList
           reloadKey={feedVersion}
           onChange={() => setResultsVersion((v) => v + 1)}
@@ -42,7 +48,7 @@ export default function Feed() {
         style={{ top: side.top }}
         className={`${SIDE_COLUMN} hidden lg:block`}
       >
-        <CommunitySidebar reloadKey={`${feedVersion}-${resultsVersion}`} />
+        <CommunitySidebar stats={stats} />
       </aside>
     </div>
   );

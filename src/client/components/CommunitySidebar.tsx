@@ -5,8 +5,9 @@ import { netColor, record, signedUnits } from '../lib/statFormat';
 import { CommunityStats, DayTotal } from '../../shared/community';
 import { siteDayKey } from '../../shared/time';
 
-// Feed side column: who's hot, the week's leaderboard, and a month calendar
-// of the group's green and red days.
+// Group stats around the feed: the week's leaderboard + group parlays on top of
+// the feed (every screen); who's hot + a month calendar
+// of the group's green and red days in the desktop side column. One fetch.
 
 /** Top earners shown (the server sends at most this many too) */
 const LEADERS = 3;
@@ -249,12 +250,8 @@ function GroupRecord({ group }: { group: CommunityStats['group'] }) {
   );
 }
 
-export default function CommunitySidebar({
-  reloadKey,
-}: {
-  /** Change it to refetch (new post, settled bet) */
-  reloadKey?: unknown;
-}) {
+/** Group stats for the feed; pass a new reloadKey to refetch (new post, settled bet) */
+export function useCommunityStats(reloadKey?: unknown) {
   const [month, setMonth] = useState<string | null>(null);
   const [data, setData] = useState<CommunityStats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -273,36 +270,21 @@ export default function CommunitySidebar({
       );
   }, [month, reloadKey]);
 
+  return { data, error, setMonth };
+}
+
+type Stats = ReturnType<typeof useCommunityStats>;
+
+/** Top of the feed on every screen: the week's leaderboard + group parlays */
+export function CommunityHighlights({ stats }: { stats: Stats }) {
+  const { data, error } = stats;
   if (error && !data) return <Empty>{error}</Empty>;
   if (!data) return null;
+  const { group } = data;
+  const hasGroup = group.wins + group.losses + group.pushes + group.open > 0;
 
   return (
-    <div className="space-y-3">
-      <Panel title="Who's hot">
-        {data.hot.length ? (
-          <ul className="divide-y divide-gray-800">
-            {data.hot.map((u) => (
-              <li key={u.id}>
-                <Link
-                  to={`/u/${u.username}`}
-                  className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-2 transition hover:bg-gray-800"
-                >
-                  <Initial name={u.fullName} />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                    {u.fullName}
-                  </span>
-                  <span className="rounded-full bg-orange-400/15 px-2 py-0.5 text-xs font-bold text-orange-400">
-                    🔥 {u.streak.count}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <Empty>Nobody&apos;s hot right now. Yet.</Empty>
-        )}
-      </Panel>
-
+    <div className={`grid gap-3 ${hasGroup ? 'sm:grid-cols-2' : ''}`}>
       <Panel title="Top earners this week">
         {data.leaders.length ? (
           <ol className="divide-y divide-gray-800">
@@ -337,8 +319,42 @@ export default function CommunitySidebar({
           <Empty>Nobody&apos;s up this week.</Empty>
         )}
       </Panel>
+      <GroupRecord group={group} />
+    </div>
+  );
+}
 
-      <GroupRecord group={data.group} />
+/** Desktop side column: who's hot + the month calendar */
+export default function CommunitySidebar({ stats }: { stats: Stats }) {
+  const { data, setMonth } = stats;
+  if (!data) return null;
+
+  return (
+    <div className="space-y-3">
+      <Panel title="Who's hot">
+        {data.hot.length ? (
+          <ul className="divide-y divide-gray-800">
+            {data.hot.map((u) => (
+              <li key={u.id}>
+                <Link
+                  to={`/u/${u.username}`}
+                  className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-2 transition hover:bg-gray-800"
+                >
+                  <Initial name={u.fullName} />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {u.fullName}
+                  </span>
+                  <span className="rounded-full bg-orange-400/15 px-2 py-0.5 text-xs font-bold text-orange-400">
+                    🔥 {u.streak.count}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Empty>Nobody&apos;s hot right now. Yet.</Empty>
+        )}
+      </Panel>
 
       <Calendar month={data.month} days={data.days} onMonth={setMonth} />
     </div>
