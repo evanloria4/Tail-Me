@@ -2,6 +2,9 @@
   "name": "tail-me",
   "version": "1.0.0",
   "main": "index.js",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "start:dev": "nodemon --exec ts-node -r tsconfig-paths/register ./src/server/index.ts",
     "start:prod": "node dist/server/index.js",
