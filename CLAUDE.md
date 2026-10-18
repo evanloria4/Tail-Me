@@ -44,7 +44,7 @@ Social sports-betting app for one friend group: users post straight / parlay / l
 - The init migration revokes `anon`/`authenticated` access to `public` tables (keeps them off Supabase's Data API). Keep it that way; all data access goes through Express.
 - Rewrite generated migrations that drop+add a column into a `RENAME` when renaming.
 - ts-node uses a CommonJS override in `tsconfig.json`; client uses ESNext/bundler resolution.
-- Webpack cleans only its own outputs in `dist/` — tsc's `dist/server`, `dist/shared`, `dist/generated` must survive.
+- Webpack builds to `dist/client` (the only folder Express serves statically); tsc builds to `dist/server`, `dist/shared`, `dist/generated`. Never serve `dist/` itself — it would expose server code. The bundle is content-hashed (cached immutable); `index.html` is sent `no-cache`.
 - helmet CSP allows the Supabase URL for `connect-src`/`img-src`; add any new external origins there.
 - Windows dev machine (CRLF); Prettier uses `endOfLine: 'auto'`.
 

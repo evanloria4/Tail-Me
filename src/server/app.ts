@@ -12,7 +12,8 @@ import socialRouter from './routes/social';
 import communityRouter from './routes/community';
 import seriesRouter from './routes/series';
 
-const DIST_DIR = path.resolve(__dirname, '..', '..', 'dist');
+// Only the webpack client build; the compiled server lives beside it in dist/
+const DIST_DIR = path.resolve(__dirname, '..', '..', 'dist', 'client');
 
 const app = express();
 
@@ -54,9 +55,21 @@ app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-app.use(express.static(DIST_DIR));
+// Bundle + assets have content hashes in their names, so they can cache forever;
+// index.html must always revalidate so a deploy picks up the new bundle
+app.use(
+  express.static(DIST_DIR, {
+    index: false,
+    setHeaders: (res, filePath) => {
+      if (/\.[0-9a-f]{16,}\./.test(path.basename(filePath))) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  })
+);
 
 app.get('/{*splat}', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   res.sendFile(path.join(DIST_DIR, 'index.html'));
 });
 

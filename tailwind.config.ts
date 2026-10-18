@@ -8,8 +8,7 @@ const scale = (name: string, steps: number[]) =>
 
 module.exports = {
   content: [
-    './dist/index.html', // The HTML file you're serving
-    './src/**/*.{js,jsx,ts,tsx}',
+    './src/**/*.{js,jsx,ts,tsx,html}',
   ],
   darkMode: 'class',
   theme: {

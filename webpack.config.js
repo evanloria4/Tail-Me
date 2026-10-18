@@ -4,7 +4,8 @@ const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
-const DIST_DIR = path.resolve(__dirname, 'dist');
+// Own folder so the server only exposes the client build, not tsc's dist/server
+const DIST_DIR = path.resolve(__dirname, 'dist', 'client');
 const SRC_DIR = path.resolve(__dirname, 'src');
 const CLIENT_DIR = path.resolve(__dirname, 'src', 'client');
 
@@ -13,7 +14,8 @@ module.exports = {
   output: {
     path: DIST_DIR,
     publicPath: '/',
-    filename: 'bundle.js',
+    // Hashed so each deploy gets a new URL instead of a stale cached bundle
+    filename: 'bundle.[contenthash].js',
   },
   devServer: {
     static: {
@@ -44,7 +46,7 @@ module.exports = {
         test: /\.(png|jpg|gif|mp3|aac|ogg|ico)$/,
         type: 'asset/resource',
         generator: {
-          filename: 'assets/[name][ext]'
+          filename: 'assets/[name].[contenthash][ext]'
         }
       },
       {
@@ -92,10 +94,8 @@ module.exports = {
       filename: 'index.html',
       inject: true
     }),
-    // Only clean webpack's own output; tsc's server build (server/, shared/, generated/) shares dist/
-    new CleanWebpackPlugin({
-      cleanOnceBeforeBuildPatterns: ['bundle.js*', 'index.html', 'assets/**'],
-    }),
+    // Cleans dist/client only; tsc's dist/server, dist/shared, dist/generated are untouched
+    new CleanWebpackPlugin(),
   ],
   resolve: {
     extensions: ['.tsx', '.ts', '.js', '.css'],
