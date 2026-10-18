@@ -222,22 +222,22 @@ const FEATURES: { icon: string; title: string; body: string }[] = [
   {
     icon: '📡',
     title: 'Post from live odds',
-    body: 'Tap real prices and lines to build a straight, parlay or ladder. No typing in odds, no fat-fingered lines.',
+    body: 'Tap real prices and lines to build a straight, parlay or ladder. No typing in odds, no fat-fingered lines',
   },
   {
     icon: '🎯',
     title: 'Tail in one tap',
-    body: 'See a pick you like? Tail drops it straight onto your sportsbook slip, already filled in.',
+    body: 'See a pick you like? Tail drops it straight onto your sportsbook slip, already filled in',
   },
   {
     icon: '👥',
     title: 'Group parlays',
-    body: 'Everyone adds one leg before kickoff. When it busts, the whole crew knows exactly whose leg did it.',
+    body: 'Everyone adds one leg before kickoff. When it busts, the whole crew knows exactly whose leg did it',
   },
   {
     icon: '📈',
     title: 'Records that don’t lie',
-    body: 'Units, ROI, streaks and a green/red calendar for the group. Everybody’s a sharp until the numbers come out.',
+    body: 'Units, ROI, streaks and a green/red calendar for the group. Everybody’s a sharp until the numbers come out',
   },
 ];
 

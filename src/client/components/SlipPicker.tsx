@@ -1036,28 +1036,21 @@ export default function SlipPicker({
         )}
       </div>
 
-      <div className="border-t border-gray-800 bg-gray-950 px-5 py-3">
-        {selections.length ? (
-          <div className="flex items-center gap-3">
-            <p className="min-w-0 flex-1 truncate text-sm">
-              <SlipSummary mode={mode} selections={selections} />
-            </p>
-            <button
-              type="button"
-              onClick={() => setStep('review')}
-              className="shrink-0 rounded-lg bg-emerald-500 px-4 py-2.5 font-semibold text-gray-950 transition hover:bg-emerald-400"
-            >
-              {group ? 'Use this leg' : `Review slip (${selections.length})`}
-            </button>
-          </div>
-        ) : (
-          <p className="text-center text-sm text-gray-500">
-            {group
-              ? 'Tap a price to pick your leg.'
-              : 'Tap a price to add it to your slip.'}
+      {/* The slip bar only appears once something's picked */}
+      {selections.length > 0 && (
+        <div className="flex items-center gap-3 border-t border-gray-800 bg-gray-950 px-5 py-3">
+          <p className="min-w-0 flex-1 truncate text-sm">
+            <SlipSummary mode={mode} selections={selections} />
           </p>
-        )}
-      </div>
+          <button
+            type="button"
+            onClick={() => setStep('review')}
+            className="shrink-0 rounded-lg bg-emerald-500 px-4 py-2.5 font-semibold text-gray-950 transition hover:bg-emerald-400"
+          >
+            {group ? 'Use this leg' : `Review slip (${selections.length})`}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
