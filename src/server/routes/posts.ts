@@ -295,7 +295,12 @@ router.patch<{ betId: string }>(
     const { result } = parsed.data;
     await prisma.bet.update({
       where: { id: bet.id },
-      data: { result, settledAt: result === 'PENDING' ? null : new Date() },
+      data: {
+        result,
+        settledAt: result === 'PENDING' ? null : new Date(),
+        // A hand-set result is never overwritten by the auto-grader
+        gradedBy: result === 'PENDING' ? null : 'MANUAL',
+      },
     });
     // The whole slip comes back since the poster's streak may have moved
     res.json(await loadFeedPost(bet.postId, req.user!.id));
@@ -613,7 +618,10 @@ router.patch<{ legId: string }>(
     );
     const overall = groupResult(results);
     await prisma.$transaction([
-      prisma.betLeg.update({ where: { id: leg.id }, data: { result } }),
+      prisma.betLeg.update({
+        where: { id: leg.id },
+        data: { result, gradedBy: result === 'PENDING' ? null : 'MANUAL' },
+      }),
       prisma.bet.update({
         where: { id: bet.id },
         data: {

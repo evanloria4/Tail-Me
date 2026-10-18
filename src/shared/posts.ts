@@ -183,8 +183,14 @@ export type FeedLeg = {
   line: number | null;
   americanOdds: number;
   deepLink: string | null;
-  /** Graded per leg on group parlays; regular legs follow their bet */
+  /** The game (null on old typed-in legs), when it starts, and if it's over */
+  eventId: string | null;
+  startsAt: string | null;
+  gameFinal: boolean;
+  /** Per-leg result: auto-graded from the game, or set by hand on group parlays */
   result: BetResult;
+  /** The stat a graded prop finished on, e.g. 212 (passing yards) */
+  actual: number | null;
   /** Group parlays: whose leg it is */
   addedBy: PersonRef | null;
 };

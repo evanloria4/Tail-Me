@@ -1,28 +1,32 @@
 import React, { useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import api from '../lib/api';
-import type { FeedPost } from '../../shared/posts';
+import type { BetResult, FeedPost } from '../../shared/posts';
 import type { SeriesSummary } from '../../shared/series';
 import { useDismiss } from './SlipSocial';
+import { RESULT_OPTIONS, RESULT_STYLES } from './SlipParts';
 
-// The author's "⋯" menu on their own slip: move it to a series, or delete it.
-// Keeping these here keeps the card itself uncluttered.
+// The author's "⋯" menu on their own slip: fix a result, move it to a series,
+// or delete it. Keeping these here keeps the card itself uncluttered. Results
+// grade themselves when games end, so "Change result" is only an override.
 
 const itemClass =
   'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-gray-800';
 
 export default function SlipMenu({
   post,
+  onSettle,
   onMove,
   onDelete,
 }: {
   post: FeedPost;
+  onSettle: (betId: string, result: BetResult) => void;
   onMove: (seriesId: string | null) => void;
   onDelete: () => void;
 }) {
   const { profile } = useAuth();
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<'menu' | 'series'>('menu');
+  const [view, setView] = useState<'menu' | 'series' | 'result'>('menu');
   const [series, setSeries] = useState<SeriesSummary[] | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const canFile = post.type !== 'GROUP_PARLAY';
@@ -74,8 +78,22 @@ export default function SlipMenu({
           role="menu"
           className="absolute right-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-gray-800 bg-gray-900 py-1 shadow-xl"
         >
-          {view === 'menu' ? (
+          {view === 'menu' && (
             <>
+              {canFile && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setView('result')}
+                  className={itemClass}
+                >
+                  <span aria-hidden="true">✏️</span>
+                  <span className="flex-1">Change result</span>
+                  <span aria-hidden="true" className="text-gray-500">
+                    ›
+                  </span>
+                </button>
+              )}
               {canFile && (
                 <button
                   type="button"
@@ -103,7 +121,51 @@ export default function SlipMenu({
                 Delete slip
               </button>
             </>
-          ) : (
+          )}
+          {view === 'result' && (
+            <>
+              <button
+                type="button"
+                onClick={() => setView('menu')}
+                className="w-full px-3 pb-1.5 pt-1 text-left text-xs font-semibold text-gray-500 hover:text-white"
+              >
+                ‹ Back
+              </button>
+              <ul className="border-t border-gray-800">
+                {post.bets.map((bet) => (
+                  <li
+                    key={bet.id}
+                    className="flex items-center gap-2 px-3 py-2 text-sm"
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {post.type === 'LADDER'
+                        ? `${bet.legs[0].selection} ${bet.legs[0].line}`
+                        : 'Result'}
+                    </span>
+                    <select
+                      aria-label="Result"
+                      value={bet.result}
+                      onChange={(e) =>
+                        onSettle(bet.id, e.target.value as BetResult)
+                      }
+                      className={`cursor-pointer rounded-md border-none px-2 py-0.5 text-[11px] font-bold tracking-wide outline-none ${RESULT_STYLES[bet.result]}`}
+                    >
+                      {RESULT_OPTIONS.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </li>
+                ))}
+              </ul>
+              <p className="border-t border-gray-800 px-3 py-2 text-xs text-gray-500">
+                Results update on their own when games end. A result you set
+                here won&apos;t be changed.
+              </p>
+            </>
+          )}
+          {view === 'series' && (
             <>
               <button
                 type="button"

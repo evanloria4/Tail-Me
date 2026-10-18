@@ -1,6 +1,7 @@
 import React from 'react';
 import { formatAmerican, payout } from '../../shared/odds';
-import type { BetResult, FeedBet, FeedLeg, FeedPost } from '../../shared/posts';
+import type { BetResult, FeedLeg, FeedPost } from '../../shared/posts';
+import { gameState } from '../../shared/live';
 
 // Building blocks of a slip card, shared by regular slips and group parlays.
 // Slip layout follows a sportsbook bet slip: a title bar with the total
@@ -88,32 +89,23 @@ export function slipTitle(post: FeedPost): string {
   return `${legs.length} Leg ${sameGame ? 'Same Game ' : ''}Parlay`;
 }
 
-export function ResultControl({
-  bet,
-  isAuthor,
-  onSettle,
-}: {
-  bet: FeedBet;
-  isAuthor: boolean;
-  onSettle: (betId: string, result: BetResult) => void;
-}) {
-  const style = `rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${RESULT_STYLES[bet.result]}`;
-  if (!isAuthor) return <span className={style}>{bet.result}</span>;
+/**
+ * A result as a status badge. Results grade themselves when games end; the
+ * poster's manual override lives in the ⋯ menu so it doesn't clutter the slip.
+ */
+export function ResultBadge({ result }: { result: BetResult }) {
   return (
-    <select
-      aria-label="Bet result"
-      value={bet.result}
-      onChange={(e) => onSettle(bet.id, e.target.value as BetResult)}
-      className={`${style} cursor-pointer border-none outline-none`}
+    <span
+      className={`rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${RESULT_STYLES[result]}`}
     >
-      {RESULT_OPTIONS.map((r) => (
-        <option key={r} value={r}>
-          {r}
-        </option>
-      ))}
-    </select>
+      {result}
+    </span>
   );
 }
+
+/** "PASSING YARDS" -> "PASSING YARDS · FINAL 278" once a prop is graded */
+export const withFinal = (market: string, actual: number | null) =>
+  actual == null ? market : `${market} · Final ${actual}`;
 
 /** One stop on the slip's timeline; the connector runs down to the next stop */
 export function TimelineRow({
@@ -144,30 +136,66 @@ export function TimelineRow({
   );
 }
 
+/** A game in progress. Only shown on unsettled bets and legs. */
+export function LiveBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-red-500/15 px-2 py-0.5 text-[11px] font-bold tracking-wide text-red-400">
+      <span className="relative flex h-1.5 w-1.5">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75 motion-reduce:hidden" />
+        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
+      </span>
+      LIVE
+    </span>
+  );
+}
+
+/**
+ * The status chip for one unsettled leg of a multi-game slip: LIVE while its
+ * game is on, PENDING once the game is over but the grade isn't in yet,
+ * nothing before kickoff.
+ */
+export function legStatus(leg: FeedLeg, now: number): React.ReactNode {
+  if (leg.result !== 'PENDING') return null;
+  const state = gameState(leg.startsAt, leg.gameFinal, now);
+  if (state === 'live') return <LiveBadge />;
+  if (state === 'final') return <ResultBadge result="PENDING" />;
+  return null;
+}
+
 export function LegRow({
   leg,
   result,
   last,
+  tag,
 }: {
   leg: FeedLeg;
   result: BetResult;
   last: boolean;
+  /** LIVE / PENDING chip beside the game, for multi-game slips */
+  tag?: React.ReactNode;
 }) {
   const { title, market } = legText(leg);
   return (
-    <TimelineRow result={result} last={last}>
+    // A graded leg shows its own result; otherwise it follows the bet's
+    <TimelineRow
+      result={leg.result !== 'PENDING' ? leg.result : result}
+      last={last}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-bold leading-snug">{title}</p>
           <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            {market}
+            {withFinal(market, leg.actual)}
           </p>
         </div>
         <span className="font-mono font-bold tabular-nums">
           {formatAmerican(leg.americanOdds)}
         </span>
       </div>
-      <p className="mt-1.5 text-xs text-emerald-400">{leg.eventLabel}</p>
+      <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-emerald-400">
+        {leg.eventLabel}
+        {tag}
+      </p>
     </TimelineRow>
   );
 }

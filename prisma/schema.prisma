@@ -81,6 +81,8 @@ model Event {
   completed    Boolean  @default(false)
   homeScore    Int?
   awayScore    Int?
+  /// ESPN game id, once matched for grading
+  espnId       String?
   updatedAt    DateTime @updatedAt
 
   sport Sport    @relation(fields: [sportKey], references: [key])
@@ -119,6 +121,12 @@ enum BetResult {
   LOST
   PUSH
   VOID
+}
+
+/// Who set a result: the auto-grader, or a person (the grader never overwrites MANUAL)
+enum GradeSource {
+  AUTO
+  MANUAL
 }
 
 model Post {
@@ -180,6 +188,7 @@ model Bet {
   decimalOdds  Decimal   @db.Decimal(12, 4)
   result       BetResult @default(PENDING)
   settledAt    DateTime?
+  gradedBy     GradeSource?
   /// Betslip deep link covering the whole bet, when the book supports multi-leg links
   deepLink     String?
 
@@ -210,6 +219,9 @@ model BetLeg {
   line            Decimal?  @db.Decimal(8, 2)
   americanOdds    Int
   result          BetResult @default(PENDING)
+  gradedBy        GradeSource?
+  /// The player stat a prop was graded on (e.g. 212 passing yards)
+  actual          Decimal?  @db.Decimal(8, 2)
   /// Book's selection id + single-leg deep link from The Odds API (includeSids / includeLinks)
   bookSelectionId String?
   deepLink        String?

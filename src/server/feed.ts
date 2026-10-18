@@ -19,6 +19,8 @@ export const feedInclude = (viewerId: string) =>
           orderBy: { order: 'asc' },
           include: {
             addedBy: { select: { id: true, username: true, fullName: true } },
+            // For LIVE tags: when the game starts, and whether it's final
+            event: { select: { commenceTime: true, completed: true } },
           },
         },
         _count: { select: { tails: true } },
@@ -128,7 +130,10 @@ function toFeedPost(
       legs: bet.legs.map((leg) => ({
         id: leg.id,
         sportKey: leg.sportKey,
+        eventId: leg.eventId,
         eventLabel: leg.eventLabel,
+        startsAt: leg.event?.commenceTime.toISOString() ?? null,
+        gameFinal: leg.event?.completed ?? false,
         marketKey: leg.marketKey as MarketKey,
         marketLabel: leg.marketLabel,
         playerName: leg.playerName,
@@ -137,6 +142,7 @@ function toFeedPost(
         americanOdds: leg.americanOdds,
         deepLink: leg.deepLink,
         result: leg.result,
+        actual: leg.actual?.toNumber() ?? null,
         addedBy: leg.addedBy,
       })),
     })),

@@ -8,8 +8,10 @@ import {
   decimalToAmerican,
   parlayDecimal,
 } from '../src/shared/odds';
+import { betResultFromLegs } from '../src/shared/grading';
 
 type Result = 'PENDING' | 'WON' | 'LOST' | 'PUSH' | 'VOID';
+type GradedBy = 'AUTO' | 'MANUAL';
 
 type Leg = {
   sportKey: string;
@@ -20,6 +22,12 @@ type Leg = {
   selection: string;
   line?: number;
   americanOdds: number;
+  /** Per-leg grade (parlays); straights and rungs follow their bet */
+  result?: Result;
+  /** Graded prop's stat, shown as "Final 278" */
+  actual?: number;
+  /** FanDuel add-to-betslip link, so Tail's "Add" buttons show */
+  deepLink?: string;
 };
 
 type DemoPost = {
@@ -27,6 +35,8 @@ type DemoPost = {
   book: string;
   minutesAgo: number;
   caption?: string;
+  /** Who graded it; settled slips default to the auto-grader */
+  gradedBy?: GradedBy;
 } & (
   | { type: 'STRAIGHT'; units: number; leg: Leg; result?: Result }
   | {
@@ -44,6 +54,8 @@ type DemoPost = {
         americanOdds: number;
         units: number;
         result?: Result;
+        actual?: number;
+        deepLink?: string;
       }[];
     }
 );
@@ -71,6 +83,10 @@ const USERS = [
   },
 ];
 
+/** Stand-in FanDuel add-to-betslip link (not a real selection) */
+const fdLink = (id: number) =>
+  `https://sportsbook.fanduel.com/addToBetslip?marketId=42.0&selectionId=${id}`;
+
 const NFL = 'americanfootball_nfl';
 const NCAAF = 'americanfootball_ncaaf';
 const NHL = 'icehockey_nhl';
@@ -90,6 +106,7 @@ const POSTS: DemoPost[] = [
       selection: 'Buffalo Bills',
       line: -3.5,
       americanOdds: -110,
+      deepLink: fdLink(101),
     },
   },
   {
@@ -213,9 +230,9 @@ const POSTS: DemoPost[] = [
       selection: 'Over',
     },
     rungs: [
-      { line: 1.5, americanOdds: -150, units: 1, result: 'WON' },
-      { line: 2.5, americanOdds: 190, units: 0.5, result: 'WON' },
-      { line: 3.5, americanOdds: 550, units: 0.25, result: 'LOST' },
+      { line: 1.5, americanOdds: -150, units: 1, result: 'WON', actual: 3 },
+      { line: 2.5, americanOdds: 190, units: 0.5, result: 'WON', actual: 3 },
+      { line: 3.5, americanOdds: 550, units: 0.25, result: 'LOST', actual: 3 },
     ],
   },
   {
@@ -302,9 +319,9 @@ const POSTS: DemoPost[] = [
       selection: 'Over',
     },
     rungs: [
-      { line: 3.5, americanOdds: -140, units: 1, result: 'WON' },
-      { line: 4.5, americanOdds: 160, units: 0.5, result: 'WON' },
-      { line: 5.5, americanOdds: 320, units: 0.25, result: 'WON' },
+      { line: 3.5, americanOdds: -140, units: 1, result: 'WON', actual: 6 },
+      { line: 4.5, americanOdds: 160, units: 0.5, result: 'WON', actual: 6 },
+      { line: 5.5, americanOdds: 320, units: 0.25, result: 'WON', actual: 6 },
     ],
   },
   {
@@ -369,6 +386,214 @@ const POSTS: DemoPost[] = [
       americanOdds: -125,
     },
   },
+
+  // ---------- Auto-grading situations ----------
+
+  // Parlay half done: the early game cashed, the late one is still going
+  {
+    author: 'tonyparlays',
+    book: 'fanduel',
+    minutesAgo: 240,
+    type: 'PARLAY',
+    units: 1,
+    caption: 'Early game cashed. Sweating the late one.',
+    legs: [
+      {
+        sportKey: NFL,
+        eventLabel: 'Titans @ Jaguars',
+        marketKey: 'spreads',
+        selection: 'Jacksonville Jaguars',
+        line: 2.5,
+        americanOdds: -110,
+        result: 'WON',
+        deepLink: fdLink(201),
+      },
+      {
+        sportKey: NFL,
+        eventLabel: 'Chiefs @ Raiders',
+        marketKey: 'totals',
+        selection: 'Over',
+        line: 47.5,
+        americanOdds: -105,
+        deepLink: fdLink(202),
+      },
+    ],
+  },
+  // Parlay busted by exactly one leg (red dot shows whose)
+  {
+    author: 'nickfades',
+    book: 'fanduel',
+    minutesAgo: 60 * 30,
+    type: 'PARLAY',
+    units: 1,
+    caption: 'One leg. ONE LEG.',
+    legs: [
+      {
+        sportKey: NFL,
+        eventLabel: 'Browns @ Bengals',
+        marketKey: 'h2h',
+        selection: 'Cincinnati Bengals',
+        americanOdds: -180,
+        result: 'WON',
+      },
+      {
+        sportKey: NFL,
+        eventLabel: 'Chargers @ Broncos',
+        marketKey: 'spreads',
+        selection: 'Los Angeles Chargers',
+        line: -3,
+        americanOdds: -110,
+        result: 'LOST',
+      },
+      {
+        sportKey: NFL,
+        eventLabel: 'Saints @ Falcons',
+        marketKey: 'totals',
+        selection: 'Over',
+        line: 41.5,
+        americanOdds: -110,
+        result: 'WON',
+      },
+    ],
+  },
+  // Parlay saved by a push: the pushed leg drops out
+  {
+    author: 'mikeylocks',
+    book: 'fanduel',
+    minutesAgo: 60 * 20,
+    type: 'PARLAY',
+    units: 1,
+    caption: 'Push on the Texans and it still cashed',
+    legs: [
+      {
+        sportKey: NFL,
+        eventLabel: 'Rams @ Cardinals',
+        marketKey: 'h2h',
+        selection: 'Los Angeles Rams',
+        americanOdds: -140,
+        result: 'WON',
+      },
+      {
+        sportKey: NFL,
+        eventLabel: 'Texans @ Colts',
+        marketKey: 'spreads',
+        selection: 'Houston Texans',
+        line: 3,
+        americanOdds: -110,
+        result: 'PUSH',
+      },
+      {
+        sportKey: NHL,
+        eventLabel: 'Stars @ Avalanche',
+        marketKey: 'totals',
+        selection: 'Over',
+        line: 6.5,
+        americanOdds: 105,
+        result: 'WON',
+      },
+    ],
+  },
+  // Postponed game: voided, money back
+  {
+    author: 'jpace',
+    book: 'fanduel',
+    minutesAgo: 60 * 40,
+    type: 'STRAIGHT',
+    units: 1,
+    result: 'VOID',
+    caption: 'Game got postponed. Of course.',
+    leg: {
+      sportKey: NHL,
+      eventLabel: 'Canucks @ Kraken',
+      marketKey: 'h2h',
+      selection: 'Vancouver Canucks',
+      americanOdds: 115,
+    },
+  },
+  // Graded prop showing its final stat
+  {
+    author: 'tonyparlays',
+    book: 'fanduel',
+    minutesAgo: 60 * 28,
+    type: 'STRAIGHT',
+    units: 1.5,
+    result: 'WON',
+    caption: 'Chase eats every week',
+    leg: {
+      sportKey: NFL,
+      eventLabel: 'Bengals @ Steelers',
+      marketKey: 'player_prop',
+      marketLabel: 'Receiving Yards',
+      playerName: "Ja'Marr Chase",
+      selection: 'Over',
+      line: 74.5,
+      americanOdds: -115,
+      actual: 112,
+    },
+  },
+  // Long-odds winner: gold "cashed" treatment
+  {
+    author: 'mikeylocks',
+    book: 'fanduel',
+    minutesAgo: 60 * 22,
+    type: 'STRAIGHT',
+    units: 0.5,
+    result: 'WON',
+    caption: 'Caufield anytime at +420. Two of them.',
+    leg: {
+      sportKey: NHL,
+      eventLabel: 'Canadiens @ Senators',
+      marketKey: 'player_prop',
+      marketLabel: 'Anytime Goal',
+      playerName: 'Cole Caufield',
+      selection: 'Yes',
+      americanOdds: 420,
+      actual: 2,
+    },
+  },
+  // Prop the poster graded by hand (⋯ → Change result)
+  {
+    author: 'nickfades',
+    book: 'fanduel',
+    minutesAgo: 60 * 33,
+    type: 'STRAIGHT',
+    units: 1,
+    result: 'LOST',
+    gradedBy: 'MANUAL',
+    caption: 'Saquon under 90. Never again.',
+    leg: {
+      sportKey: NFL,
+      eventLabel: 'Eagles @ Giants',
+      marketKey: 'player_prop',
+      marketLabel: 'Rushing Yards',
+      playerName: 'Saquon Barkley',
+      selection: 'Over',
+      line: 89.5,
+      americanOdds: -120,
+      actual: 61,
+    },
+  },
+  // Pending ladder with live links (Tail lists one Add per rung)
+  {
+    author: 'jpace',
+    book: 'fanduel',
+    minutesAgo: 50,
+    type: 'LADDER',
+    caption: 'Lamar rushing ladder for SNF',
+    pick: {
+      sportKey: NFL,
+      eventLabel: 'Ravens @ Bills',
+      marketKey: 'player_prop',
+      marketLabel: 'Rushing Yards',
+      playerName: 'Lamar Jackson',
+      selection: 'Over',
+    },
+    rungs: [
+      { line: 49.5, americanOdds: -150, units: 1, deepLink: fdLink(301) },
+      { line: 74.5, americanOdds: 175, units: 0.5, deepLink: fdLink(302) },
+      { line: 99.5, americanOdds: 450, units: 0.25, deepLink: fdLink(303) },
+    ],
+  },
 ];
 
 /** Comments + reactions by post index in POSTS: [username, text] */
@@ -399,10 +624,62 @@ const REACTIONS: Record<number, [string, string][]> = {
   9: [['tonyparlays', '🔥']],
 };
 
-function legData(leg: Leg, order: number) {
+/** Graded rows record who graded them; pending ones have no grader */
+const grader = (result: Result, by: GradedBy = 'AUTO') =>
+  result === 'PENDING' ? null : by;
+
+/**
+ * Games the open demo slips are tied to, so LIVE / PENDING tags show:
+ * started minutes ago (negative = later today), and whether it's final.
+ * Short team names never match ESPN, so the grader leaves these alone.
+ */
+const DEMO_GAMES: Record<
+  string,
+  { startedMinutesAgo: number; final?: boolean }
+> = {
+  // Live now
+  'Chiefs @ Bills': { startedMinutesAgo: 70 },
+  'Chiefs @ Raiders': { startedMinutesAgo: 95 },
+  'Ravens @ Bills': { startedMinutesAgo: 40 },
+  'Giants @ Eagles': { startedMinutesAgo: 110 },
+  'Kings @ Ducks': { startedMinutesAgo: 30 },
+  // Over, but the grade isn't in yet ("PENDING")
+  'Packers @ Lions': { startedMinutesAgo: 220, final: true },
+  'Titans @ Jaguars': { startedMinutesAgo: 260, final: true },
+  // Later today: no tag
+  'Bengals @ Ravens': { startedMinutesAgo: -180 },
+  'Oilers @ Flames': { startedMinutesAgo: -240 },
+  'Seahawks @ 49ers': { startedMinutesAgo: -150 },
+};
+const demoEventId = (label: string) =>
+  DEMO_GAMES[label]
+    ? `demo-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+    : null;
+
+async function seedDemoGames(now: number) {
+  await prisma.event.deleteMany({ where: { id: { startsWith: 'demo-' } } });
+  await prisma.event.createMany({
+    data: Object.entries(DEMO_GAMES).map(([label, g]) => {
+      const [awayTeam, homeTeam] = label.split(' @ ');
+      const nhl = ['Kings', 'Oilers'].includes(awayTeam);
+      return {
+        id: demoEventId(label)!,
+        sportKey: nhl ? NHL : NFL,
+        homeTeam,
+        awayTeam,
+        commenceTime: new Date(now - g.startedMinutesAgo * 60_000),
+        completed: !!g.final,
+      };
+    }),
+  });
+}
+
+function legData(leg: Leg, order: number, by?: GradedBy) {
+  const result = leg.result ?? 'PENDING';
   return {
     order,
     sportKey: leg.sportKey,
+    eventId: demoEventId(leg.eventLabel),
     eventLabel: leg.eventLabel,
     marketKey: leg.marketKey,
     marketLabel: leg.marketLabel ?? null,
@@ -410,19 +687,34 @@ function legData(leg: Leg, order: number) {
     selection: leg.selection,
     line: leg.line ?? null,
     americanOdds: leg.americanOdds,
+    result,
+    gradedBy: grader(result, by),
+    actual: leg.actual ?? null,
+    deepLink: leg.deepLink ?? null,
   };
 }
 
-function betsData(post: DemoPost) {
+function betRow(result: Result, now: number, by?: GradedBy) {
+  return {
+    result,
+    gradedBy: grader(result, by),
+    settledAt: result === 'PENDING' ? null : new Date(now),
+  };
+}
+
+function betsData(post: DemoPost, now: number) {
+  const by = post.gradedBy;
   if (post.type === 'STRAIGHT') {
+    const result = post.result ?? 'PENDING';
     return [
       {
         order: 0,
         units: post.units,
         americanOdds: post.leg.americanOdds,
         decimalOdds: americanToDecimal(post.leg.americanOdds),
-        result: post.result ?? 'PENDING',
-        legs: { create: [legData(post.leg, 0)] },
+        deepLink: post.leg.deepLink ?? null,
+        ...betRow(result, now, by),
+        legs: { create: [legData({ ...post.leg, result }, 0, by)] },
       },
     ];
   }
@@ -430,25 +722,36 @@ function betsData(post: DemoPost) {
     const decimal = post.slipOdds
       ? americanToDecimal(post.slipOdds)
       : parlayDecimal(post.legs.map((l) => l.americanOdds));
+    // A parlay marked won without per-leg grades won every leg
+    const legs = post.legs.map((l) => ({
+      ...l,
+      result: l.result ?? (post.result === 'WON' ? 'WON' : undefined),
+    }));
+    const result =
+      post.result ?? betResultFromLegs(legs.map((l) => l.result ?? 'PENDING'));
     return [
       {
         order: 0,
         units: post.units,
         americanOdds: post.slipOdds ?? decimalToAmerican(decimal),
         decimalOdds: decimal,
-        result: post.result ?? 'PENDING',
-        legs: { create: post.legs.map(legData) },
+        ...betRow(result, now, by),
+        legs: { create: legs.map((l, i) => legData(l, i, by)) },
       },
     ];
   }
-  return post.rungs.map((rung, i) => ({
-    order: i,
-    units: rung.units,
-    americanOdds: rung.americanOdds,
-    decimalOdds: americanToDecimal(rung.americanOdds),
-    result: rung.result ?? 'PENDING',
-    legs: { create: [legData({ ...post.pick, ...rung }, 0)] },
-  }));
+  return post.rungs.map((rung, i) => {
+    const result = rung.result ?? 'PENDING';
+    return {
+      order: i,
+      units: rung.units,
+      americanOdds: rung.americanOdds,
+      decimalOdds: americanToDecimal(rung.americanOdds),
+      deepLink: rung.deepLink ?? null,
+      ...betRow(result, now, by),
+      legs: { create: [legData({ ...post.pick, ...rung, result }, 0, by)] },
+    };
+  });
 }
 
 const userIds = USERS.map((u) => u.id);
@@ -458,14 +761,15 @@ async function clear() {
   const { count } = await prisma.user.deleteMany({
     where: { id: { in: userIds } },
   });
+  await prisma.event.deleteMany({ where: { id: { startsWith: 'demo-' } } });
   console.log(`Removed ${count} demo users and their posts`);
 }
 
-type GroupLeg = Leg & { by: string; result?: Result };
+type GroupLeg = Leg & { by: string };
 
 /**
- * One group parlay still taking legs, and one that locked and got busted by a
- * single leg, so both states show in the feed.
+ * Group parlays in every state: taking legs, locked and busted by one leg,
+ * locked and partly graded, and a same-game one waiting on the book price.
  */
 async function seedGroupParlays(
   sportsbookId: string,
@@ -477,6 +781,8 @@ async function seedGroupParlays(
     minutesAgo: number;
     lockInMinutes: number;
     locked?: boolean;
+    /** "This game only" */
+    groupEvent?: { id: string; label: string };
     caption: string;
     legs: GroupLeg[];
   }[] = [
@@ -542,15 +848,87 @@ async function seedGroupParlays(
         },
       ],
     },
+    // Locked and partly graded: one game's done, two still going
+    {
+      author: 'jpace',
+      minutesAgo: 60 * 5,
+      lockInMinutes: -60 * 2,
+      caption: 'Group parlay #2. Mike already cashed his leg.',
+      legs: [
+        {
+          by: 'mikeylocks',
+          result: 'WON',
+          sportKey: NFL,
+          eventLabel: 'Titans @ Jaguars',
+          marketKey: 'h2h',
+          selection: 'Jacksonville Jaguars',
+          americanOdds: -135,
+        },
+        {
+          by: 'jpace',
+          sportKey: NFL,
+          eventLabel: 'Chiefs @ Raiders',
+          marketKey: 'totals',
+          selection: 'Over',
+          line: 47.5,
+          americanOdds: -105,
+        },
+        {
+          by: 'tonyparlays',
+          sportKey: NHL,
+          eventLabel: 'Kings @ Ducks',
+          marketKey: 'h2h',
+          selection: 'Los Angeles Kings',
+          americanOdds: -160,
+        },
+      ],
+    },
+    // "This game only", locked, the multiplied price shown as "est." until
+    // the creator enters FanDuel's same-game price
+    {
+      author: 'nickfades',
+      minutesAgo: 90,
+      lockInMinutes: -20,
+      groupEvent: { id: 'demo-kc-buf', label: 'Chiefs @ Bills' },
+      caption: 'Same-game group parlay for the late game',
+      legs: [
+        {
+          by: 'nickfades',
+          sportKey: NFL,
+          eventLabel: 'Chiefs @ Bills',
+          marketKey: 'h2h',
+          selection: 'Buffalo Bills',
+          americanOdds: -125,
+        },
+        {
+          by: 'mikeylocks',
+          sportKey: NFL,
+          eventLabel: 'Chiefs @ Bills',
+          marketKey: 'player_prop',
+          marketLabel: 'Passing Yards',
+          playerName: 'Josh Allen',
+          selection: 'Over',
+          line: 244.5,
+          americanOdds: -115,
+        },
+        {
+          by: 'tonyparlays',
+          sportKey: NFL,
+          eventLabel: 'Chiefs @ Bills',
+          marketKey: 'player_prop',
+          marketLabel: 'Anytime TD',
+          playerName: 'James Cook',
+          selection: 'Yes',
+          americanOdds: -105,
+        },
+      ],
+    },
   ];
   // eslint-disable-next-line no-restricted-syntax
   for (const g of groups) {
     const decimal = parlayDecimal(g.legs.map((l) => l.americanOdds));
-    const results = g.legs.map((l) => l.result ?? 'PENDING');
-    // Matches groupResult in shared/posts: any loss sinks it
-    let result: Result = 'PENDING';
-    if (results.includes('LOST')) result = 'LOST';
-    else if (results.every((r) => r === 'WON')) result = 'WON';
+    // Same rule the grader uses: any loss sinks it, any open leg keeps it open
+    const result = betResultFromLegs(g.legs.map((l) => l.result ?? 'PENDING'));
     const createdAt = new Date(now - g.minutesAgo * 60_000);
     // eslint-disable-next-line no-await-in-loop
     await prisma.post.create({
@@ -562,6 +940,8 @@ async function seedGroupParlays(
         createdAt,
         lockAt: new Date(now + g.lockInMinutes * 60_000),
         lockedAt: g.locked ? new Date(createdAt.getTime() + 60 * 60_000) : null,
+        groupEventId: g.groupEvent?.id ?? null,
+        groupEventLabel: g.groupEvent?.label ?? null,
         bets: {
           create: [
             {
@@ -569,12 +949,10 @@ async function seedGroupParlays(
               units: 1,
               americanOdds: decimalToAmerican(decimal),
               decimalOdds: decimal,
-              result,
-              settledAt: result === 'PENDING' ? null : new Date(now),
+              ...betRow(result, now),
               legs: {
-                create: g.legs.map(({ by, result: legResult, ...leg }, i) => ({
+                create: g.legs.map(({ by, ...leg }, i) => ({
                   ...legData(leg, i),
-                  result: legResult ?? 'PENDING',
                   addedById: userId.get(by)!,
                 })),
               },
@@ -607,6 +985,7 @@ async function main() {
     )
   );
   await prisma.post.deleteMany({ where: { authorId: { in: userIds } } });
+  await seedDemoGames(Date.now());
 
   const userId = new Map(USERS.map((u) => [u.username, u.id]));
   const now = Date.now();
@@ -623,7 +1002,7 @@ async function main() {
         caption: post.caption ?? null,
         sportsbookId: bookId.get(post.book)!,
         createdAt: new Date(now - post.minutesAgo * 60_000),
-        bets: { create: betsData(post) },
+        bets: { create: betsData(post, now) },
       },
       include: { bets: true },
     });

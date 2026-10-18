@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import timeAgo, { lockTime } from '../lib/time';
+import useNow from '../lib/useNow';
+import { allFinal, isLive, oneGame } from '../../shared/live';
 import {
   formatAmerican,
   formatMoney,
@@ -15,14 +17,18 @@ import {
 import type { BetResult, FeedLeg, FeedPost } from '../../shared/posts';
 import { useLayout } from './AppLayout';
 import {
+  legStatus,
   legText,
+  LiveBadge,
   PAYOUT_LABELS,
   payoutColor,
   RESULT_OPTIONS,
   RESULT_STYLES,
+  ResultBadge,
   returned,
   TimelineRow,
   Total,
+  withFinal,
 } from './SlipParts';
 
 // A group parlay on a slip card: one leg per friend, open until the
@@ -42,6 +48,53 @@ export const groupLocked = (post: FeedPost) =>
 
 const firstName = (fullName: string) => fullName.split(' ')[0];
 
+/**
+ * A graded leg's one indicator: a green check for a hit, a red X for a miss,
+ * the word for a push or void, nothing while it's open.
+ */
+function ResultMark({ result }: { result: BetResult }) {
+  if (result === 'PENDING') return null;
+  if (result === 'WON' || result === 'LOST') {
+    const won = result === 'WON';
+    return (
+      <span
+        role="img"
+        aria-label={won ? 'Hit' : 'Missed'}
+        title={won ? 'Hit' : 'Missed'}
+        className={`flex h-5 w-5 items-center justify-center rounded-full ${
+          won
+            ? 'bg-emerald-500/15 text-emerald-400'
+            : 'bg-red-500/15 text-red-400'
+        }`}
+      >
+        <svg
+          viewBox="0 0 20 20"
+          className="h-3.5 w-3.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          {won ? (
+            <path d="M4.5 10.5l3.5 3.5 7.5-8" />
+          ) : (
+            <path d="M6 6l8 8M14 6l-8 8" />
+          )}
+        </svg>
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${RESULT_STYLES[result]}`}
+    >
+      {result}
+    </span>
+  );
+}
+
 function LegControl({
   leg,
   canSettle,
@@ -55,13 +108,22 @@ function LegControl({
   onSettle: (result: BetResult) => void;
   onRemove: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
   const style = `rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${RESULT_STYLES[leg.result]}`;
-  if (canSettle) {
+  // Legs grade themselves when games end; the owner or creator can still fix
+  // one through a small pencil, so the list stays clean
+  if (canSettle && editing) {
     return (
       <select
         aria-label="Leg result"
+        // eslint-disable-next-line jsx-a11y/no-autofocus
+        autoFocus
         value={leg.result}
-        onChange={(e) => onSettle(e.target.value as BetResult)}
+        onChange={(e) => {
+          onSettle(e.target.value as BetResult);
+          setEditing(false);
+        }}
+        onBlur={() => setEditing(false)}
         className={`${style} cursor-pointer border-none outline-none`}
       >
         {RESULT_OPTIONS.map((r) => (
@@ -70,6 +132,33 @@ function LegControl({
           </option>
         ))}
       </select>
+    );
+  }
+  if (canSettle) {
+    return (
+      <span className="flex items-center gap-1">
+        <ResultMark result={leg.result} />
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          aria-label="Change leg result"
+          title="Change result"
+          className="rounded p-0.5 text-gray-600 transition hover:text-gray-300"
+        >
+          <svg
+            viewBox="0 0 20 20"
+            className="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M13.5 3.5l3 3L7 16H4v-3z" />
+          </svg>
+        </button>
+      </span>
     );
   }
   if (canRemove) {
@@ -83,9 +172,7 @@ function LegControl({
       </button>
     );
   }
-  return leg.result === 'PENDING' ? null : (
-    <span className={style}>{leg.result}</span>
-  );
+  return <ResultMark result={leg.result} />;
 }
 
 /** Who a leg belongs to: their initial and first name ("You" for yours) */
@@ -211,6 +298,9 @@ export function GroupSlip({
   const isCreator = post.author.id === profile?.id;
   const statusClass =
     'rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide';
+  // Ticks each minute so LIVE tags come and go on their own
+  const now = useNow();
+  const singleGame = oneGame(bet.legs);
 
   let status: React.ReactNode;
   let when: string;
@@ -222,11 +312,16 @@ export function GroupSlip({
     );
     when = `Locks ${lockTime(group.lockAt)} · ${timeAgo(group.lockAt)}`;
   } else {
-    status = (
-      <span className={`${statusClass} ${RESULT_STYLES[bet.result]}`}>
-        {bet.result === 'PENDING' ? 'LOCKED' : bet.result}
-      </span>
-    );
+    if (bet.result !== 'PENDING') status = <ResultBadge result={bet.result} />;
+    // One game: the slip carries the LIVE tag; several: each leg does
+    else if (singleGame && isLive(bet.legs, now)) status = <LiveBadge />;
+    else if (allFinal(bet.legs, now)) status = <ResultBadge result="PENDING" />;
+    else
+      status = (
+        <span className={`${statusClass} ${RESULT_STYLES.PENDING}`}>
+          LOCKED
+        </span>
+      );
     when = `Locked ${lockTime(group.lockedAt ?? group.lockAt)}`;
   }
 
@@ -275,7 +370,7 @@ export function GroupSlip({
                 <div className="min-w-0">
                   <p className="font-bold leading-snug">{title}</p>
                   <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                    {market}
+                    {withFinal(market, leg.actual)}
                   </p>
                 </div>
                 <span className="font-mono font-bold tabular-nums">
@@ -284,8 +379,12 @@ export function GroupSlip({
               </div>
               {/* A one-game parlay already says its game up top */}
               {!group.game && (
-                <p className="mt-1.5 text-xs text-emerald-400">
+                <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-emerald-400">
                   {leg.eventLabel}
+                  {!singleGame &&
+                    locked &&
+                    bet.result === 'PENDING' &&
+                    legStatus(leg, now)}
                 </p>
               )}
               <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -293,9 +392,6 @@ export function GroupSlip({
                   <Owner owner={owner} mine={mine} />
                   {leg.result === 'LOST' && (
                     <span className="font-bold text-red-400">💀 Busted it</span>
-                  )}
-                  {leg.result === 'WON' && (
-                    <span className="font-bold text-emerald-400">✓ Hit</span>
                   )}
                 </span>
                 <LegControl

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { formatAmerican, formatMoney } from '../../shared/odds';
 import { BetResult, FeedPost } from '../../shared/posts';
 import timeAgo from '../lib/time';
+import useNow from '../lib/useNow';
+import { allFinal, isLive, oneGame } from '../../shared/live';
 import { slipBadges } from '../../shared/badges';
 import type { ReactionEmoji } from '../../shared/social';
 import {
@@ -20,12 +22,15 @@ import {
   legText,
   PAYOUT_LABELS,
   payoutColor,
-  ResultControl,
+  legStatus,
+  LiveBadge,
+  ResultBadge,
   returned,
   slipTitle,
   TimelineRow,
   Total,
   units,
+  withFinal,
 } from './SlipParts';
 import {
   GroupActions,
@@ -227,6 +232,8 @@ export default function PostCard({
   const celebrated = isCelebrated(badges);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentCount, setCommentCount] = useState(post.commentCount);
+  // Ticks each minute so LIVE tags come and go on their own
+  const now = useNow();
   useEffect(() => setCommentCount(post.commentCount), [post.commentCount]);
   // Others can tail while a bet is open; a tailed slip keeps its badge after.
   // A group parlay can be placed by anyone, creator included, once locked.
@@ -251,6 +258,25 @@ export default function PostCard({
   // A parlay's legs share the bet's result only once it has won; a lost
   // parlay doesn't say which leg missed, so those dots stay neutral.
   const legResult: BetResult = first.result === 'WON' ? 'WON' : 'PENDING';
+
+  // Status chips. Settled: the result. Unsettled: LIVE while the game is on
+  // (once for a one-game slip, per leg otherwise), PENDING only once the
+  // game's over and the grade isn't in yet, nothing before kickoff.
+  const singleGame = oneGame(post.bets.flatMap((b) => b.legs));
+  const betChip = (bet: FeedPost['bets'][number]): React.ReactNode => {
+    if (bet.result !== 'PENDING') return <ResultBadge result={bet.result} />;
+    if (singleGame && isLive(bet.legs, now)) return <LiveBadge />;
+    if (allFinal(bet.legs, now)) return <ResultBadge result="PENDING" />;
+    return null;
+  };
+  const ladderLive =
+    isLadder &&
+    singleGame &&
+    !allSettled &&
+    isLive(
+      post.bets.flatMap((b) => b.legs),
+      now
+    );
 
   // No overflow-hidden here: the tailer and reaction popovers open upward
   // past the card's edge
@@ -287,6 +313,7 @@ export default function PostCard({
         {isAuthor && (
           <SlipMenu
             post={post}
+            onSettle={onSettle}
             onMove={(seriesId) => onMoveSeries(post.id, seriesId)}
             onDelete={() => onDelete(post.id)}
           />
@@ -330,7 +357,7 @@ export default function PostCard({
                       {legText(pick).title}
                     </p>
                     <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                      {legText(pick).market}
+                      {withFinal(legText(pick).market, pick.actual)}
                     </p>
                     <p className="mt-1.5 text-xs text-emerald-400">
                       {pick.eventLabel}
@@ -345,13 +372,8 @@ export default function PostCard({
                   <span className="rounded border border-gray-700 px-1.5 py-px text-[11px] font-semibold text-gray-400">
                     {post.sportsbook.name}
                   </span>
-                  {!isLadder && (
-                    <ResultControl
-                      bet={first}
-                      isAuthor={isAuthor}
-                      onSettle={onSettle}
-                    />
-                  )}
+                  {!isLadder && betChip(first)}
+                  {ladderLive && <LiveBadge />}
                 </div>
               </div>
               {!isLadder && (
@@ -375,9 +397,14 @@ export default function PostCard({
               <>
                 <div className="border-b border-gray-800 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                    {pick.playerName
-                      ? `${pick.playerName} - ${pick.marketLabel}`
-                      : legText(pick).market}
+                    {withFinal(
+                      pick.playerName
+                        ? `${pick.playerName} - ${pick.marketLabel}`
+                        : legText(pick).market,
+                      // Every rung grades on the same stat
+                      post.bets.find((b) => b.legs[0].actual != null)?.legs[0]
+                        .actual ?? null
+                    )}
                   </p>
                   <p className="mt-1 text-xs text-emerald-400">
                     {pick.eventLabel}
@@ -412,11 +439,10 @@ export default function PostCard({
                               )}
                             </span>
                           </span>
-                          <ResultControl
-                            bet={bet}
-                            isAuthor={isAuthor}
-                            onSettle={onSettle}
-                          />
+                          {/* The slip's LIVE tag covers rungs mid-game */}
+                          {bet.result !== 'PENDING' || !ladderLive
+                            ? betChip(bet)
+                            : null}
                         </div>
                       </TimelineRow>
                     );
@@ -432,6 +458,13 @@ export default function PostCard({
                       leg={leg}
                       result={legResult}
                       last={i === first.legs.length - 1}
+                      // Multi-game parlays tag each open leg; settled bets
+                      // don't need it
+                      tag={
+                        !singleGame && first.result === 'PENDING'
+                          ? legStatus(leg, now)
+                          : null
+                      }
                     />
                   ))}
                 </ol>
