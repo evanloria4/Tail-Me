@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import useMeta from '../lib/useMeta';
 import useStickyTop from '../lib/useStickyTop';
+import useMediaQuery from '../lib/useMediaQuery';
 import { inSiteZone } from '../../shared/time';
 import { PAGE_GRID, SIDE_COLUMN } from '../lib/layout';
 import {
@@ -263,6 +264,8 @@ function EditProfile({
 
 // ---------- Page ----------
 
+type BreakdownKey = 'series' | 'type' | 'league' | 'tailing';
+
 export default function Profile() {
   const { username = '' } = useParams();
   const { profile: me } = useAuth();
@@ -273,6 +276,9 @@ export default function Profile() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const side = useStickyTop<HTMLElement>();
+  // Matches PAGE_GRID's lg breakpoint, where the side column appears
+  const wide = useMediaQuery('(min-width: 1024px)');
+  const [panel, setPanel] = useState<BreakdownKey>('series');
 
   const load = useCallback(async () => {
     try {
@@ -332,6 +338,24 @@ export default function Profile() {
       ...leagueLines.keys(),
     ]),
   ];
+
+  const panels: { key: BreakdownKey; label: string }[] = [
+    { key: 'series', label: 'Series' },
+    { key: 'type', label: 'Bet type' },
+    ...(leagueKeys.length > 0
+      ? [{ key: 'league' as const, label: 'League' }]
+      : []),
+    ...(settledCount(tails.line) > 0 || viewerTails
+      ? [{ key: 'tailing' as const, label: 'Tailing' }]
+      : []),
+  ];
+  // A tab can vanish (e.g. no tailing yet); fall back to the first
+  const activePanel = panels.some((p) => p.key === panel)
+    ? panel
+    : panels[0].key;
+  /** Desktop shows every available panel; smaller screens just the active one */
+  const show = (key: BreakdownKey) =>
+    panels.some((p) => p.key === key) && (wide || activePanel === key);
 
   let streakValue: React.ReactNode = '–';
   if (streak) {
@@ -439,21 +463,65 @@ export default function Profile() {
       <aside
         ref={side.ref}
         style={{ top: side.top }}
-        className={`${SIDE_COLUMN} grid content-start gap-3 sm:grid-cols-2 lg:row-span-2 lg:row-start-1 lg:grid-cols-1`}
+        className={`${SIDE_COLUMN} grid content-start gap-3 lg:row-span-2 lg:row-start-1`}
       >
-        <SeriesPanel
-          username={user.username}
-          isOwner={isMe}
-          reloadKey={feedVersion}
-        />
+        {/* Below the desktop side column, one panel at a time behind tabs */}
+        {!wide && (
+          <div>
+            <h2
+              id="breakdown-heading"
+              className="mb-2 text-sm font-semibold text-gray-300"
+            >
+              Breakdown
+              {range !== 'all' && (
+                <span className="font-normal text-gray-500">
+                  {' '}
+                  · {STAT_RANGES[range]}
+                </span>
+              )}
+            </h2>
+            <div
+              role="tablist"
+              aria-labelledby="breakdown-heading"
+              className="flex overflow-x-auto rounded-lg border border-gray-800 bg-gray-900 p-0.5"
+            >
+              {panels.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={activePanel === p.key}
+                  onClick={() => setPanel(p.key)}
+                  className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                    activePanel === p.key
+                      ? 'bg-gray-800 text-white'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-        <StatPanel title="By bet type">
-          {POST_TYPES.map((t) => (
-            <StatRow key={t} label={TYPE_LABELS[t]} line={stats.byType[t]} />
-          ))}
-        </StatPanel>
+        {show('series') && (
+          <SeriesPanel
+            username={user.username}
+            isOwner={isMe}
+            reloadKey={feedVersion}
+          />
+        )}
 
-        {leagueKeys.length > 0 && (
+        {show('type') && (
+          <StatPanel title="By bet type">
+            {POST_TYPES.map((t) => (
+              <StatRow key={t} label={TYPE_LABELS[t]} line={stats.byType[t]} />
+            ))}
+          </StatPanel>
+        )}
+
+        {show('league') && (
           <StatPanel
             title="By league"
             note={
@@ -472,7 +540,7 @@ export default function Profile() {
           </StatPanel>
         )}
 
-        {(settledCount(tails.line) > 0 || viewerTails) && (
+        {show('tailing') && (
           <StatPanel title="Tailing">
             <StatRow label="Tailed bets" line={tails.line} />
             {viewerTails && (
