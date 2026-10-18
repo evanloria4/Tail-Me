@@ -375,7 +375,7 @@ export default function Landing() {
                   screen widens; the margins keep room for the overhang. */}
               <div className="relative mx-auto mb-24 mt-10 max-w-sm xl:mb-0">
                 <HeroSlip />
-                <div className="absolute -top-12 right-0 z-10 rotate-3 sm:-right-16 xl:-right-28 xl:top-10">
+                <div className="absolute -right-4 top-10 z-10 rotate-3 sm:-right-28 lg:-right-16 lg:-top-12 xl:-right-28 xl:top-10">
                   <LeaderCard />
                 </div>
                 <div className="absolute -bottom-20 left-0 z-10 -rotate-2 sm:-left-16 xl:-bottom-24 xl:-left-28">
