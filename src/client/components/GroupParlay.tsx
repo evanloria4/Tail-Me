@@ -466,7 +466,10 @@ export function GroupActions({
   } else {
     join = (
       <span className="text-xs text-gray-500">
-        Subscribers add legs. You can place it once it locks.
+        <Link to="/billing" className="text-emerald-400 hover:underline">
+          Subscribers
+        </Link>{' '}
+        add legs. You can place it once it locks.
       </span>
     );
   }

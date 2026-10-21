@@ -6,7 +6,7 @@ import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
-const ownProfile = ({
+export const ownProfile = ({
   id,
   username,
   fullName,
@@ -14,6 +14,7 @@ const ownProfile = ({
   bio,
   subscriptionStatus,
   currentPeriodEnd,
+  cancelAtPeriodEnd,
   isAdmin,
   createdAt,
 }: User) => ({
@@ -24,6 +25,7 @@ const ownProfile = ({
   bio,
   subscriptionStatus,
   currentPeriodEnd,
+  cancelAtPeriodEnd,
   isAdmin,
   createdAt,
 });

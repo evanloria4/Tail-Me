@@ -1,6 +1,6 @@
 # Tail-Me
 
-Social sports-betting app for one friend group: users post straight / parlay / ladder slips, friends view and "tail" them (open the poster's sportsbook with the bet prefilled). $5/mo subscription (Stripe, not built yet) pays for The Odds API.
+Social sports-betting app for one friend group: users post straight / parlay / ladder slips, friends view and "tail" them (open the poster's sportsbook with the bet prefilled). $5/mo Stripe subscription pays for The Odds API.
 
 ## Stack
 - Client: React 19 + TypeScript, react-router 7, Tailwind 3, bundled by webpack + Babel (`src/client`)
@@ -18,7 +18,8 @@ Social sports-betting app for one friend group: users post straight / parlay / l
 - `npm run admin:set -- <username> [true|false]`, `npm run dev:subscribe -- <username> [ACTIVE|NONE]`
 
 ## Rules & decisions
-- Paywall: free users can view + tail. Posting and anything that hits the Odds API require `requireSubscription` (admins pass). Client mirrors this with `useAuth().isSubscribed`.
+- Paywall: free users can view + tail. Posting and anything that hits the Odds API require `requireSubscription`; client mirrors it with `useAuth().isSubscribed`. Both use `hasAccess` in `shared/billing.ts`: admins, ACTIVE / TRIALING / PAST_DUE (Stripe retrying the card), or everyone before `FREE_UNTIL` (launch promo, free through Oct 31 CT).
+- Billing (`routes/billing.ts`, `server/stripe.ts`, page `/billing`): Stripe-hosted Checkout + billing portal only, so no card data or Stripe.js on our side. Status changes only via `syncCustomer`, which re-reads the customer's subscriptions from Stripe (never trusts event payloads or the success URL); called by the signed webhook `POST /api/billing/webhook` (mounted before `express.json` for the raw body, deduped in `StripeEvent`) and by `POST /api/billing/sync` on return from Checkout. Price comes from `STRIPE_PRICE_ID`, redirects from `APP_URL` (not the Host header). Subscribing during the promo sets a trial ending at `FREE_UNTIL` (`promoTrialEnd`). Webhook events needed: `checkout.session.completed`, `customer.subscription.created/updated/deleted`.
 - Signed-out visitors at `/` see the marketing page (`pages/Landing.tsx`, rendered by `RequireAuth`); other protected routes still redirect to `/login`. Its slips are static mockups, so it makes no API calls.
 - Signup is server-side only (`POST /api/auth/signup`) so the shared `SIGNUP_PASSCODE` can't be skipped; Supabase public signups are meant to be disabled.
 - API auth: client sends Supabase access token as `Authorization: Bearer`; `requireAuth` verifies it and loads the Prisma `User` into `req.user`.
@@ -57,4 +58,4 @@ Social sports-betting app for one friend group: users post straight / parlay / l
 - Picked legs store `eventId`, `bookSelectionId` and the book's add-to-betslip `deepLink`; straight bets and ladder rungs also set `Bet.deepLink`. Older typed-in slips (no `eventId`/`deepLink`) still render; Tail sends them to the book's homepage. The server still accepts legs without links.
 
 ## Not built yet
-Avatars/headshots (Supabase Storage), Stripe ($5/mo), password reset (needs Resend SMTP + domain), deploy (planned: DigitalOcean App Platform).
+Avatars/headshots (Supabase Storage), password reset (needs Resend SMTP + domain).

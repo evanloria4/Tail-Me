@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { ComposerHeader } from './ComposerParts';
 import SlipPicker from './SlipPicker';
@@ -66,6 +67,13 @@ function Composer({
             add group parlay legs. Free accounts can still view, tail and place
             group parlays.
           </p>
+          <Link
+            to="/billing"
+            onClick={onClose}
+            className="mt-6 inline-block rounded-lg bg-emerald-500 px-4 py-2.5 font-semibold text-gray-950 transition hover:bg-emerald-400"
+          >
+            Subscribe
+          </Link>
         </div>
       </>
     );

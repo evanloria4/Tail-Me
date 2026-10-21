@@ -1,4 +1,5 @@
-// Dev helper until Stripe is wired up:
+// Dev helper to fake a subscription without Stripe (the next webhook for a
+// user with a Stripe customer overwrites it):
 //   npm run dev:subscribe -- <username> [ACTIVE|NONE|...]
 import prisma from '../src/server/db';
 import { SubscriptionStatus } from '../src/generated/prisma/client';

@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import type { User } from '../../generated/prisma/client';
+import { hasAccess } from '../../shared/billing';
 import prisma from '../db';
 import supabaseAdmin from '../supabase';
 
@@ -42,14 +43,13 @@ export async function requireAuth(
   next();
 }
 
-/** Gate for anything that costs us money (Odds API). Admins pass. Use after requireAuth. */
+/** Gate for posting + the Odds API (`hasAccess`: subscribers, admins, the promo). Use after requireAuth. */
 export function requireSubscription(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
-  const status = req.user?.subscriptionStatus;
-  if (!req.user?.isAdmin && status !== 'ACTIVE' && status !== 'TRIALING') {
+  if (!req.user || !hasAccess(req.user)) {
     res.status(402).json({ error: 'Subscription required' });
     return;
   }

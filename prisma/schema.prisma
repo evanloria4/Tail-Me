@@ -28,11 +28,13 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Stripe ($5/mo) — anything that hits the Odds API requires an active subscription
+  // Stripe ($5/mo), synced by the webhook in routes/billing.ts. Access rules: shared/billing.ts
   stripeCustomerId     String?            @unique
   stripeSubscriptionId String?            @unique
   subscriptionStatus   SubscriptionStatus @default(NONE)
   currentPeriodEnd     DateTime?
+  /// Canceled in the billing portal; access runs to currentPeriodEnd
+  cancelAtPeriodEnd    Boolean            @default(false)
 
   /// Admins bypass the subscription paywall
   isAdmin Boolean @default(false)

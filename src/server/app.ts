@@ -3,6 +3,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import path from 'path';
 import authRouter from './routes/auth';
+import billingRouter, { stripeWebhook } from './routes/billing';
 import meRouter from './routes/me';
 import metaRouter from './routes/meta';
 import oddsRouter from './routes/odds';
@@ -37,10 +38,18 @@ app.use(
   })
 );
 
+// Stripe signs the raw body, so its webhook is parsed before express.json
+app.post(
+  '/api/billing/webhook',
+  express.raw({ type: 'application/json' }),
+  stripeWebhook
+);
+
 app.use(express.json());
 
 app.use('/api/auth', authRouter);
 app.use('/api/me', meRouter);
+app.use('/api/billing', billingRouter);
 app.use('/api/meta', metaRouter);
 app.use('/api/posts', postsRouter);
 app.use('/api/users', usersRouter);
