@@ -1,9 +1,19 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Logo from '../components/Logo';
+import { FREE_UNTIL, isPromoActive } from '../../shared/billing';
+import { inSiteZone } from '../../shared/time';
 
 // What signed-out visitors see at "/". The slips are static mockups in the
 // app's own card styles, so nothing here calls the API.
+
+const CONTACT_EMAIL = 'evan.loria4@gmail.com';
+
+/** "October 31": the promo ends at midnight, so its last day is the one before */
+const PROMO_LAST_DAY = new Date(FREE_UNTIL.getTime() - 1).toLocaleDateString(
+  'en-US',
+  inSiteZone({ month: 'long', day: 'numeric' })
+);
 
 const primaryCta =
   'inline-flex items-center justify-center rounded-xl bg-emerald-500 px-5 py-3 text-base font-semibold text-gray-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400';
@@ -457,13 +467,39 @@ export default function Landing() {
                 ]}
               />
             </div>
+            <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-gray-500">
+              {isPromoActive() &&
+                `Member features are free for everyone through ${PROMO_LAST_DAY}. `}
+              Membership renews monthly through Stripe until you cancel. Cancel
+              anytime from Billing and you keep posting through the end of the
+              month you paid for. Partial months aren’t refunded.
+            </p>
           </div>
         </section>
       </main>
 
       <footer className="border-t border-gray-800">
-        <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
-          <Logo className="!text-xl" />
+        <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <Logo className="!text-xl" />
+            <a
+              href={`mailto:${CONTACT_EMAIL}`}
+              className="text-sm text-gray-400 transition hover:text-white"
+            >
+              {CONTACT_EMAIL}
+            </a>
+          </div>
+          <div className="mt-6 flex flex-col gap-3 border-t border-gray-800 pt-6 text-xs leading-relaxed text-gray-500 sm:flex-row sm:justify-between sm:gap-10">
+            <p className="max-w-lg">
+              Tail-Me is a social app for sharing picks. It doesn’t take bets,
+              hold money or pay out winnings; members bet on their own with
+              licensed sportsbooks.
+            </p>
+            <p className="shrink-0 sm:text-right">
+              21+ · Gambling problem? Call 1-800-GAMBLER
+              <br />© {new Date().getFullYear()} Tail-Me
+            </p>
+          </div>
         </div>
       </footer>
     </div>
