@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthProvider';
 import PostList from '../components/PostList';
 import CommunitySidebar, {
   CommunityHighlights,
+  CommunityTabs,
   useCommunityStats,
 } from '../components/CommunitySidebar';
 import { useLayout } from '../components/AppLayout';
@@ -44,8 +45,8 @@ export default function Feed() {
 
   // Slips centered, the sticky side column to their right (see lib/layout).
   // Wide screens: top earners, group parlays, who's hot and the calendar all
-  // sit in the side column. Narrower: top earners + group parlays go above the
-  // slips (one stats fetch feeds both). Extra-wide (xl): open/live group
+  // sit in the side column. Narrower: top earners, group record and calendar
+  // are one tabbed card above the slips (one stats fetch feeds both). Extra-wide (xl): open/live group
   // parlays and live slips in a left column; below that, open group parlays
   // sit at the top of the feed when there are any.
   return (
@@ -58,7 +59,7 @@ export default function Feed() {
         )}
         {/* Above the slips until the side column appears (lg) */}
         <div className="lg:hidden">
-          <CommunityHighlights stats={stats} />
+          <CommunityTabs stats={stats} />
         </div>
         <PostList
           reloadKey={feedVersion}

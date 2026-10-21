@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { formatAmerican, payout } from '../../shared/odds';
 import type { BetResult, FeedLeg, FeedPost } from '../../shared/posts';
 import { gameState } from '../../shared/live';
@@ -162,6 +162,31 @@ export function legStatus(leg: FeedLeg, now: number): React.ReactNode {
   return null;
 }
 
+/** Legs (or ladder rungs) shown before "View all", so a slip fits a phone screen */
+export const LEG_PREVIEW = 5;
+
+/**
+ * The first LEG_PREVIEW items, plus the "View all N legs" row that expands
+ * the rest in place. `toggle` is null when everything already fits.
+ */
+export function useLegPreview<T>(items: T[], noun: 'legs' | 'rungs' = 'legs') {
+  const [all, setAll] = useState(false);
+  const extra = items.length - LEG_PREVIEW;
+  if (extra <= 0) return { visible: items, toggle: null };
+  const toggle = (
+    <button
+      type="button"
+      aria-expanded={all}
+      onClick={() => setAll(!all)}
+      className="flex w-full items-center justify-center gap-1 border-t border-gray-800 py-2 text-sm font-medium text-emerald-400 transition hover:bg-gray-800/50"
+    >
+      {all ? 'Show fewer' : `View all ${items.length} ${noun}`}
+      <span aria-hidden="true">{all ? '▴' : '▾'}</span>
+    </button>
+  );
+  return { visible: all ? items : items.slice(0, LEG_PREVIEW), toggle };
+}
+
 export function LegRow({
   leg,
   result,
@@ -184,18 +209,24 @@ export function LegRow({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-bold leading-snug">{title}</p>
-          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+          <p className="mt-0.5 truncate text-[11px] font-semibold uppercase tracking-wide text-gray-500">
             {withFinal(market, leg.actual)}
+            {/* Phones: the game shares this line so long slips stay short */}
+            <span className="font-normal normal-case tracking-normal text-emerald-400 sm:hidden">
+              {' '}
+              · {leg.eventLabel}
+            </span>
           </p>
         </div>
         <span className="font-mono font-bold tabular-nums">
           {formatAmerican(leg.americanOdds)}
         </span>
       </div>
-      <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-emerald-400">
+      <p className="mt-1.5 hidden flex-wrap items-center gap-2 text-xs text-emerald-400 sm:flex">
         {leg.eventLabel}
         {tag}
       </p>
+      {tag && <div className="mt-1 sm:hidden">{tag}</div>}
     </TimelineRow>
   );
 }

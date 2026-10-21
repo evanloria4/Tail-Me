@@ -24,6 +24,7 @@ import {
   PAYOUT_LABELS,
   payoutColor,
   legStatus,
+  useLegPreview,
   LiveBadge,
   ResultBadge,
   returned,
@@ -243,6 +244,9 @@ export default function PostCard({
   const [commentCount, setCommentCount] = useState(post.commentCount);
   // Ticks each minute so LIVE tags come and go on their own
   const now = useNow();
+  // Long slips show the first few legs / rungs and a "View all" row
+  const rungList = useLegPreview(post.bets, 'rungs');
+  const legList = useLegPreview(post.bets[0].legs);
   useEffect(() => setCommentCount(post.commentCount), [post.commentCount]);
   // Others can tail while a bet is open; a tailed slip keeps its badge after.
   // A group parlay can be placed by anyone, creator included, once locked.
@@ -426,13 +430,13 @@ export default function PostCard({
                   </p>
                 </div>
                 <ol>
-                  {post.bets.map((bet, i) => {
+                  {rungList.visible.map((bet, i) => {
                     const leg = bet.legs[0];
                     return (
                       <TimelineRow
                         key={bet.id}
                         result={bet.result}
-                        last={i === post.bets.length - 1}
+                        last={i === rungList.visible.length - 1}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <p className="font-bold">
@@ -463,26 +467,30 @@ export default function PostCard({
                     );
                   })}
                 </ol>
+                {rungList.toggle}
               </>
             ) : (
               !isStraight && (
-                <ol>
-                  {first.legs.map((leg, i) => (
-                    <LegRow
-                      key={leg.id}
-                      leg={leg}
-                      result={legResult}
-                      last={i === first.legs.length - 1}
-                      // Multi-game parlays tag each open leg; settled bets
-                      // don't need it
-                      tag={
-                        !singleGame && first.result === 'PENDING'
-                          ? legStatus(leg, now)
-                          : null
-                      }
-                    />
-                  ))}
-                </ol>
+                <>
+                  <ol>
+                    {legList.visible.map((leg, i) => (
+                      <LegRow
+                        key={leg.id}
+                        leg={leg}
+                        result={legResult}
+                        last={i === legList.visible.length - 1}
+                        // Multi-game parlays tag each open leg; settled bets
+                        // don't need it
+                        tag={
+                          !singleGame && first.result === 'PENDING'
+                            ? legStatus(leg, now)
+                            : null
+                        }
+                      />
+                    ))}
+                  </ol>
+                  {legList.toggle}
+                </>
               )
             )}
 

@@ -28,6 +28,7 @@ import {
   ResultBadge,
   returned,
   TimelineRow,
+  useLegPreview,
   Total,
   withFinal,
 } from './SlipParts';
@@ -301,6 +302,8 @@ export function GroupSlip({
   // Ticks each minute so LIVE tags come and go on their own
   const now = useNow();
   const singleGame = oneGame(bet.legs);
+  // Long group parlays show the first few legs and a "View all" row
+  const legList = useLegPreview(bet.legs);
 
   let status: React.ReactNode;
   let when: string;
@@ -355,7 +358,7 @@ export function GroupSlip({
       </div>
 
       <ol>
-        {bet.legs.map((leg, i) => {
+        {legList.visible.map((leg, i) => {
           const { title, market } = legText(leg);
           const owner = leg.addedBy;
           const mine = owner?.id === profile?.id;
@@ -364,7 +367,7 @@ export function GroupSlip({
             <TimelineRow
               key={leg.id}
               result={leg.result}
-              last={i === bet.legs.length - 1}
+              last={i === legList.visible.length - 1}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -406,6 +409,7 @@ export function GroupSlip({
           );
         })}
       </ol>
+      {legList.toggle}
 
       <div className="flex items-end justify-between gap-4 border-t border-gray-800 bg-gray-950 px-4 py-3">
         <Total

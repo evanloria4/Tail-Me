@@ -573,6 +573,32 @@ const POSTS: DemoPost[] = [
       actual: 61,
     },
   },
+  // Long parlay: shows 5 legs and a "View all 7 legs" row
+  {
+    author: 'tonyparlays',
+    book: 'fanduel',
+    minutesAgo: 15,
+    type: 'PARLAY',
+    units: 0.25,
+    caption: 'Seven-leg lottery ticket. Don’t judge me.',
+    legs: [
+      ['Packers @ Lions', 'h2h', 'Detroit Lions', undefined, -150],
+      ['Giants @ Eagles', 'spreads', 'Philadelphia Eagles', -6.5, -110],
+      ['Bengals @ Ravens', 'totals', 'Over', 47.5, -105],
+      ['Chiefs @ Raiders', 'h2h', 'Kansas City Chiefs', undefined, -240],
+      ['Seahawks @ 49ers', 'spreads', 'San Francisco 49ers', -3, -110],
+      ['Kings @ Ducks', 'h2h', 'Los Angeles Kings', undefined, -160],
+      ['Ravens @ Bills', 'totals', 'Under', 51.5, -110],
+    ].map(([eventLabel, marketKey, selection, line, americanOdds], i) => ({
+      sportKey: eventLabel === 'Kings @ Ducks' ? NHL : NFL,
+      eventLabel: eventLabel as string,
+      marketKey: marketKey as string,
+      selection: selection as string,
+      line: line as number | undefined,
+      americanOdds: americanOdds as number,
+      deepLink: fdLink(400 + i),
+    })),
+  },
   // Pending ladder with live links (Tail lists one Add per rung)
   {
     author: 'jpace',

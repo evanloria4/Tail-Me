@@ -274,6 +274,64 @@ export function useCommunityStats(reloadKey?: unknown) {
 type Stats = ReturnType<typeof useCommunityStats>;
 
 /** Top of the feed on every screen: the week's leaderboard + group parlays */
+function EarnersPanel({ data }: { data: CommunityStats }) {
+  return (
+    <Panel title="Top earners this week">
+      {data.leaders.length ? (
+        <ol className="divide-y divide-gray-800">
+          {data.leaders.slice(0, LEADERS).map((u, i) => (
+            <li key={u.id}>
+              <Link
+                to={`/u/${u.username}`}
+                className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition hover:bg-gray-800"
+              >
+                <span
+                  aria-label={`${i + 1}${['st', 'nd', 'rd'][i]} place`}
+                  className={`flex h-6 w-6 flex-none items-center justify-center rounded-full text-xs font-extrabold tabular-nums ${RANK_STYLES[i]}`}
+                >
+                  {i + 1}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {u.fullName}
+                </span>
+                <span className="tabular-nums text-gray-400">
+                  {record(u.line)}
+                </span>
+                <span
+                  className={`w-14 text-right font-semibold tabular-nums ${netColor(u.line.net)}`}
+                >
+                  {signedUnits(u.line.net)}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <>
+          <GhostRows />
+          <PlaceholderNote>
+            The week&apos;s top 3 show up here once bets settle.
+          </PlaceholderNote>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function GroupPanel({ group }: { group: CommunityStats['group'] }) {
+  const hasGroup = group.wins + group.losses + group.pushes + group.open > 0;
+  if (hasGroup) return <GroupRecord group={group} />;
+  return (
+    <Panel title="Group parlays">
+      <p className="py-1 text-2xl font-bold text-gray-600">0-0</p>
+      <PlaceholderNote>
+        Your group parlay record shows up here. Start one with the + button,
+        then 👥 Group parlay.
+      </PlaceholderNote>
+    </Panel>
+  );
+}
+
 export function CommunityHighlights({
   stats,
   stacked = false,
@@ -285,60 +343,60 @@ export function CommunityHighlights({
   const { data, error } = stats;
   if (error && !data) return <Empty>{error}</Empty>;
   if (!data) return null;
-  const { group } = data;
-  const hasGroup = group.wins + group.losses + group.pushes + group.open > 0;
 
   return (
     <div className={`grid gap-3 ${stacked ? '' : 'sm:grid-cols-2'}`}>
-      <Panel title="Top earners this week">
-        {data.leaders.length ? (
-          <ol className="divide-y divide-gray-800">
-            {data.leaders.slice(0, LEADERS).map((u, i) => (
-              <li key={u.id}>
-                <Link
-                  to={`/u/${u.username}`}
-                  className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition hover:bg-gray-800"
-                >
-                  <span
-                    aria-label={`${i + 1}${['st', 'nd', 'rd'][i]} place`}
-                    className={`flex h-6 w-6 flex-none items-center justify-center rounded-full text-xs font-extrabold tabular-nums ${RANK_STYLES[i]}`}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate font-medium">
-                    {u.fullName}
-                  </span>
-                  <span className="tabular-nums text-gray-400">
-                    {record(u.line)}
-                  </span>
-                  <span
-                    className={`w-14 text-right font-semibold tabular-nums ${netColor(u.line.net)}`}
-                  >
-                    {signedUnits(u.line.net)}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <>
-            <GhostRows />
-            <PlaceholderNote>
-              The week&apos;s top 3 show up here once bets settle.
-            </PlaceholderNote>
-          </>
-        )}
-      </Panel>
-      {hasGroup ? (
-        <GroupRecord group={group} />
-      ) : (
-        <Panel title="Group parlays">
-          <p className="py-1 text-2xl font-bold text-gray-600">0-0</p>
-          <PlaceholderNote>
-            Your group parlay record shows up here. Start one with the + button,
-            then 👥 Group parlay.
-          </PlaceholderNote>
-        </Panel>
+      <EarnersPanel data={data} />
+      <GroupPanel group={data.group} />
+    </div>
+  );
+}
+
+const TABS = [
+  { key: 'earners', label: 'Top earners' },
+  { key: 'group', label: 'Group' },
+  { key: 'calendar', label: 'Calendar' },
+] as const;
+
+/**
+ * Below the desktop side column (phones, tablets): top earners, the group
+ * parlay record and the calendar as tabs over one card, so the first slip
+ * isn't pushed far down.
+ */
+export function CommunityTabs({ stats }: { stats: Stats }) {
+  const [tab, setTab] = useState<(typeof TABS)[number]['key']>('earners');
+  const { data, error, setMonth } = stats;
+  if (error && !data) return <Empty>{error}</Empty>;
+  if (!data) return null;
+
+  return (
+    <div className="space-y-2">
+      <div
+        role="tablist"
+        aria-label="Group stats"
+        className="flex rounded-lg border border-gray-800 bg-gray-900 p-0.5"
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition ${
+              tab === t.key
+                ? 'bg-gray-800 text-white'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'earners' && <EarnersPanel data={data} />}
+      {tab === 'group' && <GroupPanel group={data.group} />}
+      {tab === 'calendar' && (
+        <Calendar month={data.month} days={data.days} onMonth={setMonth} />
       )}
     </div>
   );
