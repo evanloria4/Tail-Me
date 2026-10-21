@@ -573,6 +573,37 @@ const POSTS: DemoPost[] = [
       actual: 61,
     },
   },
+  // 8 legs: shows 5 and a "View all 8 legs" row
+  {
+    author: 'jpace',
+    book: 'fanduel',
+    minutesAgo: 8,
+    type: 'PARLAY',
+    units: 0.5,
+    caption: 'Eight-leg Sunday special',
+    legs: [
+      ['Giants @ Eagles', 'h2h', 'Philadelphia Eagles', undefined, -210],
+      ['Chiefs @ Raiders', 'spreads', 'Kansas City Chiefs', -6.5, -110],
+      ['Bengals @ Ravens', 'totals', 'Over', 47.5, -105],
+      ['Seahawks @ 49ers', 'h2h', 'San Francisco 49ers', undefined, -145],
+      ['Kings @ Ducks', 'totals', 'Over', 5.5, -120],
+      ['Ravens @ Bills', 'spreads', 'Buffalo Bills', -2.5, -115],
+      ['Packers @ Lions', 'totals', 'Over', 49.5, -110],
+      ['Oilers @ Flames', 'h2h', 'Edmonton Oilers', undefined, -135],
+    ].map(([eventLabel, marketKey, selection, line, americanOdds], i) => ({
+      sportKey: ['Kings @ Ducks', 'Oilers @ Flames'].includes(
+        eventLabel as string
+      )
+        ? NHL
+        : NFL,
+      eventLabel: eventLabel as string,
+      marketKey: marketKey as string,
+      selection: selection as string,
+      line: line as number | undefined,
+      americanOdds: americanOdds as number,
+      deepLink: fdLink(500 + i),
+    })),
+  },
   // Long parlay: shows 5 legs and a "View all 7 legs" row
   {
     author: 'tonyparlays',
