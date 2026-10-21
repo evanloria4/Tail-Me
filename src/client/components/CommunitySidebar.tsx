@@ -4,6 +4,8 @@ import api, { apiErrorMessage } from '../lib/api';
 import { netColor, record, signedUnits } from '../lib/statFormat';
 import { CommunityStats, DayTotal } from '../../shared/community';
 import { siteDayKey } from '../../shared/time';
+import { GhostRows, PlaceholderNote } from './Placeholders';
+import UserAvatar from './UserAvatar';
 
 // Group stats around the feed: the week's leaderboard + group parlays on top of
 // the feed (every screen); who's hot + a month calendar
@@ -44,12 +46,8 @@ function Panel({
   );
 }
 
-function Initial({ name }: { name: string }) {
-  return (
-    <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold uppercase text-emerald-400">
-      {name[0]}
-    </span>
-  );
+function Initial({ name, url }: { name: string; url: string | null }) {
+  return <UserAvatar name={name} url={url} className="h-7 w-7 text-xs" />;
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
@@ -176,7 +174,7 @@ function Calendar({
             </span>
           </>
         ) : (
-          'No settled bets this month.'
+          'Green and red days fill in as bets settle.'
         )}
       </p>
     </Panel>
@@ -220,7 +218,7 @@ function GroupRecord({ group }: { group: CommunityStats['group'] }) {
                 to={`/u/${u.username}`}
                 className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition hover:bg-gray-800"
               >
-                <Initial name={u.fullName} />
+                <Initial name={u.fullName} url={u.avatarUrl} />
                 <span className="min-w-0 flex-1 truncate font-medium">
                   {u.fullName}
                 </span>
@@ -276,7 +274,14 @@ export function useCommunityStats(reloadKey?: unknown) {
 type Stats = ReturnType<typeof useCommunityStats>;
 
 /** Top of the feed on every screen: the week's leaderboard + group parlays */
-export function CommunityHighlights({ stats }: { stats: Stats }) {
+export function CommunityHighlights({
+  stats,
+  stacked = false,
+}: {
+  stats: Stats;
+  /** One column, for the desktop side column */
+  stacked?: boolean;
+}) {
   const { data, error } = stats;
   if (error && !data) return <Empty>{error}</Empty>;
   if (!data) return null;
@@ -284,7 +289,7 @@ export function CommunityHighlights({ stats }: { stats: Stats }) {
   const hasGroup = group.wins + group.losses + group.pushes + group.open > 0;
 
   return (
-    <div className={`grid gap-3 ${hasGroup ? 'sm:grid-cols-2' : ''}`}>
+    <div className={`grid gap-3 ${stacked ? '' : 'sm:grid-cols-2'}`}>
       <Panel title="Top earners this week">
         {data.leaders.length ? (
           <ol className="divide-y divide-gray-800">
@@ -316,10 +321,25 @@ export function CommunityHighlights({ stats }: { stats: Stats }) {
             ))}
           </ol>
         ) : (
-          <Empty>Nobody&apos;s up this week.</Empty>
+          <>
+            <GhostRows />
+            <PlaceholderNote>
+              The week&apos;s top 3 show up here once bets settle.
+            </PlaceholderNote>
+          </>
         )}
       </Panel>
-      <GroupRecord group={group} />
+      {hasGroup ? (
+        <GroupRecord group={group} />
+      ) : (
+        <Panel title="Group parlays">
+          <p className="py-1 text-2xl font-bold text-gray-600">0-0</p>
+          <PlaceholderNote>
+            Your group parlay record shows up here. Start one with the + button,
+            then 👥 Group parlay.
+          </PlaceholderNote>
+        </Panel>
+      )}
     </div>
   );
 }
@@ -340,7 +360,7 @@ export default function CommunitySidebar({ stats }: { stats: Stats }) {
                   to={`/u/${u.username}`}
                   className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-2 transition hover:bg-gray-800"
                 >
-                  <Initial name={u.fullName} />
+                  <Initial name={u.fullName} url={u.avatarUrl} />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">
                     {u.fullName}
                   </span>
@@ -352,7 +372,7 @@ export default function CommunitySidebar({ stats }: { stats: Stats }) {
             ))}
           </ul>
         ) : (
-          <Empty>Nobody&apos;s hot right now. Yet.</Empty>
+          <Empty>Anyone on a 3+ win streak shows up here.</Empty>
         )}
       </Panel>
 

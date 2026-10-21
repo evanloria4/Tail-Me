@@ -16,6 +16,7 @@ import {
 } from '../../shared/posts';
 import type { BetResult, FeedLeg, FeedPost } from '../../shared/posts';
 import { useLayout } from './AppLayout';
+import UserAvatar from './UserAvatar';
 import {
   legStatus,
   legText,
@@ -183,12 +184,11 @@ function Owner({ owner, mine }: { owner: FeedLeg['addedBy']; mine: boolean }) {
       to={`/u/${owner.username}`}
       className="inline-flex items-center gap-1.5 font-semibold text-gray-300 hover:underline"
     >
-      <span
-        aria-hidden="true"
-        className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-bold uppercase text-emerald-400"
-      >
-        {owner.fullName[0]}
-      </span>
+      <UserAvatar
+        name={owner.fullName}
+        url={owner.avatarUrl}
+        className="h-5 w-5 text-[10px]"
+      />
       {mine ? 'You' : firstName(owner.fullName)}
     </Link>
   );

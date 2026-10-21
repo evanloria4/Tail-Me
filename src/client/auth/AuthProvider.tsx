@@ -23,6 +23,8 @@ export type Profile = {
   cancelAtPeriodEnd: boolean;
   isAdmin: boolean;
   createdAt: string;
+  /** Null until they finish or skip the first-visit tour */
+  tutorialSeenAt: string | null;
 };
 
 type AuthContextValue = {

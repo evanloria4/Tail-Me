@@ -39,6 +39,9 @@ model User {
   /// Admins bypass the subscription paywall
   isAdmin Boolean @default(false)
 
+  /// When they finished or skipped the first-visit tour (null = show it)
+  tutorialSeenAt DateTime?
+
   posts        Post[]
   tails        Tail[]
   comments     Comment[]

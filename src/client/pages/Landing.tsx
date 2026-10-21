@@ -196,6 +196,73 @@ function GroupCard() {
   );
 }
 
+/** Friend's parlay -> Tail -> the same legs loaded on your FanDuel slip */
+function TailFlow() {
+  const legs: [string, string][] = [
+    ['Detroit Lions ML', '-150'],
+    ['Eagles -6.5', '-110'],
+    ['Over 47.5', '-105'],
+  ];
+  return (
+    <div
+      aria-hidden="true"
+      className="flex flex-col items-center gap-4 sm:flex-row sm:items-stretch"
+    >
+      <div className="w-full max-w-xs rounded-2xl border border-gray-800 bg-gray-900 p-4 shadow-xl shadow-black/20">
+        <div className="flex items-center gap-2">
+          <Avatar name="Tony" size="h-7 w-7 text-xs" />
+          <span className="text-sm font-semibold">Tony</span>
+          <span className="text-xs text-gray-500">· 1h ago</span>
+        </div>
+        <div className="mt-3 rounded-xl border border-gray-800">
+          <div className="flex justify-between border-b border-gray-800 px-3 py-2">
+            <span className="font-bold">3 Leg Parlay</span>
+            <span className="font-mono font-bold">+521</span>
+          </div>
+          <ul className="space-y-1.5 px-3 py-2 text-sm">
+            {legs.map(([pick]) => (
+              <li key={pick} className="text-gray-300">
+                {pick}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="mt-3 flex justify-end">
+          <span className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-gray-950 shadow-lg shadow-emerald-500/30">
+            Tail ↗
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center text-2xl font-bold text-emerald-400">
+        <span className="sm:hidden">↓</span>
+        <span className="hidden sm:inline">→</span>
+      </div>
+
+      <div className="w-full max-w-xs rounded-2xl border border-gray-800 bg-gray-900 p-4 shadow-xl shadow-black/20">
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+          Your FanDuel bet slip
+        </p>
+        <p className="mt-1 text-sm font-semibold text-emerald-400">
+          ✓ 3 picks loaded
+        </p>
+        <ul className="mt-3 divide-y divide-gray-800 rounded-xl border border-gray-800 text-sm">
+          {legs.map(([pick, odds]) => (
+            <li key={pick} className="flex justify-between px-3 py-2">
+              <span className="font-semibold">{pick}</span>
+              <span className="font-mono text-gray-400">{odds}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 flex justify-between rounded-lg bg-gray-950 px-3 py-2 text-sm">
+          <span className="font-semibold">Parlay</span>
+          <span className="font-mono font-bold">+521</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LeaderCard() {
   const rows: [string, string, string, string][] = [
     ['1', 'Evan', '+4.84u', 'bg-yellow-300'],
@@ -232,17 +299,17 @@ const FEATURES: { icon: string; title: string; body: string }[] = [
   {
     icon: '📡',
     title: 'Post from live odds',
-    body: 'Tap real prices and lines to build a straight, parlay or ladder. No typing in odds, no fat-fingered lines',
+    body: 'Pick real prices and lines to build a straight, parlay or ladder. No typing in odds, no fat-fingered lines',
   },
   {
     icon: '🎯',
-    title: 'Tail in one tap',
-    body: 'See a pick you like? Tail drops it straight onto your sportsbook slip, already filled in',
+    title: 'Tail in one click',
+    body: 'Click Tail on any bet, parlays and same-game parlays included, and FanDuel opens with the whole slip filled in',
   },
   {
     icon: '👥',
     title: 'Group parlays',
-    body: 'Everyone adds one leg before kickoff. When it busts, the whole crew knows exactly whose leg did it',
+    body: 'Everyone adds one leg before kickoff. When it busts, everyone knows who busted the parlay',
   },
   {
     icon: '📈',
@@ -357,13 +424,13 @@ export default function Landing() {
           <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-5 pb-20 pt-10 sm:px-8 lg:grid-cols-2 lg:pt-16 xl:pb-48">
             <div>
               <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-                Bet with your crew.{' '}
+                Bet with your friends.{' '}
                 <span className="text-emerald-400">Tail the hot hand.</span>
               </h1>
               <p className="mt-5 max-w-xl text-lg text-gray-400">
-                Post your slips from live odds, tail a friend&apos;s pick
-                straight into your sportsbook, and finally settle who&apos;s
-                actually cashing.
+                Post your slips from live odds, tail a friend&apos;s whole
+                parlay onto your FanDuel slip in one click, and finally settle
+                who&apos;s actually cashing.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link to="/signup" className={primaryCta}>
@@ -396,6 +463,26 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* Spotlight: one-click tail */}
+        <section className="border-t border-gray-800">
+          <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-20 sm:px-8 lg:grid-cols-2">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wider text-emerald-400">
+                One-click tail
+              </p>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
+                Tail the whole parlay. One click.
+              </h2>
+              <p className="mt-4 max-w-xl text-lg text-gray-400">
+                See a parlay you like? Click Tail and FanDuel opens with every
+                leg already on your bet slip. Same-game parlays come through as
+                one SGP at FanDuel&apos;s price. No rebuilding it leg by leg.
+              </p>
+            </div>
+            <TailFlow />
+          </div>
+        </section>
+
         {/* Features */}
         <section className="border-t border-gray-800 bg-gray-900/40">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
@@ -403,7 +490,7 @@ export default function Landing() {
               Everything the group chat does, minus the screenshots.
             </h2>
             <p className="mt-3 max-w-2xl text-lg text-gray-400">
-              One shared feed for the whole crew, with the receipts built in.
+              One shared feed for all your friends, with the receipts built in.
             </p>
             <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {FEATURES.map((f) => (

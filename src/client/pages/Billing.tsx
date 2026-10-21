@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import type { Profile } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
@@ -81,7 +81,28 @@ export default function Billing() {
   const promoEnds = longDate(new Date(FREE_UNTIL.getTime() - 1));
 
   let body: React.ReactNode;
-  if (paid) {
+  if (profile.isAdmin) {
+    // Admins have full access whatever Stripe says; a test subscription is
+    // still reachable through the small link
+    body = (
+      <>
+        <h2 className="text-lg font-semibold">Admin account</h2>
+        <p className="mt-1 text-gray-400">
+          You have full access to everything. No subscription needed.
+        </p>
+        {paid && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => goTo('/billing/portal')}
+            className="mt-4 text-sm font-medium text-gray-500 hover:text-white hover:underline disabled:opacity-60"
+          >
+            Manage your Stripe subscription
+          </button>
+        )}
+      </>
+    );
+  } else if (paid) {
     body = (
       <>
         <h2 className="text-lg font-semibold">
@@ -115,11 +136,6 @@ export default function Billing() {
             be charged until {longDate(FREE_UNTIL)}.
           </p>
         )}
-        {profile.isAdmin && (
-          <p className="mt-3 text-sm text-gray-400">
-            You’re an admin, so you already have full access.
-          </p>
-        )}
         <button
           type="button"
           disabled={busy}
@@ -137,6 +153,12 @@ export default function Billing() {
 
   return (
     <div className="mx-auto max-w-lg">
+      <Link
+        to="/settings"
+        className="mb-2 inline-block text-sm font-medium text-gray-400 hover:text-white"
+      >
+        ‹ Settings
+      </Link>
       <h1 className="mb-4 text-2xl font-bold">Billing</h1>
       <section className="rounded-2xl border border-gray-800 bg-gray-900 p-5">
         {body}

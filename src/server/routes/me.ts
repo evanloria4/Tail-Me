@@ -1,8 +1,14 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { z } from 'zod';
 import type { User } from '../../generated/prisma/client';
 import prisma from '../db';
 import { requireAuth } from '../middleware/auth';
+import {
+  AVATAR_MAX_BYTES,
+  AvatarError,
+  removeAvatarFile,
+  uploadAvatar,
+} from '../avatars';
 
 const router = Router();
 
@@ -17,6 +23,7 @@ export const ownProfile = ({
   cancelAtPeriodEnd,
   isAdmin,
   createdAt,
+  tutorialSeenAt,
 }: User) => ({
   id,
   username,
@@ -28,6 +35,7 @@ export const ownProfile = ({
   cancelAtPeriodEnd,
   isAdmin,
   createdAt,
+  tutorialSeenAt,
 });
 
 router.get('/', requireAuth, (req, res) => {
@@ -56,6 +64,57 @@ router.patch('/', requireAuth, async (req, res) => {
       ...(bio !== undefined && { bio: bio || null }),
     },
   });
+  res.json(ownProfile(user));
+});
+
+/** Finished or skipped the first-visit tour; it won't open on its own again */
+router.post('/tutorial', requireAuth, async (req, res) => {
+  const user = await prisma.user.update({
+    where: { id: req.user!.id },
+    data: { tutorialSeenAt: req.user!.tutorialSeenAt ?? new Date() },
+  });
+  res.json(ownProfile(user));
+});
+
+/**
+ * Set your profile photo. The body is the image itself (the browser sends a
+ * 256px square); its type is checked from the bytes, not the header.
+ */
+router.put(
+  '/avatar',
+  requireAuth,
+  express.raw({ type: 'image/*', limit: AVATAR_MAX_BYTES }),
+  async (req, res) => {
+    let url: string;
+    try {
+      url = await uploadAvatar(req.user!.id, req.body);
+    } catch (err) {
+      if (err instanceof AvatarError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      console.error('Avatar upload failed', err);
+      res.status(502).json({ error: 'Could not save your photo' });
+      return;
+    }
+    const previous = req.user!.avatarUrl;
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { avatarUrl: url },
+    });
+    await removeAvatarFile(previous);
+    res.json(ownProfile(user));
+  }
+);
+
+/** Remove your profile photo (back to your initial) */
+router.delete('/avatar', requireAuth, async (req, res) => {
+  const previous = req.user!.avatarUrl;
+  const user = await prisma.user.update({
+    where: { id: req.user!.id },
+    data: { avatarUrl: null },
+  });
+  await removeAvatarFile(previous);
   res.json(ownProfile(user));
 });
 

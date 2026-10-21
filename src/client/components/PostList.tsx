@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
+import scrollToSlip from '../lib/scrollToSlip';
 import PostCard from './PostCard';
 import type { GroupHandlers } from './GroupParlay';
 import useConfirm from './ConfirmDialog';
@@ -11,6 +12,9 @@ import { REACTION_EMOJIS } from '../../shared/social';
 import type { ReactionEmoji, ReactionSummary } from '../../shared/social';
 
 type FeedPage = { posts: FeedPost[]; nextCursor: string | null };
+
+/** How far down the feed a panel click will page looking for a slip */
+const MAX_FOCUS_PAGES = 10;
 
 /** Optimistic flip of the viewer's reaction, kept in the fixed emoji order */
 function toggleReaction(
@@ -42,7 +46,12 @@ export default function PostList({
   reloadKey,
   empty,
   onChange,
+  focusId,
+  onFocusDone,
 }: {
+  /** A slip to scroll to; pages load until it's found (or give up) */
+  focusId?: string | null;
+  onFocusDone?: (found: boolean) => void;
   author?: string;
   /** One series' slips */
   series?: string;
@@ -81,6 +90,24 @@ export default function PostList({
   useEffect(() => {
     load();
   }, [load, reloadKey]);
+
+  // Scroll to focusId, loading more pages while it isn't on the page yet
+  const focusPages = useRef(0);
+  useEffect(() => {
+    focusPages.current = 0;
+  }, [focusId]);
+  useEffect(() => {
+    if (!focusId || loading) return;
+    if (posts.some((p) => p.id === focusId)) {
+      // Wait a frame so the card is in the DOM
+      requestAnimationFrame(() => onFocusDone?.(scrollToSlip(focusId)));
+    } else if (cursor && focusPages.current < MAX_FOCUS_PAGES) {
+      focusPages.current += 1;
+      load(cursor);
+    } else {
+      onFocusDone?.(false);
+    }
+  }, [focusId, loading, posts, cursor, load, onFocusDone]);
 
   const settle = async (betId: string, result: BetResult) => {
     const update = (r: BetResult) =>

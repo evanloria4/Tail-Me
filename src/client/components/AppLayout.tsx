@@ -10,9 +10,12 @@ import {
 import { useAuth } from '../auth/AuthProvider';
 import useTheme from '../lib/theme';
 import Logo from './Logo';
+import UserAvatar from './UserAvatar';
 import PostComposer from './PostComposer';
 import type { JoinTarget, PostedKind } from './GroupReview';
 import { useToast } from './Toast';
+import Tutorial from './Tutorial';
+import api from '../lib/api';
 
 const NAV_ITEMS = [{ to: '/', label: 'Feed', end: true }];
 
@@ -65,15 +68,11 @@ function ChevronIcon() {
   );
 }
 
-function Avatar({ name }: { name?: string }) {
-  return (
-    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 text-base font-bold uppercase text-emerald-400">
-      {name?.[0] ?? '?'}
-    </span>
-  );
+function Avatar({ name, url }: { name?: string; url?: string | null }) {
+  return <UserAvatar name={name} url={url} className="h-10 w-10 text-base" />;
 }
 
-function DarkModeSwitch({ className = '' }: { className?: string }) {
+export function DarkModeSwitch({ className = '' }: { className?: string }) {
   const { theme, toggleTheme } = useTheme();
   const on = theme === 'dark';
   return (
@@ -108,16 +107,36 @@ export type LayoutContext = {
   openComposer: (join?: JoinTarget) => void;
   /** Bumps after each new post so the feed knows to reload */
   feedVersion: number;
+  /** Replays the first-visit tour (Settings → Help) */
+  openTour: () => void;
 };
 
 export const useLayout = () => useOutletContext<LayoutContext>();
 
 export default function AppLayout() {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, refreshProfile } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
+
+  // First-visit tour: opens on its own until they finish or skip it, and
+  // again from Settings → Help → Take the tour
+  const [tourRequested, setTourRequested] = useState(false);
+  const [tourDone, setTourDone] = useState(false);
+  const tourOpen =
+    tourRequested || (!!profile && !profile.tutorialSeenAt && !tourDone);
+  const openTour = () => setTourRequested(true);
+  const finishTour = () => {
+    setTourRequested(false);
+    setTourDone(true);
+    if (profile && !profile.tutorialSeenAt) {
+      api
+        .post('/me/tutorial')
+        .then(refreshProfile)
+        .catch(() => {});
+    }
+  };
   const [composerOpen, setComposerOpen] = useState(false);
   const [join, setJoin] = useState<JoinTarget | null>(null);
   const [feedVersion, setFeedVersion] = useState(0);
@@ -200,7 +219,7 @@ export default function AppLayout() {
                 aria-label="Account menu"
                 className="flex items-center gap-1 rounded-full p-0.5 transition hover:bg-gray-800"
               >
-                <Avatar name={profile?.fullName} />
+                <Avatar name={profile?.fullName} url={profile?.avatarUrl} />
                 <ChevronIcon />
               </button>
               {openMenu === 'user' && (
@@ -224,11 +243,11 @@ export default function AppLayout() {
                     </p>
                   </Link>
                   <Link
-                    to="/billing"
+                    to="/settings"
                     role="menuitem"
                     className="block px-4 py-2.5 text-sm text-gray-300 transition hover:bg-gray-800 hover:text-white"
                   >
-                    Billing
+                    Settings
                   </Link>
                   <DarkModeSwitch className="px-4 py-2.5" />
                   <button
@@ -272,8 +291,8 @@ export default function AppLayout() {
                   {item.label}
                 </NavLink>
               ))}
-              <NavLink to="/billing" className={mobileNavClass}>
-                Billing
+              <NavLink to="/settings" className={mobileNavClass}>
+                Settings
               </NavLink>
             </nav>
             <DarkModeSwitch className="mt-1 rounded-lg px-3 py-2.5 !text-base font-medium" />
@@ -284,7 +303,7 @@ export default function AppLayout() {
                 aria-label="View your profile"
                 className="-m-1.5 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1.5 transition hover:bg-gray-900"
               >
-                <Avatar name={profile?.fullName} />
+                <Avatar name={profile?.fullName} url={profile?.avatarUrl} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{profile?.fullName}</p>
                   <p className="truncate text-gray-400">@{profile?.username}</p>
@@ -305,7 +324,9 @@ export default function AppLayout() {
           padding keeps the floating button off the last card */}
       <main className="mx-auto max-w-screen-2xl px-4 pb-24 pt-6">
         <Outlet
-          context={{ openComposer, feedVersion } satisfies LayoutContext}
+          context={
+            { openComposer, feedVersion, openTour } satisfies LayoutContext
+          }
         />
       </main>
       {/* Floating new-bet button, bottom right on every screen size */}
@@ -330,6 +351,7 @@ export default function AppLayout() {
           </svg>
         </button>
       )}
+      <Tutorial open={tourOpen} onDone={finishTour} />
       <PostComposer
         open={composerOpen}
         onClose={() => setComposerOpen(false)}

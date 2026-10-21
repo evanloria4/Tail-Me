@@ -15,7 +15,12 @@ import {
 
 const router = Router();
 
-const personSelect = { id: true, username: true, fullName: true } as const;
+const personSelect = {
+  id: true,
+  username: true,
+  fullName: true,
+  avatarUrl: true,
+} as const;
 
 const livePost = (id: string) =>
   prisma.post.findFirst({

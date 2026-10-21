@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { formatAmerican, formatMoney } from '../../shared/odds';
 import { BetResult, FeedPost } from '../../shared/posts';
 import timeAgo from '../lib/time';
+import combinedSlipLink from '../../shared/betslip';
 import useNow from '../lib/useNow';
 import { allFinal, isLive, oneGame } from '../../shared/live';
 import { slipBadges } from '../../shared/badges';
@@ -39,6 +40,7 @@ import {
   GroupSlip,
 } from './GroupParlay';
 import SlipMenu from './SlipMenu';
+import UserAvatar from './UserAvatar';
 
 /** Where Tail lands when a pick has no add-to-betslip link (typed-in slips) */
 const BOOK_HOMEPAGES: Record<string, string> = {
@@ -114,15 +116,22 @@ function TailSection({
   const book = post.sportsbook.name;
   const home = BOOK_HOMEPAGES[post.sportsbook.key] ?? null;
   const linked = picks.every((pk) => pk.link);
-  const single = picks.length === 1 && (picks[0].link || home);
+  // One click loads the whole bet: a straight's own link, or for parlays
+  // (group ones too) one link carrying every leg, which FanDuel turns into
+  // one slip (a same-game parlay with its own price when the legs share a
+  // game). Ladder rungs are separate bets, so they keep the pick list.
+  const combined =
+    post.type === 'LADDER' ? null : combinedSlipLink(picks.map((p) => p.link));
+  const oneClick = picks.length === 1 ? (picks[0].link ?? home) : combined;
+  const single = !!oneClick;
 
   let control: React.ReactNode;
   if (tailed)
     control = <TailedBadge label={verb === 'Tail' ? 'Tailed' : 'Placed'} />;
-  else if (single)
+  else if (oneClick)
     control = (
       <a
-        href={picks[0].link ?? home!}
+        href={oneClick}
         target="_blank"
         rel="noopener noreferrer"
         onClick={() => onTail(post.id)}
@@ -282,6 +291,8 @@ export default function PostCard({
   // past the card's edge
   return (
     <article
+      // Scroll target for the side panels (slipAnchor in lib/scrollToSlip)
+      id={`slip-${post.id}`}
       className={`rounded-2xl border bg-gray-900 ${
         celebrated ? 'border-yellow-300/50' : 'border-gray-800'
       }`}
@@ -291,9 +302,13 @@ export default function PostCard({
           to={`/u/${post.author.username}`}
           aria-hidden="true"
           tabIndex={-1}
-          className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-emerald-500/20 font-bold uppercase text-emerald-400"
+          className="flex-none"
         >
-          {post.author.fullName[0]}
+          <UserAvatar
+            name={post.author.fullName}
+            url={post.author.avatarUrl}
+            className="h-10 w-10 text-base"
+          />
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">

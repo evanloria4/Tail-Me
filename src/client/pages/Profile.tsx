@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import useMeta from '../lib/useMeta';
@@ -19,6 +19,7 @@ import { useLayout } from '../components/AppLayout';
 import PostList from '../components/PostList';
 import SeriesPanel from '../components/SeriesPanel';
 import StatTile from '../components/StatTile';
+import UserAvatar from '../components/UserAvatar';
 import {
   POST_TYPES,
   PostType,
@@ -186,82 +187,6 @@ function Form({ results }: { results: SettledResult[] }) {
   );
 }
 
-function EditProfile({
-  fullName,
-  bio,
-  onDone,
-}: {
-  fullName: string;
-  bio: string | null;
-  onDone: (saved: boolean) => void;
-}) {
-  const { refreshProfile } = useAuth();
-  const [name, setName] = useState(fullName);
-  const [text, setText] = useState(bio ?? '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const save = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await api.patch('/me', { fullName: name, bio: text });
-      await refreshProfile();
-      onDone(true);
-    } catch (err) {
-      setError(apiErrorMessage(err, 'Could not save'));
-      setSaving(false);
-    }
-  };
-
-  const input =
-    'w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-white outline-none focus:border-emerald-500';
-  return (
-    <form onSubmit={save} className="mt-4 space-y-3">
-      <label htmlFor="profile-name" className="block text-sm">
-        <span className="mb-1 block text-gray-400">Name</span>
-        <input
-          id="profile-name"
-          className={input}
-          value={name}
-          maxLength={60}
-          required
-          onChange={(e) => setName(e.target.value)}
-        />
-      </label>
-      <label htmlFor="profile-bio" className="block text-sm">
-        <span className="mb-1 block text-gray-400">Bio</span>
-        <textarea
-          id="profile-bio"
-          className={`${input} resize-none`}
-          rows={2}
-          value={text}
-          maxLength={160}
-          placeholder="Hammer or fade?"
-          onChange={(e) => setText(e.target.value)}
-        />
-      </label>
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-lg bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-gray-950 hover:bg-emerald-400 disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
-        <button
-          type="button"
-          onClick={() => onDone(false)}
-          className="rounded-lg border border-gray-700 px-4 py-1.5 text-sm text-gray-300 hover:bg-gray-800"
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
-}
-
 // ---------- Page ----------
 
 type BreakdownKey = 'series' | 'type' | 'league' | 'tailing';
@@ -274,7 +199,6 @@ export default function Profile() {
   const [range, setRange] = useState<StatRange>('all');
   const [data, setData] = useState<UserProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
   const side = useStickyTop<HTMLElement>();
   // Matches PAGE_GRID's lg breakpoint, where the side column appears
   const wide = useMediaQuery('(min-width: 1024px)');
@@ -300,7 +224,6 @@ export default function Profile() {
   // Fresh page per user, not the last person's numbers
   useEffect(() => {
     setData(null);
-    setEditing(false);
     setRange('all');
   }, [username]);
 
@@ -377,9 +300,11 @@ export default function Profile() {
       <div className="space-y-5 lg:col-start-1 lg:row-start-1 xl:col-start-2">
         <section className="rounded-2xl border border-gray-800 bg-gray-900 p-4">
           <div className="flex items-start gap-4">
-            <div className="flex h-16 w-16 flex-none items-center justify-center rounded-full bg-emerald-500/20 text-2xl font-bold uppercase text-emerald-400">
-              {user.fullName[0]}
-            </div>
+            <UserAvatar
+              name={user.fullName}
+              url={user.avatarUrl}
+              className="h-16 w-16 text-2xl"
+            />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-xl font-bold leading-tight">
                 {user.fullName}
@@ -387,32 +312,22 @@ export default function Profile() {
               <p className="truncate text-sm text-gray-500">
                 @{user.username} · Joined {joined}
               </p>
-              {user.bio && !editing && (
+              {user.bio && (
                 <p className="mt-2 whitespace-pre-wrap text-gray-200">
                   {user.bio}
                 </p>
               )}
             </div>
-            {isMe && !editing && (
-              <button
-                type="button"
-                onClick={() => setEditing(true)}
+            {/* Name and bio are edited in Settings */}
+            {isMe && (
+              <Link
+                to="/settings"
                 className="flex-none rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800"
               >
-                Edit
-              </button>
+                Edit profile
+              </Link>
             )}
           </div>
-          {editing && (
-            <EditProfile
-              fullName={user.fullName}
-              bio={user.bio}
-              onDone={(saved) => {
-                setEditing(false);
-                if (saved) load();
-              }}
-            />
-          )}
         </section>
 
         <div className="space-y-3">
@@ -567,9 +482,12 @@ export default function Profile() {
           onChange={load}
           empty={
             <p className="rounded-2xl border border-dashed border-gray-800 p-8 text-center text-gray-400">
-              {range === 'all'
-                ? 'No slips yet.'
-                : `No slips in the ${STAT_RANGES[range].toLowerCase()}.`}
+              {range !== 'all' &&
+                `No slips in the ${STAT_RANGES[range].toLowerCase()}.`}
+              {range === 'all' &&
+                (isMe
+                  ? 'Your slips show up here. Post one with the green + button.'
+                  : 'No slips yet.')}
             </p>
           }
         />

@@ -8,9 +8,11 @@ import {
   FormError,
   SubmitButton,
 } from '../components/AuthLayout';
+import AvatarPicker from '../components/AvatarPicker';
+import { uploadAvatar } from '../lib/avatar';
 
 export default function Signup() {
-  const { session, signIn } = useAuth();
+  const { session, signIn, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
   const [passcode, setPasscode] = useState('');
@@ -19,6 +21,8 @@ export default function Signup() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Optional; uploaded once the account exists and they're signed in
+  const [photo, setPhoto] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -51,6 +55,13 @@ export default function Signup() {
         password,
       });
       await signIn(email, password);
+      if (photo) {
+        // A photo that fails to upload isn't worth blocking signup over; they
+        // can add one later in Settings
+        await uploadAvatar(photo)
+          .then(refreshProfile)
+          .catch(() => {});
+      }
       navigate('/', { replace: true });
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not create account'));
@@ -95,6 +106,16 @@ export default function Signup() {
     <AuthLayout title="Create your account">
       <form onSubmit={createAccount}>
         <FormError message={error} />
+        <div className="mb-4">
+          <span className="mb-2 block text-sm font-medium text-gray-300">
+            Profile photo <span className="text-gray-500">(optional)</span>
+          </span>
+          <AvatarPicker
+            name={fullName}
+            onPick={setPhoto}
+            onRemove={() => setPhoto(null)}
+          />
+        </div>
         <Field
           id="fullName"
           label="Full name"

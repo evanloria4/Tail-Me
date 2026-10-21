@@ -30,7 +30,7 @@ router.get('/', requireAuth, async (req, res) => {
 
   const [users, rows, groupLegs] = await Promise.all([
     prisma.user.findMany({
-      select: { id: true, username: true, fullName: true },
+      select: { id: true, username: true, fullName: true, avatarUrl: true },
     }),
     prisma.bet.findMany({
       // Deleted slips still count toward records and the calendar

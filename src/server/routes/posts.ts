@@ -25,6 +25,7 @@ import {
 } from '../../shared/posts';
 import { postSeriesSchema } from '../../shared/series';
 import { isStatRange, rangeStart } from '../../shared/stats';
+import { MAX_GAME_MS } from '../../shared/live';
 
 const router = Router();
 const PAGE_SIZE = 20;
@@ -179,6 +180,53 @@ router.get('/', requireAuth, async (req, res) => {
   res.json({
     posts: await toFeedPosts(page, req.user!.id),
     nextCursor: hasMore ? page[page.length - 1].id : null,
+  });
+});
+
+/**
+ * What's in play right now, for the feed's side panels: group parlays not
+ * yet settled (taking legs, locked, or live), and personal slips with a game
+ * on. Database only, no Odds API calls.
+ */
+router.get('/active', requireAuth, async (req, res) => {
+  const now = new Date();
+  // A game that started within the longest possible game length and isn't
+  // marked final yet (same rule as the LIVE tags)
+  const liveLeg = {
+    result: 'PENDING' as const,
+    event: {
+      completed: false,
+      commenceTime: {
+        lte: now,
+        gte: new Date(now.getTime() - MAX_GAME_MS),
+      },
+    },
+  };
+  const [groups, live] = await Promise.all([
+    prisma.post.findMany({
+      where: {
+        type: 'GROUP_PARLAY',
+        deletedAt: null,
+        bets: { some: { result: 'PENDING' } },
+      },
+      orderBy: [{ lockAt: 'asc' }, { id: 'asc' }],
+      take: 10,
+      include: feedInclude(req.user!.id),
+    }),
+    prisma.post.findMany({
+      where: {
+        type: { not: 'GROUP_PARLAY' },
+        deletedAt: null,
+        bets: { some: { result: 'PENDING', legs: { some: liveLeg } } },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 15,
+      include: feedInclude(req.user!.id),
+    }),
+  ]);
+  res.json({
+    groups: await toFeedPosts(groups, req.user!.id),
+    live: await toFeedPosts(live, req.user!.id),
   });
 });
 

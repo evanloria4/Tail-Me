@@ -305,7 +305,7 @@ function AltLadder({
   return (
     <div className="space-y-2 pb-1 pt-2">
       <p className="text-xs text-gray-500">
-        Tap two or more lines on the same side to post a ladder.
+        Pick two or more lines on the same side to post a ladder.
       </p>
       {(['Over', 'Under'] as const).map((side) => {
         const sideLines = lines.filter((o) => o.name === side);

@@ -18,7 +18,14 @@ export const feedInclude = (viewerId: string) =>
         legs: {
           orderBy: { order: 'asc' },
           include: {
-            addedBy: { select: { id: true, username: true, fullName: true } },
+            addedBy: {
+              select: {
+                id: true,
+                username: true,
+                fullName: true,
+                avatarUrl: true,
+              },
+            },
             // For LIVE tags: when the game starts, and whether it's final
             event: { select: { commenceTime: true, completed: true } },
           },

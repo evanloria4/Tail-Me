@@ -10,6 +10,7 @@ import Login from './pages/Login';
 import Profile from './pages/Profile';
 import Series from './pages/Series';
 import Signup from './pages/Signup';
+import Settings from './pages/Settings';
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/u/:username" element={<Profile />} />
             <Route path="/u/:username/s/:seriesId" element={<Series />} />
             <Route path="/billing" element={<Billing />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/new" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

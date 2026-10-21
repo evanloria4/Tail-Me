@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import timeAgo from '../lib/time';
+import UserAvatar from './UserAvatar';
 import { formatAmerican } from '../../shared/odds';
 import { isHot, SlipBadge } from '../../shared/badges';
 import { COMMENT_MAX, REACTION_EMOJIS } from '../../shared/social';
@@ -135,9 +136,11 @@ export function TailersButton({
                   to={`/u/${t.username}`}
                   className="flex items-center gap-2.5 px-3 py-2 transition hover:bg-gray-800"
                 >
-                  <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold uppercase text-emerald-400">
-                    {t.fullName[0]}
-                  </span>
+                  <UserAvatar
+                    name={t.fullName}
+                    url={t.avatarUrl}
+                    className="h-7 w-7 text-xs"
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-white">
                       {t.fullName}
@@ -409,9 +412,13 @@ export function Comments({
                 to={`/u/${c.author.username}`}
                 aria-hidden="true"
                 tabIndex={-1}
-                className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold uppercase text-emerald-400"
+                className="flex-none"
               >
-                {c.author.fullName[0]}
+                <UserAvatar
+                  name={c.author.fullName}
+                  url={c.author.avatarUrl}
+                  className="h-8 w-8 text-xs"
+                />
               </Link>
               <div className="min-w-0 flex-1">
                 <p className="text-sm leading-snug">

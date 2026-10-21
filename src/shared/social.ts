@@ -33,7 +33,13 @@ export const voteSchema = z.object({
 
 export type Vote = -1 | 0 | 1;
 
-export type PersonRef = { id: string; username: string; fullName: string };
+export type PersonRef = {
+  id: string;
+  username: string;
+  fullName: string;
+  /** Profile photo (Supabase Storage public URL), or null for the initial */
+  avatarUrl: string | null;
+};
 
 export type FeedComment = {
   id: string;
