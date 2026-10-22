@@ -331,6 +331,55 @@ function AltLadder({
   );
 }
 
+/**
+ * One market (Receiving Yards, Alt Spreads…) as a section that opens on
+ * click. Every one starts closed so a long props tab scans as a list; a
+ * closed one still says how many picks it holds.
+ */
+function MarketSection({
+  label,
+  count,
+  noun,
+  picked,
+  children,
+}: {
+  label: string;
+  /** Players or lines inside */
+  count: number;
+  noun: string;
+  picked: number;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="border-b border-gray-800 last:border-b-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-2 py-3 text-left"
+      >
+        <span className="font-bold">{label}</span>
+        {picked > 0 && (
+          <span className="rounded-full bg-emerald-500/15 px-2 py-px text-[11px] font-bold text-emerald-400">
+            {picked} picked
+          </span>
+        )}
+        <span className="ml-auto text-xs text-gray-500">
+          {count} {noun}
+        </span>
+        <span
+          aria-hidden="true"
+          className={`text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}
+        >
+          ▾
+        </span>
+      </button>
+      {open && <div className="pb-4">{children}</div>}
+    </section>
+  );
+}
+
 type PlayerRow = {
   player: string;
   over?: OddsOutcome;
@@ -386,7 +435,7 @@ function PropsPanel({
   if (category.game) {
     // Alternate spreads / totals
     return (
-      <div className="space-y-5">
+      <div>
         {category.markets.map((m) => {
           const outcomes = markets[m.key] ?? [];
           if (!outcomes.length) return null;
@@ -395,8 +444,13 @@ function PropsPanel({
               ? [game.awayTeam, game.homeTeam]
               : ['Over', 'Under'];
           return (
-            <section key={m.key}>
-              <h3 className="mb-2 font-bold">{m.label}</h3>
+            <MarketSection
+              key={m.key}
+              label={m.label}
+              count={outcomes.length}
+              noun="lines"
+              picked={outcomes.filter((o) => isPicked(game, m.key, o)).length}
+            >
               <div className="space-y-3">
                 {sides.map((side) => {
                   const lines = outcomes
@@ -427,7 +481,7 @@ function PropsPanel({
                   );
                 })}
               </div>
-            </section>
+            </MarketSection>
           );
         })}
       </div>
@@ -435,14 +489,20 @@ function PropsPanel({
   }
 
   return (
-    <div className="space-y-5">
+    <div>
       {category.markets.map((m) => {
-        const rows = groupByPlayer(markets[m.key] ?? []);
+        const outcomes = markets[m.key] ?? [];
+        const rows = groupByPlayer(outcomes);
         if (!rows.length) return null;
         return (
-          <section key={m.key}>
-            <h3 className="mb-1 font-bold">{m.label}</h3>
-            <ul className="divide-y divide-gray-800">
+          <MarketSection
+            key={m.key}
+            label={m.label}
+            count={rows.length}
+            noun={rows.length === 1 ? 'player' : 'players'}
+            picked={outcomes.filter((o) => isPicked(game, m.key, o)).length}
+          >
+            <ul className="-mt-2 divide-y divide-gray-800">
               {rows.map((r) => {
                 const altId = `${m.alt}|${r.player}`;
                 const point = r.over?.point ?? r.under?.point;
@@ -516,7 +576,7 @@ function PropsPanel({
                 );
               })}
             </ul>
-          </section>
+          </MarketSection>
         );
       })}
     </div>
