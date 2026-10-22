@@ -313,12 +313,70 @@ export function deleteRule(
 /**
  * Fade (betting against a slip) is for straight bets with a real other side:
  * not parlays, ladders or group parlays, and not one-sided scorer props.
+ * Picked props are stored as `player_prop`, so one-sided ones (Anytime TD /
+ * Goal) are told apart by their "Yes" selection.
  */
 export function canBeFaded(
   type: FeedPost['type'],
-  legs: { marketKey: string }[]
+  legs: { marketKey: string; selection: string }[]
 ): boolean {
   return (
-    type === 'STRAIGHT' && !legs.some((l) => isOneSidedMarket(l.marketKey))
+    type === 'STRAIGHT' &&
+    !legs.some((l) => l.selection === 'Yes' || isOneSidedMarket(l.marketKey))
   );
 }
+
+// ---------- Editing ----------
+
+/**
+ * Whether the author can still change a slip's legs, units and price:
+ * straights and parlays only, nothing graded, and no game on it started yet
+ * (so a leg that's already losing can't be dropped). Ladders and group
+ * parlays stay as posted.
+ */
+export function canEditSlip(
+  post: {
+    type: FeedPost['type'];
+    bets: {
+      result: BetResult;
+      legs: { result: BetResult; startsAt: string | Date | null }[];
+    }[];
+  },
+  now = new Date()
+): boolean {
+  if (post.type !== 'STRAIGHT' && post.type !== 'PARLAY') return false;
+  return post.bets.every(
+    (b) =>
+      b.result === 'PENDING' &&
+      b.legs.every(
+        (l) =>
+          l.result === 'PENDING' &&
+          (!l.startsAt || new Date(l.startsAt).getTime() > now.getTime())
+      )
+  );
+}
+
+/**
+ * Edit a straight / parlay: the legs to keep (by id), new legs from live
+ * odds, and the stake. One leg left makes it a straight, two or more a
+ * parlay; `slipOdds` (parlays) is the book's price, overriding the legs
+ * multiplied.
+ */
+export const editPostSchema = z
+  .object({
+    units,
+    keepLegIds: z.array(z.string().min(1).max(64)).max(20),
+    legs: z.array(legSchema).max(20),
+    slipOdds: americanOdds.optional(),
+    caption: z.string().trim().max(500).optional(),
+  })
+  .refine(
+    (e) => e.keepLegIds.length + e.legs.length >= 1,
+    'A slip needs at least 1 pick'
+  )
+  .refine(
+    (e) => e.keepLegIds.length + e.legs.length <= 20,
+    'A parlay can have at most 20 legs'
+  );
+
+export type EditPostInput = z.infer<typeof editPostSchema>;

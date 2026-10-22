@@ -12,10 +12,12 @@ import {
 import {
   BetResult,
   canBeFaded,
+  canEditSlip,
   createPostSchema,
   CreatePostInput,
   DELETE_GRACE_MINUTES,
   deleteRule,
+  editPostSchema,
   GROUP_MAX_LEGS,
   GROUP_MAX_LOCK_DAYS,
   groupPriceSchema,
@@ -380,7 +382,7 @@ async function backable(
         select: {
           id: true,
           result: true,
-          legs: { select: { marketKey: true } },
+          legs: { select: { marketKey: true, selection: true } },
         },
       },
     },
@@ -582,7 +584,7 @@ router.post<{ postId: string }>(
     if (group.groupEventId && leg.eventId !== group.groupEventId) {
       res
         .status(400)
-        .json({ error: `This one is ${group.groupEventLabel} only` });
+        .json({ error: `This one is a ${group.groupEventLabel} SGP` });
       return;
     }
     if (!(await sportsAreActive([leg]))) {
@@ -722,6 +724,61 @@ router.put<{ postId: string }>(
 );
 
 /**
+ * The author sets a bet's overall odds to what the book actually shows (our
+ * parlay math can't match same-game pricing, boosts, etc.). Any slip type,
+ * any time; a straight's or ladder rung's single leg follows. On an open
+ * group parlay, adding or removing a leg resets it to the legs multiplied.
+ */
+router.put<{ betId: string }>(
+  '/bets/:betId/odds',
+  requireAuth,
+  async (req, res) => {
+    const parsed = groupPriceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: parsed.error.issues[0]?.message ?? 'Invalid odds' });
+      return;
+    }
+    const userId = req.user!.id;
+    const bet = await prisma.bet.findFirst({
+      where: { id: req.params.betId, post: { deletedAt: null } },
+      select: {
+        id: true,
+        legs: { select: { id: true } },
+        post: { select: { id: true, authorId: true, type: true } },
+      },
+    });
+    if (!bet) {
+      res.status(404).json({ error: 'Bet not found' });
+      return;
+    }
+    const { post } = bet;
+    if (post.authorId !== userId) {
+      res.status(403).json({ error: 'Only the poster can change the odds' });
+      return;
+    }
+    const { americanOdds } = parsed.data;
+    await prisma.$transaction([
+      prisma.bet.update({
+        where: { id: bet.id },
+        data: { americanOdds, decimalOdds: americanToDecimal(americanOdds) },
+      }),
+      // One-leg bets show the leg's price, so keep them in step
+      ...(bet.legs.length === 1 && post.type !== 'GROUP_PARLAY'
+        ? [
+            prisma.betLeg.update({
+              where: { id: bet.legs[0].id },
+              data: { americanOdds },
+            }),
+          ]
+        : []),
+    ]);
+    res.json(await loadFeedPost(post.id, userId));
+  }
+);
+
+/**
  * Grade one group parlay leg (its owner or the creator, once locked). The
  * parlay's result follows from its legs.
  */
@@ -810,6 +867,173 @@ router.put<{ postId: string }>(
     }
     await prisma.post.update({ where: { id: post.id }, data: { seriesId } });
     res.json(await loadFeedPost(post.id, userId));
+  }
+);
+
+/**
+ * The author edits a straight or parlay before any of its games start: keep
+ * some legs, add new ones from live odds (games that haven't started), change
+ * the stake or set the book's price. One leg left makes it a straight, more
+ * a parlay. Tails, reactions and comments stay with the slip.
+ */
+router.put<{ postId: string }>(
+  '/:postId',
+  requireAuth,
+  requireSubscription,
+  async (req, res) => {
+    const parsed = editPostSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: parsed.error.issues[0]?.message ?? 'Invalid edit' });
+      return;
+    }
+    const input = parsed.data;
+    const post = await prisma.post.findFirst({
+      where: { id: req.params.postId, deletedAt: null },
+      select: {
+        id: true,
+        authorId: true,
+        type: true,
+        bets: {
+          select: {
+            id: true,
+            result: true,
+            legs: {
+              orderBy: { order: 'asc' },
+              select: {
+                id: true,
+                result: true,
+                event: { select: { commenceTime: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!post) {
+      res.status(404).json({ error: 'Post not found' });
+      return;
+    }
+    if (post.authorId !== req.user!.id) {
+      res.status(403).json({ error: 'Only the poster can edit a slip' });
+      return;
+    }
+    const editable = canEditSlip({
+      type: post.type,
+      bets: post.bets.map((b) => ({
+        result: b.result,
+        legs: b.legs.map((l) => ({
+          result: l.result,
+          startsAt: l.event?.commenceTime ?? null,
+        })),
+      })),
+    });
+    if (!editable) {
+      res.status(400).json({
+        error:
+          post.type === 'STRAIGHT' || post.type === 'PARLAY'
+            ? 'Slips lock once one of their games starts'
+            : 'Only straights and parlays can be edited',
+      });
+      return;
+    }
+    const [bet] = post.bets;
+    const current = new Set(bet.legs.map((l) => l.id));
+    const keep = [...new Set(input.keepLegIds)];
+    if (keep.some((id) => !current.has(id))) {
+      res.status(400).json({ error: 'That leg is not on this slip' });
+      return;
+    }
+
+    // New legs: real leagues, stored games, and only games that haven't started
+    if (input.legs.length) {
+      if (!(await sportsAreActive(input.legs))) {
+        res.status(400).json({ error: 'Unknown sport' });
+        return;
+      }
+      const ids = eventIdsOf(input.legs);
+      const games = await prisma.event.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, commenceTime: true },
+      });
+      const starts = new Map(games.map((g) => [g.id, g.commenceTime]));
+      const unknown = input.legs.some(
+        (l) => !l.eventId || !starts.has(l.eventId)
+      );
+      if (unknown) {
+        res.status(400).json({ error: 'Add new legs from live odds' });
+        return;
+      }
+      const startedLeg = input.legs.find(
+        (l) => starts.get(l.eventId!)!.getTime() <= Date.now()
+      );
+      if (startedLeg) {
+        res
+          .status(400)
+          .json({ error: `${startedLeg.eventLabel} has already started` });
+        return;
+      }
+    }
+    const events = new Set(eventIdsOf(input.legs));
+
+    const total = keep.length + input.legs.length;
+    const type = total === 1 ? 'STRAIGHT' : 'PARLAY';
+    await prisma.$transaction(async (tx) => {
+      await tx.betLeg.deleteMany({
+        where: { betId: bet.id, id: { notIn: keep } },
+      });
+      // (betId, order) is unique, so park kept legs out of the way first
+      await Promise.all(
+        keep.map((id, i) =>
+          tx.betLeg.update({ where: { id }, data: { order: -1 - i } })
+        )
+      );
+      await Promise.all(
+        keep.map((id, i) =>
+          tx.betLeg.update({ where: { id }, data: { order: i } })
+        )
+      );
+      await tx.betLeg.createMany({
+        data: input.legs.map((l, i) => ({
+          ...legData(l, keep.length + i, events),
+          betId: bet.id,
+        })),
+      });
+      const legs = await tx.betLeg.findMany({
+        where: { betId: bet.id },
+        orderBy: { order: 'asc' },
+        select: { americanOdds: true, deepLink: true },
+      });
+      // A straight's price is its leg's; a parlay's is the book's or the legs multiplied
+      let { americanOdds } = legs[0];
+      let decimal = americanToDecimal(americanOdds);
+      if (type === 'PARLAY') {
+        decimal = input.slipOdds
+          ? americanToDecimal(input.slipOdds)
+          : parlayDecimal(legs.map((l) => l.americanOdds));
+        americanOdds = input.slipOdds ?? decimalToAmerican(decimal);
+      }
+      await tx.bet.update({
+        where: { id: bet.id },
+        data: {
+          units: input.units,
+          americanOdds,
+          decimalOdds: decimal,
+          deepLink: type === 'STRAIGHT' ? legs[0].deepLink : null,
+        },
+      });
+      await tx.post.update({
+        where: { id: post.id },
+        data: {
+          type,
+          ...(input.caption !== undefined && {
+            caption: input.caption || null,
+          }),
+        },
+      });
+    });
+    res.json(await loadFeedPost(post.id, req.user!.id));
   }
 );
 

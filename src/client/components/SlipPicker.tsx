@@ -6,11 +6,14 @@ import {
   buildPost,
   canLadder,
   isSameGame,
+  legToSelection,
+  matchesPick,
   Selection,
   selectionKey,
   selectionTitle,
   slipDecimal,
   SlipMode,
+  toLeg,
 } from '../lib/slip';
 import {
   formatAmerican,
@@ -18,6 +21,7 @@ import {
   isValidAmerican,
   americanToDecimal,
   decimalToAmerican,
+  parlayDecimal,
   payout,
 } from '../../shared/odds';
 import {
@@ -28,7 +32,11 @@ import {
   PickerCategory,
   PICKER_CATEGORIES,
 } from '../../shared/markets';
-import { createPostSchema } from '../../shared/posts';
+import {
+  createPostSchema,
+  editPostSchema,
+  type FeedPost,
+} from '../../shared/posts';
 import { inputClass } from './ComposerParts';
 import { inSiteZone, SITE_ZONE_LABEL } from '../../shared/time';
 import GroupReview, { GroupMode, PostedKind } from './GroupReview';
@@ -727,12 +735,17 @@ export default function SlipPicker({
   onPosted,
   dirtyRef,
   group = null,
+  edit = null,
+  onSaved,
 }: {
   header: React.ReactNode;
   onPosted: (kind: PostedKind) => void;
   dirtyRef: React.MutableRefObject<boolean>;
   /** Group parlay: pick exactly one leg, to start one or join one */
   group?: GroupMode | null;
+  /** Editing a posted straight / parlay: starts on review with its legs */
+  edit?: FeedPost | null;
+  onSaved?: (post: FeedPost) => void;
 }) {
   const meta = useMeta();
   const book = LIVE_ODDS_BOOK;
@@ -742,19 +755,47 @@ export default function SlipPicker({
     onlyGame?.sportKey || SPORT_ORDER[0]
   );
   const [openGame, setOpenGame] = useState<OddsGame | null>(null);
-  const [selections, setSelections] = useState<Selection[]>([]);
-  const [step, setStep] = useState<'pick' | 'review'>('pick');
-  const [units, setUnits] = useState('1');
+  // Editing starts from the slip as posted (legs keep their posted prices)
+  const [initial] = useState(() => {
+    if (!edit) return null;
+    const bet = edit.bets[0];
+    const multiplied = decimalToAmerican(
+      parlayDecimal(bet.legs.map((l) => l.americanOdds))
+    );
+    return {
+      selections: bet.legs.map(legToSelection),
+      units: String(bet.units),
+      // A parlay priced off its legs has no book price to show
+      slipOdds:
+        edit.type === 'PARLAY' && bet.americanOdds !== multiplied
+          ? String(bet.americanOdds)
+          : '',
+      caption: edit.caption ?? '',
+    };
+  });
+  const [selections, setSelections] = useState<Selection[]>(
+    initial?.selections ?? []
+  );
+  const [step, setStep] = useState<'pick' | 'review'>(
+    initial ? 'review' : 'pick'
+  );
+  const [units, setUnits] = useState(initial?.units ?? '1');
   const [rungUnits, setRungUnits] = useState<Record<string, string>>({});
-  const [slipOdds, setSlipOdds] = useState('');
-  const [caption, setCaption] = useState('');
+  const [slipOdds, setSlipOdds] = useState(initial?.slipOdds ?? '');
+  const [caption, setCaption] = useState(initial?.caption ?? '');
   const [seriesId, setSeriesId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   // Ticks so picks on games that kick off mid-review get their LIVE chip
   const now = useNow();
 
-  const dirty = selections.length > 0 || caption.trim() !== '';
+  const dirty = initial
+    ? selections.map((s) => s.key).join() !==
+        initial.selections.map((s) => s.key).join() ||
+      units !== initial.units ||
+      slipOdds !== initial.slipOdds ||
+      caption !== initial.caption
+    : selections.length > 0 || caption.trim() !== '';
   useEffect(() => {
     // eslint-disable-next-line no-param-reassign
     dirtyRef.current = dirty;
@@ -767,7 +808,7 @@ export default function SlipPicker({
   );
 
   const isPicked: IsPicked = (game, marketKey, o) =>
-    selections.some((s) => s.key === selectionKey(game.id, marketKey, o));
+    selections.some((s) => matchesPick(s, game, marketKey, o));
 
   const toggle: Toggle = (game, marketKey, o) => {
     // The list only shows the one game, but the server checks it too
@@ -775,8 +816,9 @@ export default function SlipPicker({
     const key = selectionKey(game.id, marketKey, o);
     setError(null);
     setSelections((prev) => {
-      if (prev.some((s) => s.key === key))
-        return prev.filter((s) => s.key !== key);
+      // Tapping a picked price (a posted leg too, when editing) removes it
+      if (prev.some((s) => matchesPick(s, game, marketKey, o)))
+        return prev.filter((s) => !matchesPick(s, game, marketKey, o));
       const picked: Selection = {
         key,
         sportKey: game.sportKey,
@@ -802,15 +844,41 @@ export default function SlipPicker({
 
   let mode: SlipMode = 'PARLAY';
   if (selections.length === 1) mode = 'STRAIGHT';
-  else if (canLadder(selections)) mode = 'LADDER';
+  // An edited slip stays a straight or parlay
+  else if (!edit && canLadder(selections)) mode = 'LADDER';
   const sameGame = mode === 'PARLAY' && isSameGame(selections);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     const sgp = slipOdds.trim() === '' ? undefined : Number(slipOdds);
-    if (sgp !== undefined && !isValidAmerican(sgp)) {
-      setError('Same game parlay price must look like +450 or -120');
+    if (mode === 'PARLAY' && sgp !== undefined && !isValidAmerican(sgp)) {
+      setError('The price must look like +450 or -120');
+      return;
+    }
+    if (edit) {
+      const changes = editPostSchema.safeParse({
+        units: Number(units),
+        keepLegIds: selections.flatMap((s) => (s.legId ? [s.legId] : [])),
+        legs: selections.filter((s) => !s.legId).map(toLeg),
+        slipOdds: mode === 'PARLAY' ? sgp : undefined,
+        caption: caption.trim(),
+      });
+      if (!changes.success) {
+        setError(changes.error.issues[0].message);
+        return;
+      }
+      setSubmitting(true);
+      try {
+        const { data } = await api.put<FeedPost>(
+          `/posts/${edit.id}`,
+          changes.data
+        );
+        onSaved?.(data);
+      } catch (err) {
+        setError(apiErrorMessage(err, 'Could not save the slip'));
+        setSubmitting(false);
+      }
       return;
     }
     const input = buildPost({
@@ -821,7 +889,7 @@ export default function SlipPicker({
       rungUnits: Object.fromEntries(
         Object.entries(rungUnits).map(([k, v]) => [k, Number(v)])
       ),
-      slipOdds: sameGame ? sgp : undefined,
+      slipOdds: mode === 'PARLAY' ? sgp : undefined,
       caption: caption.trim(),
       seriesId,
     });
@@ -856,7 +924,9 @@ export default function SlipPicker({
 
   if (step === 'review' && selections.length) {
     const sgpDecimal =
-      sameGame && isValidAmerican(Number(slipOdds)) && slipOdds.trim() !== ''
+      mode === 'PARLAY' &&
+      isValidAmerican(Number(slipOdds)) &&
+      slipOdds.trim() !== ''
         ? americanToDecimal(Number(slipOdds))
         : null;
     const decimal = sgpDecimal ?? slipDecimal(selections);
@@ -974,10 +1044,10 @@ export default function SlipPicker({
                 />
               </label>
             )}
-            {sameGame && (
+            {mode === 'PARLAY' && (
               <label htmlFor="slip-sgp" className="block">
                 <span className="mb-1 block text-xs font-medium text-gray-400">
-                  {bookName} SGP price (optional)
+                  {bookName} price (optional)
                 </span>
                 <input
                   id="slip-sgp"
@@ -990,14 +1060,17 @@ export default function SlipPicker({
               </label>
             )}
           </div>
-          {sameGame && (
+          {mode === 'PARLAY' && (
             <p className="-mt-3 text-xs text-gray-500">
-              Books price same game parlays lower than the legs multiplied.
-              Enter the price your slip shows to post it exactly.
+              {sameGame
+                ? 'Books price same game parlays lower than the legs multiplied. '
+                : 'Boosted or priced differently? '}
+              Enter the price your {bookName} slip shows to post it exactly.
             </p>
           )}
 
-          <SeriesPicker value={seriesId} onChange={setSeriesId} />
+          {/* Editing files it through the ⋯ menu's Move to series instead */}
+          {!edit && <SeriesPicker value={seriesId} onChange={setSeriesId} />}
 
           <label htmlFor="slip-caption" className="block">
             <span className="mb-1 block text-xs font-medium text-gray-400">
@@ -1039,7 +1112,8 @@ export default function SlipPicker({
               disabled={submitting}
               className="rounded-lg bg-emerald-500 px-5 py-2.5 font-semibold text-gray-950 transition hover:bg-emerald-400 disabled:opacity-50"
             >
-              {submitting ? 'Posting…' : 'Post slip'}
+              {edit && (submitting ? 'Saving…' : 'Save changes')}
+              {!edit && (submitting ? 'Posting…' : 'Post slip')}
             </button>
           </div>
         </div>
@@ -1059,7 +1133,7 @@ export default function SlipPicker({
         </p>
         {onlyGame ? (
           <p className="rounded-xl bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-400">
-            🎯 This group parlay is {onlyGame.eventLabel} only
+            🎯 This group parlay is a {onlyGame.eventLabel} SGP
           </p>
         ) : (
           <div

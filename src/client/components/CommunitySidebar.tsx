@@ -354,7 +354,7 @@ export function CommunityHighlights({
 
 const TABS = [
   { key: 'earners', label: 'Top earners' },
-  { key: 'group', label: 'Group' },
+  { key: 'group', label: 'Group Bets' },
   { key: 'calendar', label: 'Calendar' },
 ] as const;
 

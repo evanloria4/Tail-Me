@@ -163,7 +163,7 @@ export default function GroupReview({
               />
               <span>
                 <span className="block text-sm font-semibold">
-                  🎯 This game only
+                  🎯 Same game parlay (SGP)
                 </span>
                 <span className="block text-xs text-gray-400">
                   Every leg has to come from {selection.eventLabel}.

@@ -5,6 +5,8 @@ import scrollToSlip from '../lib/scrollToSlip';
 import PostCard, { BackAction } from './PostCard';
 import type { GroupHandlers } from './GroupParlay';
 import useConfirm from './ConfirmDialog';
+import PostComposer from './PostComposer';
+import { useToast } from './Toast';
 import { DELETE_GRACE_MINUTES, deleteRule } from '../../shared/posts';
 import type { BetResult, FeedPost } from '../../shared/posts';
 import type { StatRange } from '../../shared/stats';
@@ -63,6 +65,9 @@ export default function PostList({
 }) {
   const { profile } = useAuth();
   const [confirm, confirmDialog] = useConfirm();
+  const toast = useToast();
+  /** The author's slip open in the composer for editing */
+  const [editing, setEditing] = useState<FeedPost | null>(null);
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -216,6 +221,20 @@ export default function PostList({
   const replacePost = (data: FeedPost) =>
     setPosts((prev) => prev.map((p) => (p.id === data.id ? data : p)));
 
+  const setOdds = async (betId: string, americanOdds: number) => {
+    try {
+      const { data } = await api.put<FeedPost>(`/posts/bets/${betId}/odds`, {
+        americanOdds,
+      });
+      replacePost(data);
+      onChange?.();
+      return true;
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save the odds'));
+      return false;
+    }
+  };
+
   const moveSeries = async (postId: string, seriesId: string | null) => {
     try {
       const { data } = await api.put<FeedPost>(`/posts/${postId}/series`, {
@@ -322,9 +341,24 @@ export default function PostList({
           onBack={back}
           onReact={react}
           onMoveSeries={moveSeries}
+          onEdit={setEditing}
+          onOdds={setOdds}
           groupHandlers={groupHandlers}
         />
       ))}
+
+      <PostComposer
+        open={!!editing}
+        edit={editing}
+        onClose={() => setEditing(null)}
+        onPosted={() => setEditing(null)}
+        onSaved={(post) => {
+          setEditing(null);
+          replacePost(post);
+          onChange?.();
+          toast('Slip updated');
+        }}
+      />
 
       {loading && <p className="py-6 text-center text-gray-500">Loading…</p>}
 

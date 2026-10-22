@@ -193,17 +193,18 @@ export default function Series() {
       {confirmDialog}
       <div className="space-y-5 lg:col-start-1 lg:row-start-1 xl:col-start-2">
         <section className="rounded-2xl border border-gray-800 bg-gray-900 p-4">
-          <div className="flex items-start gap-4">
+          {/* Nothing here truncates: phones wrap, and the buttons get their own row */}
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
             <SeriesBadge
               emoji={series.emoji}
               color={series.color}
               className="h-14 w-14 rounded-2xl text-3xl"
             />
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-2xl font-extrabold leading-tight">
+              <h1 className="break-words text-2xl font-extrabold leading-tight">
                 {series.name}
               </h1>
-              <p className="truncate text-sm text-gray-500">
+              <p className="text-sm text-gray-500">
                 by{' '}
                 <Link
                   to={`/u/${series.owner.username}`}
@@ -213,18 +214,13 @@ export default function Series() {
                 </Link>{' '}
                 · Started {started}
               </p>
-              {series.description && !editing && (
-                <p className="mt-2 whitespace-pre-wrap text-gray-200">
-                  {series.description}
-                </p>
-              )}
             </div>
             {isOwner && !editing && (
-              <div className="flex flex-none gap-2">
+              <div className="flex w-full flex-none gap-2 sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setEditing(true)}
-                  className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800"
+                  className="flex-1 rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 sm:flex-none"
                 >
                   Edit
                 </button>
@@ -238,6 +234,11 @@ export default function Series() {
               </div>
             )}
           </div>
+          {series.description && !editing && (
+            <p className="mt-3 whitespace-pre-wrap break-words text-gray-200">
+              {series.description}
+            </p>
+          )}
           {editing && (
             <EditSeries
               series={series}

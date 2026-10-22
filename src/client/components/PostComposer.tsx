@@ -5,6 +5,7 @@ import { ComposerHeader } from './ComposerParts';
 import SlipPicker from './SlipPicker';
 import type { GroupMode, JoinTarget, PostedKind } from './GroupReview';
 import useConfirm from './ConfirmDialog';
+import type { FeedPost } from '../../shared/posts';
 
 // Every slip is built from live odds, so picks, prices and add-to-betslip
 // links are always the book's own.
@@ -18,11 +19,15 @@ function Composer({
   onPosted,
   dirtyRef,
   join,
+  edit,
+  onSaved,
 }: {
   onClose: () => void;
   onPosted: (kind: PostedKind) => void;
   dirtyRef: React.MutableRefObject<boolean>;
   join: JoinTarget | null;
+  edit: FeedPost | null;
+  onSaved?: (post: FeedPost) => void;
 }) {
   const { isSubscribed } = useAuth();
   const [startingGroup, setStartingGroup] = useState(false);
@@ -53,7 +58,8 @@ function Composer({
   else if (startingGroup) group = { kind: 'start' };
 
   let title = 'New slip';
-  if (group?.kind === 'join') title = 'Add your leg';
+  if (edit) title = 'Edit slip';
+  else if (group?.kind === 'join') title = 'Add your leg';
   else if (group) title = 'New group parlay';
 
   if (!isSubscribed) {
@@ -86,7 +92,7 @@ function Composer({
         key={group?.kind ?? 'slip'}
         header={
           <ComposerHeader title={title} onClose={onClose}>
-            {!join && (
+            {!join && !edit && (
               <button
                 type="button"
                 onClick={toggleGroup}
@@ -101,6 +107,8 @@ function Composer({
         onPosted={onPosted}
         dirtyRef={dirtyRef}
         group={group}
+        edit={edit}
+        onSaved={onSaved}
       />
       {confirmDialog}
     </>
@@ -116,12 +124,17 @@ export default function PostComposer({
   onClose,
   onPosted,
   join = null,
+  edit = null,
+  onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   onPosted: (kind: PostedKind) => void;
   /** Open as "add your leg" to this group parlay */
   join?: JoinTarget | null;
+  /** Open on this posted straight / parlay to change it */
+  edit?: FeedPost | null;
+  onSaved?: (post: FeedPost) => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const dirtyRef = useRef(false);
@@ -132,8 +145,10 @@ export default function PostComposer({
     if (
       dirtyRef.current &&
       !(await confirm({
-        title: 'Discard this slip?',
-        message: 'Your picks will be lost.',
+        title: edit ? 'Discard your changes?' : 'Discard this slip?',
+        message: edit
+          ? 'The slip stays as it was.'
+          : 'Your picks will be lost.',
         confirmLabel: 'Discard',
         cancelLabel: 'Keep editing',
         danger: true,
@@ -166,7 +181,7 @@ export default function PostComposer({
   return (
     <dialog
       ref={ref}
-      aria-label={join ? 'Add your leg' : 'New slip'}
+      aria-label={(edit && 'Edit slip') || (join ? 'Add your leg' : 'New slip')}
       // Escape fires `cancel`; let React state drive the close instead
       onCancel={(e) => {
         e.preventDefault();
@@ -180,6 +195,8 @@ export default function PostComposer({
           onPosted={onPosted}
           dirtyRef={dirtyRef}
           join={join}
+          edit={edit}
+          onSaved={onSaved}
         />
       )}
       {confirmDialog}

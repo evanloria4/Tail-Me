@@ -1,8 +1,13 @@
 // Bet-picker slip logic: what the picked outcomes add up to (straight, parlay
 // or ladder) and how they turn into a post. Kept free of React so it's testable.
-import type { OddsOutcome } from '../../shared/markets';
+import { marketLabel, type OddsOutcome } from '../../shared/markets';
 import { parlayDecimal } from '../../shared/odds';
-import type { CreatePostInput, LegInput } from '../../shared/posts';
+import {
+  MARKETS,
+  type CreatePostInput,
+  type FeedLeg,
+  type LegInput,
+} from '../../shared/posts';
 
 export type Selection = {
   key: string;
@@ -16,6 +21,8 @@ export type Selection = {
   outcome: OddsOutcome;
   /** Game start, ISO; a group parlay's default deadline */
   commenceTime?: string;
+  /** Editing: the posted leg this is (kept as posted, original price) */
+  legId?: string;
 };
 
 export type SlipMode = 'STRAIGHT' | 'PARLAY' | 'LADDER';
@@ -41,6 +48,54 @@ export function selectionTitle(s: Selection): string {
   if (base === 'totals') return `${name} ${point}`;
   if (name === 'Yes') return `${player} ${s.marketLabel}`;
   return `${player} ${name}${point != null ? ` ${point}` : ''}`;
+}
+
+/**
+ * A posted leg back as a picker selection, for editing. It keeps its posted
+ * price. Stored legs only know the base market (props are `player_prop` +
+ * label), so they're matched to live odds with `matchesPick`, not by key.
+ */
+export function legToSelection(leg: FeedLeg): Selection {
+  return {
+    key: `leg:${leg.id}`,
+    legId: leg.id,
+    sportKey: leg.sportKey,
+    eventId: leg.eventId ?? '',
+    eventLabel: leg.eventLabel,
+    marketKey: leg.marketKey,
+    marketLabel:
+      leg.marketLabel ?? MARKETS[leg.marketKey as keyof typeof MARKETS] ?? '',
+    outcome: {
+      name: leg.selection,
+      price: leg.americanOdds,
+      ...(leg.playerName ? { player: leg.playerName } : {}),
+      ...(leg.line != null ? { point: leg.line } : {}),
+      ...(leg.deepLink ? { link: leg.deepLink } : {}),
+    },
+    ...(leg.startsAt ? { commenceTime: leg.startsAt } : {}),
+  };
+}
+
+/** Whether a selection is this live-odds outcome */
+export function matchesPick(
+  s: Selection,
+  game: { id: string; sportKey: string },
+  marketKey: string,
+  o: OddsOutcome
+): boolean {
+  if (!s.legId) return s.key === selectionKey(game.id, marketKey, o);
+  const base = baseMarket(marketKey);
+  const sameMarket =
+    s.marketKey === 'player_prop'
+      ? s.marketLabel === marketLabel(game.sportKey, marketKey)
+      : s.marketKey === base;
+  return (
+    sameMarket &&
+    s.eventId === game.id &&
+    s.outcome.name === o.name &&
+    (s.outcome.player ?? '') === (o.player ?? '') &&
+    (base === 'h2h' || (s.outcome.point ?? null) === (o.point ?? null))
+  );
 }
 
 /** Same player/team, same market, same side, different lines */

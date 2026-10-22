@@ -1,32 +1,105 @@
 import React, { useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import api from '../lib/api';
+import { canEditSlip } from '../../shared/posts';
+import { formatAmerican, isValidAmerican } from '../../shared/odds';
 import type { BetResult, FeedPost } from '../../shared/posts';
 import type { SeriesSummary } from '../../shared/series';
 import { useDismiss } from './SlipSocial';
 import { RESULT_OPTIONS, RESULT_STYLES } from './SlipParts';
 
-// The author's "⋯" menu on their own slip: fix a result, move it to a series,
-// or delete it. Keeping these here keeps the card itself uncluttered. Results
+// The author's "⋯" menu on their own slip: edit it before its games start,
+// set the book's real odds, fix a result, move it to a series, or delete it. Keeping these here keeps the card itself uncluttered. Results
 // grade themselves when games end, so "Change result" is only an override.
 
 const itemClass =
   'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-gray-800';
+
+/** One bet's odds: type the book's price, Enter or ✓ saves it */
+function OddsRow({
+  label,
+  odds,
+  onSave,
+}: {
+  label: string;
+  odds: number;
+  onSave: (odds: number) => Promise<boolean>;
+}) {
+  const [value, setValue] = useState(formatAmerican(odds));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(false);
+  const next = Number(value.trim().replace(/^\+/, ''));
+  const valid = value.trim() !== '' && isValidAmerican(next);
+  const changed = valid && next !== odds;
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!valid) {
+      setError(true);
+      return;
+    }
+    if (!changed) return;
+    setSaving(true);
+    const ok = await onSave(next);
+    setSaving(false);
+    setError(!ok);
+  };
+
+  return (
+    <li>
+      <form onSubmit={save} className="flex items-center gap-2 px-3 py-2">
+        <label
+          htmlFor={`odds-${label}`}
+          className="min-w-0 flex-1 truncate text-sm"
+        >
+          {label}
+        </label>
+        <input
+          id={`odds-${label}`}
+          inputMode="numeric"
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError(false);
+          }}
+          aria-invalid={error}
+          className={`w-20 rounded-md border bg-gray-950 px-2 py-1 text-right font-mono text-sm tabular-nums outline-none focus:border-emerald-500 ${
+            error ? 'border-red-400' : 'border-gray-700'
+          }`}
+        />
+        <button
+          type="submit"
+          disabled={!changed || saving}
+          aria-label="Save odds"
+          className="rounded-md bg-emerald-500 px-2 py-1 text-xs font-bold text-gray-950 transition hover:bg-emerald-400 disabled:opacity-30"
+        >
+          ✓
+        </button>
+      </form>
+    </li>
+  );
+}
 
 export default function SlipMenu({
   post,
   onSettle,
   onMove,
   onDelete,
+  onEdit,
+  onOdds,
 }: {
   post: FeedPost;
   onSettle: (betId: string, result: BetResult) => void;
   onMove: (seriesId: string | null) => void;
   onDelete: () => void;
+  onEdit: () => void;
+  onOdds: (betId: string, americanOdds: number) => Promise<boolean>;
 }) {
   const { profile } = useAuth();
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<'menu' | 'series' | 'result'>('menu');
+  const [view, setView] = useState<'menu' | 'series' | 'result' | 'odds'>(
+    'menu'
+  );
   const [series, setSeries] = useState<SeriesSummary[] | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const canFile = post.type !== 'GROUP_PARLAY';
@@ -80,6 +153,33 @@ export default function SlipMenu({
         >
           {view === 'menu' && (
             <>
+              {/* Checked when the menu opens; the server checks again */}
+              {canEditSlip(post) && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    close();
+                    onEdit();
+                  }}
+                  className={itemClass}
+                >
+                  <span aria-hidden="true">📝</span>
+                  <span className="flex-1">Edit slip</span>
+                </button>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => setView('odds')}
+                className={itemClass}
+              >
+                <span aria-hidden="true">🔢</span>
+                <span className="flex-1">Change odds</span>
+                <span aria-hidden="true" className="text-gray-500">
+                  ›
+                </span>
+              </button>
               {canFile && (
                 <button
                   type="button"
@@ -120,6 +220,31 @@ export default function SlipMenu({
                 <span aria-hidden="true">🗑</span>
                 Delete slip
               </button>
+            </>
+          )}
+          {view === 'odds' && (
+            <>
+              <button
+                type="button"
+                onClick={() => setView('menu')}
+                className="w-full px-3 pb-1.5 pt-1 text-left text-xs font-semibold text-gray-500 hover:text-white"
+              >
+                ‹ Back
+              </button>
+              <ul className="border-t border-gray-800">
+                {post.bets.map((bet) => (
+                  <OddsRow
+                    key={bet.id}
+                    label={
+                      post.type === 'LADDER'
+                        ? `${bet.legs[0].selection} ${bet.legs[0].line}`
+                        : 'Odds'
+                    }
+                    odds={bet.americanOdds}
+                    onSave={(odds) => onOdds(bet.id, odds)}
+                  />
+                ))}
+              </ul>
             </>
           )}
           {view === 'result' && (

@@ -298,6 +298,8 @@ export default function PostCard({
   onBack,
   onReact,
   onMoveSeries,
+  onEdit,
+  onOdds,
   groupHandlers,
 }: {
   post: FeedPost;
@@ -307,6 +309,10 @@ export default function PostCard({
   onBack: (postId: string, action: BackAction) => void;
   onReact: (postId: string, emoji: ReactionEmoji) => void;
   onMoveSeries: (postId: string, seriesId: string | null) => void;
+  /** Author opens the slip in the composer to change it */
+  onEdit: (post: FeedPost) => void;
+  /** Author sets a bet's real odds; resolves false if it didn't save */
+  onOdds: (betId: string, americanOdds: number) => Promise<boolean>;
   groupHandlers: GroupHandlers;
 }) {
   const isAuthor = post.author.id === currentUserId;
@@ -445,6 +451,8 @@ export default function PostCard({
             onSettle={onSettle}
             onMove={(seriesId) => onMoveSeries(post.id, seriesId)}
             onDelete={() => onDelete(post.id)}
+            onEdit={() => onEdit(post)}
+            onOdds={onOdds}
           />
         )}
       </header>

@@ -345,7 +345,7 @@ export function GroupSlip({
             {status}
             {group.game && (
               <span className={`${statusClass} bg-gray-800 text-gray-300`}>
-                🎯 {group.game.eventLabel} only
+                🎯 {group.game.eventLabel} SGP
               </span>
             )}
           </div>

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   BetResult,
+  canBeFaded,
+  canEditSlip,
   createPostSchema,
   deleteRule,
   describeLeg,
+  editPostSchema,
   groupResult,
   hasBookPrice,
   isGroupLocked,
@@ -245,5 +248,88 @@ describe('deleteRule', () => {
         now
       )
     ).toBe('blocked');
+  });
+});
+
+describe('canBeFaded', () => {
+  it('fades two-sided straights only', () => {
+    expect(canBeFaded('STRAIGHT', [leg])).toBe(true);
+    expect(canBeFaded('PARLAY', [leg, leg])).toBe(false);
+    expect(canBeFaded('LADDER', [leg])).toBe(false);
+    expect(canBeFaded('GROUP_PARLAY', [leg])).toBe(false);
+  });
+
+  it('skips one-sided scorer props, stored as player_prop + Yes', () => {
+    expect(
+      canBeFaded('STRAIGHT', [{ marketKey: 'player_prop', selection: 'Yes' }])
+    ).toBe(false);
+    expect(
+      canBeFaded('STRAIGHT', [{ marketKey: 'player_prop', selection: 'Over' }])
+    ).toBe(true);
+  });
+});
+
+describe('canEditSlip', () => {
+  const now = new Date('2026-10-25T17:00:00Z');
+  const slip = (
+    type: 'STRAIGHT' | 'PARLAY' | 'LADDER' | 'GROUP_PARLAY',
+    starts: (string | null)[],
+    result: BetResult = 'PENDING'
+  ) => ({
+    type,
+    bets: [
+      {
+        result,
+        legs: starts.map((startsAt) => ({
+          result: 'PENDING' as BetResult,
+          startsAt,
+        })),
+      },
+    ],
+  });
+
+  it('allows straights and parlays before any game starts', () => {
+    expect(canEditSlip(slip('STRAIGHT', ['2026-10-25T18:00:00Z']), now)).toBe(
+      true
+    );
+    expect(
+      canEditSlip(
+        slip('PARLAY', ['2026-10-25T18:00:00Z', '2026-10-26T00:20:00Z']),
+        now
+      )
+    ).toBe(true);
+  });
+
+  it('locks once any game on it starts', () => {
+    expect(
+      canEditSlip(
+        slip('PARLAY', ['2026-10-25T17:00:00Z', '2026-10-26T00:20:00Z']),
+        now
+      )
+    ).toBe(false);
+  });
+
+  it('never edits ladders, group parlays or graded slips', () => {
+    const later = ['2026-10-25T18:00:00Z'];
+    expect(canEditSlip(slip('LADDER', later), now)).toBe(false);
+    expect(canEditSlip(slip('GROUP_PARLAY', later), now)).toBe(false);
+    expect(canEditSlip(slip('STRAIGHT', later, 'VOID'), now)).toBe(false);
+  });
+});
+
+describe('editPostSchema', () => {
+  const edit = (keepLegIds: string[], legs: unknown[]) =>
+    editPostSchema.safeParse({ units: 1, keepLegIds, legs });
+
+  it('needs at least one pick left', () => {
+    expect(edit([], []).success).toBe(false);
+    expect(edit(['a'], []).success).toBe(true);
+    expect(edit([], [leg]).success).toBe(true);
+  });
+
+  it('caps a slip at 20 legs', () => {
+    const ids = Array.from({ length: 20 }, (_, i) => `l${i}`);
+    expect(edit(ids, []).success).toBe(true);
+    expect(edit(ids, [leg]).success).toBe(false);
   });
 });

@@ -6,6 +6,8 @@ import {
   buildPost,
   canLadder,
   isSameGame,
+  legToSelection,
+  matchesPick,
   Selection,
   selectionKey,
   selectionTitle,
@@ -201,5 +203,45 @@ describe('buildPost', () => {
       selection: 'Yes',
       line: null,
     });
+  });
+});
+
+describe('legToSelection / matchesPick', () => {
+  const game = { id: 'ev1', sportKey: 'americanfootball_nfl' };
+  const posted = {
+    id: 'leg1',
+    sportKey: 'americanfootball_nfl',
+    eventId: 'ev1',
+    eventLabel: 'Broncos @ Chiefs',
+    startsAt: '2026-10-25T17:00:00Z',
+    gameFinal: false,
+    marketKey: 'player_prop' as const,
+    marketLabel: 'Passing Yards',
+    playerName: 'Bo Nix',
+    selection: 'Over',
+    line: 197.5,
+    americanOdds: -115,
+    deepLink: null,
+    result: 'PENDING' as const,
+    actual: null,
+    addedBy: null,
+  };
+
+  it('keeps the posted price and leg id', () => {
+    const s = legToSelection(posted);
+    expect(s.legId).toBe('leg1');
+    expect(s.outcome.price).toBe(-115);
+    expect(selectionTitle(s)).toBe('Bo Nix Over 197.5');
+  });
+
+  it('matches the same live outcome, including its alternate market', () => {
+    const s = legToSelection(posted);
+    const o = { name: 'Over', player: 'Bo Nix', point: 197.5, price: -120 };
+    expect(matchesPick(s, game, 'player_pass_yds', o)).toBe(true);
+    expect(matchesPick(s, game, 'player_pass_yds_alternate', o)).toBe(true);
+    expect(
+      matchesPick(s, game, 'player_pass_yds', { ...o, point: 210.5 })
+    ).toBe(false);
+    expect(matchesPick(s, game, 'player_rush_yds', o)).toBe(false);
   });
 });

@@ -299,35 +299,37 @@ export default function Profile() {
     >
       <div className="space-y-5 lg:col-start-1 lg:row-start-1 xl:col-start-2">
         <section className="rounded-2xl border border-gray-800 bg-gray-900 p-4">
-          <div className="flex items-start gap-4">
+          {/* Nothing here truncates: phones wrap, and the button gets its own row */}
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
             <UserAvatar
               name={user.fullName}
               url={user.avatarUrl}
               className="h-16 w-16 text-2xl"
             />
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-xl font-bold leading-tight">
+              <h1 className="break-words text-xl font-bold leading-tight">
                 {user.fullName}
               </h1>
-              <p className="truncate text-sm text-gray-500">
-                @{user.username} · Joined {joined}
+              <p className="flex flex-wrap gap-x-1 text-sm text-gray-500">
+                <span className="break-all">@{user.username}</span>
+                <span>· Joined {joined}</span>
               </p>
-              {user.bio && (
-                <p className="mt-2 whitespace-pre-wrap text-gray-200">
-                  {user.bio}
-                </p>
-              )}
             </div>
             {/* Name and bio are edited in Settings */}
             {isMe && (
               <Link
                 to="/settings"
-                className="flex-none rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800"
+                className="w-full flex-none rounded-lg border border-gray-700 px-3 py-1.5 text-center text-sm text-gray-300 hover:bg-gray-800 sm:w-auto"
               >
                 Edit profile
               </Link>
             )}
           </div>
+          {user.bio && (
+            <p className="mt-3 whitespace-pre-wrap break-words text-gray-200">
+              {user.bio}
+            </p>
+          )}
         </section>
 
         <div className="space-y-3">
