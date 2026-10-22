@@ -4,8 +4,9 @@ import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import timeAgo from '../lib/time';
 import UserAvatar from './UserAvatar';
-import { formatAmerican } from '../../shared/odds';
-import { isHot, SlipBadge } from '../../shared/badges';
+import { formatAmerican, payout } from '../../shared/odds';
+import { isHot, slipTier, WIN_TIERS } from '../../shared/badges';
+import type { SlipBadge, WinTier } from '../../shared/badges';
 import { COMMENT_MAX, REACTION_EMOJIS } from '../../shared/social';
 import type {
   FeedComment,
@@ -33,20 +34,69 @@ export function StreakChip({ streak }: { streak: Streak | null }) {
   );
 }
 
-/** Whether a slip gets the gold "cashed" treatment */
-export const isCelebrated = (badges: SlipBadge[]) =>
-  badges.some((b) => b.kind === 'BIG_WIN' || b.kind === 'SWEEP');
+/**
+ * How a winning slip looks at each tier (`WIN_TIERS`): the card's border,
+ * the slip's border and the banner across its top. Louder as the price grows.
+ */
+export const TIER_STYLES: Record<
+  WinTier,
+  { emoji: string; card: string; slip: string; banner: string }
+> = {
+  1: {
+    emoji: '✅',
+    card: 'border-emerald-500/40',
+    slip: 'border-emerald-500/40',
+    banner: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+  },
+  2: {
+    emoji: '💰',
+    card: 'border-yellow-300/50',
+    slip: 'border-yellow-300/40',
+    banner: 'border-yellow-300/30 bg-yellow-300/10 text-yellow-300',
+  },
+  3: {
+    emoji: '💎',
+    card: 'border-violet-400/50 shadow-lg shadow-violet-400/15',
+    slip: 'border-violet-400/50',
+    banner: 'border-violet-400/30 bg-violet-400/10 text-violet-400',
+  },
+  4: {
+    emoji: '🚨',
+    card: 'border-pink-400/60 shadow-xl shadow-pink-400/25',
+    slip: 'border-pink-400/60',
+    banner:
+      'border-pink-400/40 bg-gradient-to-r from-yellow-300/20 via-pink-400/25 to-yellow-300/20 bg-[length:200%_100%] py-3 text-base text-pink-400 animate-shimmer motion-reduce:animate-none',
+  },
+};
 
-/** Gold strip across the top of a slip that hit big */
-export function WinBanner({ badges }: { badges: SlipBadge[] }) {
+/** Strip across the top of a winning slip, styled by its tier */
+export function WinBanner({
+  badges,
+  ladder,
+}: {
+  badges: SlipBadge[];
+  /** Ladders pay in units, so the banner names the top rung instead */
+  ladder: boolean;
+}) {
+  const tier = slipTier(badges);
+  if (!tier) return null;
   const parts = badges.flatMap((b) => {
-    if (b.kind === 'BIG_WIN') return [`💰 Cashed at ${formatAmerican(b.odds)}`];
+    if (b.kind === 'WIN') {
+      const { name } = WIN_TIERS[b.tier - 1];
+      const odds = formatAmerican(b.odds);
+      return [
+        ladder
+          ? `${name} · top rung ${odds}`
+          : `${name} · ${odds} · $10 paid $${Math.round(payout(10, b.decimal))}`,
+      ];
+    }
     if (b.kind === 'SWEEP') return [`🪜 Clean sweep · ${b.rungs}/${b.rungs}`];
     return [];
   });
-  if (!parts.length) return null;
+  const style = TIER_STYLES[tier];
   return (
-    <div className="border-b border-yellow-300/30 bg-yellow-300/10 px-4 py-2 text-sm font-bold text-yellow-300">
+    <div className={`border-b px-4 py-2 text-sm font-bold ${style.banner}`}>
+      {badges.some((b) => b.kind === 'WIN') && `${style.emoji} `}
       {parts.join('  ·  ')}
     </div>
   );
@@ -107,32 +157,37 @@ function TailerStack({ people }: { people: PersonRef[] }) {
   );
 }
 
-/** Faces + "5 tails" — opens the list of who tailed */
+/** Faces + "5 tails" (or "2 fades") — opens the list of who did it */
 export function TailersButton({
   postId,
   count,
-  recent,
+  recent = [],
+  kind = 'tail',
 }: {
   postId: string;
-  /** Distinct people who tailed */
+  /** Distinct people who tailed (or faded) */
   count: number;
-  recent: PersonRef[];
+  /** Latest few, shown as overlapped faces */
+  recent?: PersonRef[];
+  kind?: 'tail' | 'fade';
 }) {
   const [open, setOpen] = useState(false);
   const [tailers, setTailers] = useState<Tailer[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const label = `${count} ${count === 1 ? 'tail' : 'tails'}`;
+  const label = `${count} ${kind}${count === 1 ? '' : 's'}`;
   useDismiss(open, () => setOpen(false), ref);
 
   // Refetch each time it opens; the count may have moved
   useEffect(() => {
     if (!open) return;
     api
-      .get<Tailer[]>(`/posts/${postId}/tails`)
+      .get<Tailer[]>(`/posts/${postId}/${kind}s`)
       .then(({ data }) => setTailers(data))
-      .catch((err) => setError(apiErrorMessage(err, 'Could not load tails')));
-  }, [open, postId, count]);
+      .catch((err) =>
+        setError(apiErrorMessage(err, `Could not load ${kind}s`))
+      );
+  }, [open, postId, count, kind]);
 
   if (!count) return <span>{label}</span>;
   return (
@@ -143,13 +198,13 @@ export function TailersButton({
         aria-expanded={open}
         className="group flex items-center gap-2 font-medium hover:text-white"
       >
-        <TailerStack people={recent} />
+        {recent.length > 0 && <TailerStack people={recent} />}
         <span className="group-hover:underline">{label}</span>
       </button>
       {open && (
         <div className="absolute bottom-full left-0 z-10 mb-2 w-60 overflow-hidden rounded-xl border border-gray-800 bg-gray-900 shadow-xl">
           <p className="border-b border-gray-800 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-            Tailed by {count}
+            {kind === 'tail' ? 'Tailed' : 'Faded'} by {count}
           </p>
           {error && <p className="px-3 py-2 text-sm text-red-400">{error}</p>}
           {!tailers && !error && (

@@ -28,6 +28,8 @@
     --red-400: 220 38 38;
     --yellow-300: 161 98 7;
     --orange-400: 194 65 12;
+    --violet-400: 109 40 217;
+    --pink-400: 190 24 93;
   }
 
   /* The original dark palette (Tailwind's stock gray/emerald) */
@@ -51,6 +53,8 @@
     --red-400: 248 113 113;
     --yellow-300: 253 224 71;
     --orange-400: 251 146 60;
+    --violet-400: 167 139 250;
+    --pink-400: 244 114 182;
   }
 
   body {

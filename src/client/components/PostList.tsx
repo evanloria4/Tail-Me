@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import scrollToSlip from '../lib/scrollToSlip';
-import PostCard from './PostCard';
+import PostCard, { BackAction } from './PostCard';
 import type { GroupHandlers } from './GroupParlay';
 import useConfirm from './ConfirmDialog';
 import { DELETE_GRACE_MINUTES, deleteRule } from '../../shared/posts';
@@ -164,15 +164,18 @@ export default function PostList({
     }
   };
 
-  // Records the tail; the card has already opened the book (links must open
-  // inside the click to get past popup blockers)
-  const tail = async (postId: string) => {
+  // Tail / fade and their undos. On a tail the card has already opened the
+  // book (links must open inside the click to get past popup blockers)
+  const back = async (postId: string, action: BackAction) => {
+    const path = action.endsWith('fade') ? 'fade' : 'tail';
     try {
-      const { data } = await api.post<FeedPost>(`/posts/${postId}/tail`);
+      const { data } = action.startsWith('un')
+        ? await api.delete<FeedPost>(`/posts/${postId}/${path}`)
+        : await api.post<FeedPost>(`/posts/${postId}/${path}`);
       setPosts((prev) => prev.map((p) => (p.id === postId ? data : p)));
       onChange?.();
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not record the tail'));
+      setError(apiErrorMessage(err, `Could not save the ${path}`));
     }
   };
 
@@ -316,7 +319,7 @@ export default function PostList({
           currentUserId={profile?.id}
           onSettle={settle}
           onDelete={remove}
-          onTail={tail}
+          onBack={back}
           onReact={react}
           onMoveSeries={moveSeries}
           groupHandlers={groupHandlers}

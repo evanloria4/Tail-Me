@@ -6,13 +6,13 @@ import timeAgo from '../lib/time';
 import combinedSlipLink from '../../shared/betslip';
 import useNow from '../lib/useNow';
 import { allFinal, isLive, oneGame } from '../../shared/live';
-import { slipBadges } from '../../shared/badges';
+import { slipBadges, slipTier } from '../../shared/badges';
 import type { ReactionEmoji } from '../../shared/social';
 import {
   Comments,
   CommentsToggle,
   CrowdChip,
-  isCelebrated,
+  TIER_STYLES,
   ReactionBar,
   StreakChip,
   TailersButton,
@@ -84,35 +84,77 @@ function tailPicks(post: FeedPost): TailPick[] {
 const tailButtonClass =
   'inline-flex items-center gap-1.5 rounded-lg border border-emerald-500 px-3 py-1.5 text-sm font-semibold text-emerald-400 transition hover:bg-emerald-500/10';
 
-/** Shown once tailed: a status, not a control */
-function TailedBadge({ label }: { label: string }) {
+const fadeButtonClass =
+  'inline-flex items-center gap-1.5 rounded-lg border border-red-400/60 px-3 py-1.5 text-sm font-semibold text-red-400 transition hover:bg-red-400/10';
+
+/**
+ * "✓ Tailed" / "✓ Faded". While the slip is open its ✕ takes it back; once
+ * settled it's just a status.
+ */
+function BackedBadge({
+  label,
+  tone,
+  onUndo,
+}: {
+  label: string;
+  tone: 'tail' | 'fade';
+  onUndo?: () => void;
+}) {
+  const color =
+    tone === 'tail'
+      ? 'bg-emerald-500/15 text-emerald-400'
+      : 'bg-red-400/15 text-red-400';
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-3 py-1.5 text-sm font-semibold text-emerald-400">
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-lg py-1.5 pl-3 text-sm font-semibold ${color} ${onUndo ? 'pr-1.5' : 'pr-3'}`}
+    >
       ✓ {label}
+      {onUndo && (
+        <button
+          type="button"
+          onClick={onUndo}
+          title={`Undo ${label.toLowerCase()}`}
+          aria-label={`Undo ${label.toLowerCase()}`}
+          className="rounded px-1 leading-none opacity-70 transition hover:bg-white/10 hover:opacity-100"
+        >
+          ✕
+        </button>
+      )}
     </span>
   );
 }
 
+export type BackAction = 'tail' | 'untail' | 'fade' | 'unfade';
+
 /**
  * Tail: straights, parlays and ladders open every pick straight onto the
  * book's bet slip in one link. Slips without usable links (typed-in, other
- * books) list each pick with its own add link instead.
+ * books) list each pick with its own add link instead. Fade bets against it
+ * (no link; it's on the record). One or the other: tailing drops a fade and
+ * vice versa. While the slip is open either can be undone, and "Bet again"
+ * reopens the book without counting a second tail.
  */
 function TailSection({
   post,
-  onTail,
+  onBack,
   children,
   verb = 'Tail',
+  canFade,
 }: {
   post: FeedPost;
-  onTail: (postId: string) => void;
-  /** Left side of the row (the tail count) */
+  onBack: (postId: string, action: BackAction) => void;
+  /** Left side of the row (the tail / fade counts) */
   children: React.ReactNode;
   /** Group parlays are placed, not tailed */
   verb?: 'Tail' | 'Place it';
+  canFade: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const tailed = post.bets.some((b) => b.tailedByMe);
+  const faded = post.fadedByMe;
+  // Settled slips keep their tails and fades
+  const live = post.bets.some((b) => b.result === 'PENDING');
+  const onTail = (id: string) => onBack(id, 'tail');
   const picks = tailPicks(post);
   const book = post.sportsbook.name;
   const home = BOOK_HOMEPAGES[post.sportsbook.key] ?? null;
@@ -125,40 +167,73 @@ function TailSection({
   const oneClick = picks.length === 1 ? (picks[0].link ?? home) : combined;
   const single = !!oneClick;
 
-  let control: React.ReactNode;
-  if (tailed)
-    control = <TailedBadge label={verb === 'Tail' ? 'Tailed' : 'Placed'} />;
-  else if (oneClick)
-    control = (
+  // Opens the book (or the pick list); `record` counts it as a tail
+  const tailControl = (label: string, record: boolean) =>
+    oneClick ? (
       <a
         href={oneClick}
         target="_blank"
         rel="noopener noreferrer"
-        onClick={() => onTail(post.id)}
+        onClick={() => record && onTail(post.id)}
         className={tailButtonClass}
       >
-        {verb} ↗
+        {label} ↗
       </a>
-    );
-  else
-    control = (
+    ) : (
       <button
         type="button"
         onClick={() => {
           setOpen(true);
-          onTail(post.id);
+          if (record) onTail(post.id);
         }}
         className={tailButtonClass}
       >
-        {verb}
+        {label}
       </button>
+    );
+
+  let control: React.ReactNode;
+  if (tailed)
+    control = (
+      <>
+        {live && tailControl('Bet again', false)}
+        <BackedBadge
+          label={verb === 'Tail' ? 'Tailed' : 'Placed'}
+          tone="tail"
+          onUndo={live ? () => onBack(post.id, 'untail') : undefined}
+        />
+      </>
+    );
+  else if (faded)
+    control = (
+      <BackedBadge
+        label="Faded"
+        tone="fade"
+        onUndo={live ? () => onBack(post.id, 'unfade') : undefined}
+      />
+    );
+  else
+    control = (
+      <>
+        {canFade && (
+          <button
+            type="button"
+            onClick={() => onBack(post.id, 'fade')}
+            title="Bet against it"
+            className={fadeButtonClass}
+          >
+            Fade
+          </button>
+        )}
+        {tailControl(verb, true)}
+      </>
     );
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         {children}
-        {control}
+        <div className="ml-auto flex items-center gap-2">{control}</div>
       </div>
       {/* Stays open after tailing so each pick can still be added */}
       {open && !single && (
@@ -218,7 +293,7 @@ export default function PostCard({
   currentUserId,
   onSettle,
   onDelete,
-  onTail,
+  onBack,
   onReact,
   onMoveSeries,
   groupHandlers,
@@ -227,7 +302,7 @@ export default function PostCard({
   currentUserId?: string;
   onSettle: (betId: string, result: BetResult) => void;
   onDelete: (postId: string) => void;
-  onTail: (postId: string) => void;
+  onBack: (postId: string, action: BackAction) => void;
   onReact: (postId: string, emoji: ReactionEmoji) => void;
   onMoveSeries: (postId: string, seriesId: string | null) => void;
   groupHandlers: GroupHandlers;
@@ -236,14 +311,20 @@ export default function PostCard({
   const isGroup = post.type === 'GROUP_PARLAY';
   const locked = groupLocked(post);
   const tailCount = (
-    <TailersButton
-      postId={post.id}
-      count={post.tailers.count}
-      recent={post.tailers.recent}
-    />
+    <div className="flex items-center gap-3">
+      <TailersButton
+        postId={post.id}
+        count={post.tailers.count}
+        recent={post.tailers.recent}
+      />
+      {post.fadeCount > 0 && (
+        <TailersButton postId={post.id} count={post.fadeCount} kind="fade" />
+      )}
+    </div>
   );
   const badges = slipBadges(post);
-  const celebrated = isCelebrated(badges);
+  const tier = slipTier(badges);
+  const tierStyle = tier ? TIER_STYLES[tier] : null;
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentCount, setCommentCount] = useState(post.commentCount);
   // Ticks each minute so LIVE tags come and go on their own
@@ -257,6 +338,7 @@ export default function PostCard({
   const open = post.bets.some((b) => b.result === 'PENDING');
   const canTail =
     post.bets.some((b) => b.tailedByMe) ||
+    post.fadedByMe ||
     (isGroup ? locked && open : !isAuthor && open);
   const first = post.bets[0];
   const isLadder = post.type === 'LADDER';
@@ -265,6 +347,9 @@ export default function PostCard({
 
   const rungsHit = post.bets.filter((b) => b.result === 'WON').length;
   const ladderSettled = post.bets.some((b) => b.result !== 'PENDING');
+  // Every rung grades on the same stat
+  const ladderActual =
+    post.bets.find((b) => b.legs[0].actual != null)?.legs[0].actual ?? null;
   const allSettled = post.bets.every((b) => b.result !== 'PENDING');
   const ladderRisked = post.bets.reduce((s, b) => s + b.units, 0);
   const ladderReturn = post.bets.reduce(
@@ -302,7 +387,7 @@ export default function PostCard({
       // Scroll target for the side panels (slipAnchor in lib/scrollToSlip)
       id={`slip-${post.id}`}
       className={`rounded-2xl border bg-gray-900 ${
-        celebrated ? 'border-yellow-300/50' : 'border-gray-800'
+        tierStyle?.card ?? 'border-gray-800'
       }`}
     >
       <header className="flex items-center gap-3 px-4 pt-4">
@@ -362,10 +447,10 @@ export default function PostCard({
 
       <div
         className={`m-4 overflow-hidden rounded-xl border ${
-          celebrated ? 'border-yellow-300/40' : 'border-gray-800'
+          tierStyle?.slip ?? 'border-gray-800'
         }`}
       >
-        <WinBanner badges={badges} />
+        <WinBanner badges={badges} ladder={post.type === 'LADDER'} />
         {isGroup ? (
           <GroupSlip post={post} handlers={groupHandlers} />
         ) : (
@@ -373,7 +458,7 @@ export default function PostCard({
             {/* Title bar */}
             <div className="flex items-start justify-between gap-3 border-b border-gray-800 px-4 py-3">
               <div className="min-w-0">
-                {isStraight ? (
+                {isStraight && (
                   // A single pick is the slip's headline, like a book's bet receipt
                   <>
                     <p className="text-lg font-bold leading-tight">
@@ -386,7 +471,32 @@ export default function PostCard({
                       {pick.eventLabel}
                     </p>
                   </>
-                ) : (
+                )}
+                {isLadder && (
+                  // The pick every rung climbs on is the headline
+                  <>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                      {slipTitle(post)}
+                    </p>
+                    <p className="mt-0.5 text-lg font-bold leading-tight">
+                      {pick.playerName ?? pick.selection}{' '}
+                      <span className="font-semibold text-gray-400">
+                        {pick.playerName
+                          ? pick.marketLabel
+                          : legText(pick).market}
+                      </span>
+                    </p>
+                    {ladderActual != null && (
+                      <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        Final {ladderActual}
+                      </p>
+                    )}
+                    <p className="mt-1.5 text-xs text-emerald-400">
+                      {pick.eventLabel}
+                    </p>
+                  </>
+                )}
+                {!isStraight && !isLadder && (
                   <p className="text-lg font-bold leading-tight">
                     {slipTitle(post)}
                   </p>
@@ -418,21 +528,6 @@ export default function PostCard({
 
             {isLadder ? (
               <>
-                <div className="border-b border-gray-800 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                    {withFinal(
-                      pick.playerName
-                        ? `${pick.playerName} - ${pick.marketLabel}`
-                        : legText(pick).market,
-                      // Every rung grades on the same stat
-                      post.bets.find((b) => b.legs[0].actual != null)?.legs[0]
-                        .actual ?? null
-                    )}
-                  </p>
-                  <p className="mt-1 text-xs text-emerald-400">
-                    {pick.eventLabel}
-                  </p>
-                </div>
                 <ol>
                   {rungList.visible.map((bet, i) => {
                     const leg = bet.legs[0];
@@ -551,8 +646,9 @@ export default function PostCard({
         ) : canTail ? (
           <TailSection
             post={post}
-            onTail={onTail}
+            onBack={onBack}
             verb={isGroup ? 'Place it' : 'Tail'}
+            canFade={!isGroup && !isAuthor}
           >
             {tailCount}
           </TailSection>

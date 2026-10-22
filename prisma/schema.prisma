@@ -44,6 +44,7 @@ model User {
 
   posts        Post[]
   tails        Tail[]
+  fades        Fade[]
   comments     Comment[]
   reactions    Reaction[]
   commentVotes CommentVote[]
@@ -159,6 +160,7 @@ model Post {
   bets       Bet[]
   comments   Comment[]
   reactions  Reaction[]
+  fades      Fade[]
 
   @@index([createdAt])
   @@index([authorId, createdAt])
@@ -182,16 +184,16 @@ model Series {
 
 /// A single slip. Straight/parlay posts have one; ladder posts have one per rung.
 model Bet {
-  id           String    @id @default(cuid())
+  id           String       @id @default(cuid())
   postId       String
   /// Ladder rung position (0 for straight/parlay)
-  order        Int       @default(0)
-  units        Decimal   @db.Decimal(6, 2)
+  order        Int          @default(0)
+  units        Decimal      @db.Decimal(6, 2)
   /// Total odds as shown on the book's slip (may differ from multiplied legs for same-game parlays)
   americanOdds Int
   /// Used for "$10 pays $X" = 10 * decimalOdds
-  decimalOdds  Decimal   @db.Decimal(12, 4)
-  result       BetResult @default(PENDING)
+  decimalOdds  Decimal      @db.Decimal(12, 4)
+  result       BetResult    @default(PENDING)
   settledAt    DateTime?
   gradedBy     GradeSource?
   /// Betslip deep link covering the whole bet, when the book supports multi-leg links
@@ -205,9 +207,9 @@ model Bet {
 }
 
 model BetLeg {
-  id              String    @id @default(cuid())
+  id              String       @id @default(cuid())
   betId           String
-  order           Int       @default(0)
+  order           Int          @default(0)
   sportKey        String
   eventId         String?
   /// Display matchup, e.g. "Chiefs @ Bills" (always set, so manual legs need no Event row)
@@ -221,17 +223,17 @@ model BetLeg {
   playerId        String?
   playerName      String?
   /// Point/line, e.g. -3.5 or 1.5
-  line            Decimal?  @db.Decimal(8, 2)
+  line            Decimal?     @db.Decimal(8, 2)
   americanOdds    Int
-  result          BetResult @default(PENDING)
+  result          BetResult    @default(PENDING)
   gradedBy        GradeSource?
   /// The player stat a prop was graded on (e.g. 212 passing yards)
-  actual          Decimal?  @db.Decimal(8, 2)
+  actual          Decimal?     @db.Decimal(8, 2)
   /// Book's selection id + single-leg deep link from The Odds API (includeSids / includeLinks)
   bookSelectionId String?
   deepLink        String?
   /// Group parlays: whose leg this is (one per person per parlay)
-  addedById       String?   @db.Uuid
+  addedById       String?      @db.Uuid
 
   bet     Bet     @relation(fields: [betId], references: [id], onDelete: Cascade)
   event   Event?  @relation(fields: [eventId], references: [id])
@@ -258,6 +260,20 @@ model Tail {
 
   @@unique([userId, betId])
   @@index([betId])
+}
+
+/// Betting against a slip. One per person per slip, and never alongside a tail
+model Fade {
+  id        String   @id @default(cuid())
+  userId    String   @db.Uuid
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
 }
 
 model Comment {

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Request, Response, Router } from 'express';
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client';
 import prisma from '../db';
@@ -356,45 +356,124 @@ router.patch<{ betId: string }>(
 );
 
 /**
+ * A live slip the viewer can tail / fade: not settled, and for group parlays
+ * locked. Sends the error and returns null otherwise. Tailing your own slip
+ * isn't allowed (placing your own group parlay is); fading never is, and
+ * group parlays can't be faded.
+ */
+async function backable(
+  req: Request<{ postId: string }>,
+  res: Response,
+  kind: 'tail' | 'fade'
+) {
+  const viewerId = req.user!.id;
+  const post = await prisma.post.findFirst({
+    where: { id: req.params.postId, deletedAt: null },
+    select: {
+      id: true,
+      authorId: true,
+      type: true,
+      lockAt: true,
+      lockedAt: true,
+      bets: { select: { id: true, result: true } },
+    },
+  });
+  if (!post) {
+    res.status(404).json({ error: 'Post not found' });
+    return null;
+  }
+  // Settled slips keep their tails and fades on the record
+  if (!post.bets.some((b) => b.result === 'PENDING')) {
+    res.status(400).json({ error: 'This slip is already settled' });
+    return null;
+  }
+  if (post.type === 'GROUP_PARLAY') {
+    if (kind === 'fade') {
+      res.status(400).json({ error: "Group parlays can't be faded" });
+      return null;
+    }
+    if (!isGroupLocked({ lockAt: post.lockAt!, lockedAt: post.lockedAt })) {
+      res.status(400).json({ error: 'This group parlay is still taking legs' });
+      return null;
+    }
+  } else if (post.authorId === viewerId) {
+    res.status(400).json({ error: `You can't ${kind} your own slip` });
+    return null;
+  }
+  return post;
+}
+
+/**
  * Tail a slip: records a tail on every bet in the post (each ladder rung is its
- * own bet). Free users can tail. Repeat tails are no-ops. A group parlay can
- * be placed by anyone, its creator included, once it's locked.
+ * own bet) and drops the viewer's fade, since you can't do both. Free users
+ * can tail. Repeat tails are no-ops, so "Bet again" never double counts.
  */
 router.post<{ postId: string }>(
   '/:postId/tail',
   requireAuth,
   async (req, res) => {
     const viewerId = req.user!.id;
-    const post = await prisma.post.findFirst({
-      where: { id: req.params.postId, deletedAt: null },
-      select: {
-        authorId: true,
-        type: true,
-        lockAt: true,
-        lockedAt: true,
-        bets: { select: { id: true } },
-      },
+    const post = await backable(req, res, 'tail');
+    if (!post) return;
+    await prisma.$transaction([
+      prisma.fade.deleteMany({ where: { postId: post.id, userId: viewerId } }),
+      prisma.tail.createMany({
+        data: post.bets.map((b) => ({ userId: viewerId, betId: b.id })),
+        skipDuplicates: true,
+      }),
+    ]);
+    res.json(await loadFeedPost(post.id, viewerId));
+  }
+);
+
+/** Untail, while the slip is still open */
+router.delete<{ postId: string }>(
+  '/:postId/tail',
+  requireAuth,
+  async (req, res) => {
+    const viewerId = req.user!.id;
+    const post = await backable(req, res, 'tail');
+    if (!post) return;
+    await prisma.tail.deleteMany({
+      where: { userId: viewerId, bet: { postId: post.id } },
     });
-    if (!post) {
-      res.status(404).json({ error: 'Post not found' });
-      return;
-    }
-    if (post.type === 'GROUP_PARLAY') {
-      if (!isGroupLocked({ lockAt: post.lockAt!, lockedAt: post.lockedAt })) {
-        res
-          .status(400)
-          .json({ error: 'This group parlay is still taking legs' });
-        return;
-      }
-    } else if (post.authorId === viewerId) {
-      res.status(400).json({ error: "You can't tail your own slip" });
-      return;
-    }
-    await prisma.tail.createMany({
-      data: post.bets.map((b) => ({ userId: viewerId, betId: b.id })),
-      skipDuplicates: true,
+    res.json(await loadFeedPost(post.id, viewerId));
+  }
+);
+
+/** Fade a slip (bet against it); drops the viewer's tail */
+router.post<{ postId: string }>(
+  '/:postId/fade',
+  requireAuth,
+  async (req, res) => {
+    const viewerId = req.user!.id;
+    const post = await backable(req, res, 'fade');
+    if (!post) return;
+    await prisma.$transaction([
+      prisma.tail.deleteMany({
+        where: { userId: viewerId, bet: { postId: post.id } },
+      }),
+      prisma.fade.createMany({
+        data: [{ userId: viewerId, postId: post.id }],
+        skipDuplicates: true,
+      }),
+    ]);
+    res.json(await loadFeedPost(post.id, viewerId));
+  }
+);
+
+/** Unfade, while the slip is still open */
+router.delete<{ postId: string }>(
+  '/:postId/fade',
+  requireAuth,
+  async (req, res) => {
+    const viewerId = req.user!.id;
+    const post = await backable(req, res, 'fade');
+    if (!post) return;
+    await prisma.fade.deleteMany({
+      where: { userId: viewerId, postId: post.id },
     });
-    res.json(await loadFeedPost(req.params.postId, viewerId));
+    res.json(await loadFeedPost(post.id, viewerId));
   }
 );
 

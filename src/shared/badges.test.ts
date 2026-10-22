@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isHot, slipBadges } from './badges';
+import { isHot, slipBadges, slipTier, tierFor } from './badges';
 import type { BetResult, FeedBet, FeedPost } from './posts';
 
 function post(
@@ -24,13 +24,15 @@ function post(
     series: null,
     commentCount: 0,
     tailers: { count: 0, recent: [] },
+    fadeCount: 0,
+    fadedByMe: false,
     bets: bets.map(
       (b, i): FeedBet => ({
         id: `b${i}`,
         order: i,
         units: 1,
         americanOdds: b.odds ?? -110,
-        decimalOdds: 1.91,
+        decimalOdds: 2,
         result: b.result,
         deepLink: null,
         tailCount: b.tails ?? 0,
@@ -53,14 +55,14 @@ describe('isHot', () => {
 });
 
 describe('slipBadges', () => {
-  it('flags long-shot wins only once they hit', () => {
+  it('flags wins at +200 or longer only once they hit', () => {
     expect(slipBadges(post('PARLAY', [{ result: 'WON', odds: 650 }]))).toEqual([
-      { kind: 'BIG_WIN', odds: 650 },
+      { kind: 'WIN', tier: 2, odds: 650, decimal: 2 },
     ]);
     expect(kinds(post('PARLAY', [{ result: 'PENDING', odds: 650 }]))).toEqual(
       []
     );
-    expect(kinds(post('STRAIGHT', [{ result: 'WON', odds: 300 }]))).toEqual([]);
+    expect(kinds(post('STRAIGHT', [{ result: 'WON', odds: 150 }]))).toEqual([]);
   });
 
   it('uses the longest winning rung on a ladder', () => {
@@ -69,7 +71,9 @@ describe('slipBadges', () => {
       { result: 'WON', odds: 500 },
       { result: 'LOST', odds: 900 },
     ]);
-    expect(slipBadges(ladder)).toEqual([{ kind: 'BIG_WIN', odds: 500 }]);
+    expect(slipBadges(ladder)).toEqual([
+      { kind: 'WIN', tier: 2, odds: 500, decimal: 2 },
+    ]);
   });
 
   it('marks a clean ladder sweep, ignoring voided rungs', () => {
@@ -94,5 +98,31 @@ describe('slipBadges', () => {
     expect(kinds(post('STRAIGHT', [{ result: 'PENDING', tails: 2 }]))).toEqual(
       []
     );
+  });
+});
+
+describe('win tiers', () => {
+  it('steps up at +200, +400, +900 and +2400', () => {
+    expect(tierFor(199)).toBeNull();
+    expect(tierFor(200)).toBe(1);
+    expect(tierFor(399)).toBe(1);
+    expect(tierFor(400)).toBe(2);
+    expect(tierFor(900)).toBe(3);
+    expect(tierFor(2400)).toBe(4);
+    expect(tierFor(15000)).toBe(4);
+  });
+
+  it('lifts a clean ladder sweep to at least Cashed', () => {
+    const sweep = post('LADDER', [
+      { result: 'WON', odds: -200 },
+      { result: 'WON', odds: 120 },
+    ]);
+    expect(slipTier(slipBadges(sweep))).toBe(2);
+    const bigSweep = post('LADDER', [
+      { result: 'WON', odds: 300 },
+      { result: 'WON', odds: 1000 },
+    ]);
+    expect(slipTier(slipBadges(bigSweep))).toBe(3);
+    expect(slipTier([])).toBeNull();
   });
 });

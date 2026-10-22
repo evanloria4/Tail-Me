@@ -55,6 +55,28 @@ router.get<{ postId: string }>(
   }
 );
 
+/** Who faded a slip, most recent first */
+router.get<{ postId: string }>(
+  '/posts/:postId/fades',
+  requireAuth,
+  async (req, res) => {
+    if (!(await livePost(req.params.postId))) {
+      res.status(404).json({ error: 'Post not found' });
+      return;
+    }
+    const fades = await prisma.fade.findMany({
+      where: { postId: req.params.postId },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true, user: { select: personSelect } },
+    });
+    const faders: Tailer[] = fades.map((f) => ({
+      ...f.user,
+      tailedAt: f.createdAt.toISOString(),
+    }));
+    res.json(faders);
+  }
+);
+
 /** Toggle one of the viewer's reactions; returns the slip's new totals */
 router.post<{ postId: string }>(
   '/posts/:postId/reactions',

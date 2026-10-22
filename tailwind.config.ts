@@ -26,8 +26,15 @@ module.exports = {
         yellow: scale('yellow', [300]),
         // Hot streaks
         orange: scale('orange', [400]),
+        // Win tiers 3 and 4 (shared/badges.ts)
+        violet: scale('violet', [400]),
+        pink: scale('pink', [400]),
       },
       keyframes: {
+        shimmer: {
+          from: { backgroundPosition: '0% 50%' },
+          to: { backgroundPosition: '200% 50%' },
+        },
         'toast-in': {
           from: { opacity: '0', transform: 'translateY(0.75rem)' },
           to: { opacity: '1', transform: 'translateY(0)' },
@@ -35,6 +42,7 @@ module.exports = {
       },
       animation: {
         'toast-in': 'toast-in 200ms ease-out',
+        shimmer: 'shimmer 6s linear infinite',
       },
     },
   },

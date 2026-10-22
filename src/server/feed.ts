@@ -46,6 +46,7 @@ export const feedInclude = {
     },
   },
   reactions: { select: { emoji: true, userId: true } },
+  fades: { select: { userId: true } },
   _count: { select: { comments: { where: { deletedAt: null } } } },
 } satisfies Prisma.PostInclude;
 
@@ -130,6 +131,8 @@ function toFeedPost(
     reactions: reactionSummary(post.reactions, viewerId),
     commentCount: post._count.comments,
     tailers: tailersOf(post),
+    fadeCount: post.fades.length,
+    fadedByMe: post.fades.some((f) => f.userId === viewerId),
     series: post.series,
     group:
       post.type === 'GROUP_PARLAY' && post.lockAt

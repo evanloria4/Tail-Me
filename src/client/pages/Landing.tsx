@@ -100,7 +100,7 @@ function HeroSlip() {
       <p className="px-4 pt-3 text-gray-200">Told you. Pay the man.</p>
       <div className="m-4 overflow-hidden rounded-xl border border-yellow-300/40">
         <div className="border-b border-yellow-300/30 bg-yellow-300/10 px-4 py-2 text-sm font-bold text-yellow-300">
-          💰 Cashed at +757
+          💰 Cashed · +757 · $10 paid $86
         </div>
         <div className="flex items-start justify-between gap-3 border-b border-gray-800 px-4 py-3">
           <div>

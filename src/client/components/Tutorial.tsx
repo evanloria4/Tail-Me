@@ -63,7 +63,7 @@ const STEPS: Step[] = [
   {
     icon: '🎯',
     title: 'Tail your friends',
-    body: 'One click on Tail opens FanDuel with their whole bet on your slip, even parlays and same-game parlays. No rebuilding it leg by leg.',
+    body: 'One click on Tail opens FanDuel with their whole bet on your slip, even parlays and same-game parlays. No rebuilding it leg by leg. Don’t trust it? Hit Fade to bet against them.',
     visual: (
       <div className="flex items-stretch gap-2">
         <div className={`${mockCard} flex flex-1 flex-col justify-between`}>
