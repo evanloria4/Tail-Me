@@ -2,10 +2,38 @@ import { z } from 'zod';
 
 // Reactions, comments and tailers on a slip, shared by client and server
 
-/** The fixed reaction set; the order is how they show on a slip */
-export const REACTION_EMOJIS = ['🔥', '🔒', '💰', '😬', '🤡'] as const;
+/**
+ * The fixed reaction set; the order is how they show on a slip and in the
+ * picker (5 per row: love it, sweating it, clowning it). Stored as text, so
+ * adding one needs no migration; never drop one that's been used.
+ */
+// prettier-ignore
+export const REACTION_EMOJIS = [
+  '🔥', '🔒', '💰', '🐐', '❤️',
+  '🙏', '🍀', '😬', '👀', '🧊',
+  '🤡', '💀', '😭', '🤣', '🗑️',
+] as const;
 
 export type ReactionEmoji = (typeof REACTION_EMOJIS)[number];
+
+/** Tooltip / screen reader name for each reaction */
+export const REACTION_LABELS: Record<ReactionEmoji, string> = {
+  '🔥': 'Fire',
+  '🔒': 'Lock',
+  '💰': 'Money',
+  '🐐': 'GOAT',
+  '❤️': 'Love it',
+  '🙏': 'Praying',
+  '🍀': 'Lucky',
+  '😬': 'Sweating',
+  '👀': 'Watching',
+  '🧊': 'Ice cold',
+  '🤡': 'Clown',
+  '💀': 'Dead',
+  '😭': 'Crying',
+  '🤣': 'LMAO',
+  '🗑️': 'Trash',
+};
 
 export const isReactionEmoji = (v: unknown): v is ReactionEmoji =>
   typeof v === 'string' && (REACTION_EMOJIS as readonly string[]).includes(v);

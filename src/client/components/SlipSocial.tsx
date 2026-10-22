@@ -7,7 +7,11 @@ import UserAvatar from './UserAvatar';
 import { formatAmerican, payout } from '../../shared/odds';
 import { isHot, slipTier, WIN_TIERS } from '../../shared/badges';
 import type { SlipBadge, WinTier } from '../../shared/badges';
-import { COMMENT_MAX, REACTION_EMOJIS } from '../../shared/social';
+import {
+  COMMENT_MAX,
+  REACTION_EMOJIS,
+  REACTION_LABELS,
+} from '../../shared/social';
 import type {
   FeedComment,
   PersonRef,
@@ -258,67 +262,72 @@ export function ReactionBar({
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(picking, () => setPicking(false), ref);
 
+  // The picker anchors to the whole bar, not the + button, so it stays on
+  // screen however many chips sit before it
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div ref={ref} className="relative flex flex-wrap items-center gap-1.5">
       {reactions.map((r) => (
         <button
           key={r.emoji}
           type="button"
           onClick={() => onReact(r.emoji)}
           aria-pressed={r.mine}
-          aria-label={`${r.emoji} ${r.count}`}
+          aria-label={`${REACTION_LABELS[r.emoji]} ${r.count}`}
+          title={REACTION_LABELS[r.emoji]}
           className={chipClass(r.mine)}
         >
           <span aria-hidden="true">{r.emoji}</span>
           <span className="text-xs font-semibold">{r.count}</span>
         </button>
       ))}
-      <div ref={ref} className="relative">
-        <button
-          type="button"
-          onClick={() => setPicking((p) => !p)}
-          aria-expanded={picking}
-          aria-label="Add reaction"
-          title="React"
-          className={chipClass(false)}
+      <button
+        type="button"
+        onClick={() => setPicking((p) => !p)}
+        aria-expanded={picking}
+        aria-label="Add reaction"
+        title="React"
+        className={chipClass(false)}
+      >
+        <svg
+          viewBox="0 0 20 20"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.6}
+          strokeLinecap="round"
+          aria-hidden="true"
         >
-          <svg
-            viewBox="0 0 20 20"
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.6}
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <circle cx="9" cy="10" r="6.5" />
-            <path d="M6.5 11.8c.7.9 1.5 1.3 2.5 1.3s1.8-.4 2.5-1.3M7 8h.01M11 8h.01M16 2.5v4M14 4.5h4" />
-          </svg>
-        </button>
-        {picking && (
-          <div className="absolute bottom-full left-0 z-10 mb-2 flex gap-1 rounded-full border border-gray-800 bg-gray-900 p-1 shadow-xl">
-            {REACTION_EMOJIS.map((emoji) => {
-              const mine = reactions.some((r) => r.emoji === emoji && r.mine);
-              return (
-                <button
-                  key={emoji}
-                  type="button"
-                  aria-pressed={mine}
-                  onClick={() => {
-                    onReact(emoji);
-                    setPicking(false);
-                  }}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xl transition hover:scale-110 hover:bg-gray-800 ${
-                    mine ? 'bg-emerald-500/15' : ''
-                  }`}
-                >
-                  {emoji}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+          <circle cx="9" cy="10" r="6.5" />
+          <path d="M6.5 11.8c.7.9 1.5 1.3 2.5 1.3s1.8-.4 2.5-1.3M7 8h.01M11 8h.01M16 2.5v4M14 4.5h4" />
+        </svg>
+      </button>
+      {picking && (
+        // Fixed 40px columns (w-max), or it shrinks to the narrow bar it anchors
+        // to. 5 x 40px + gaps + padding = 232px, fits the smallest phones.
+        <div className="absolute bottom-full left-0 z-10 mb-2 grid w-max grid-cols-[repeat(5,2.5rem)] gap-1 rounded-2xl border border-gray-800 bg-gray-900 p-2 shadow-xl">
+          {REACTION_EMOJIS.map((emoji) => {
+            const mine = reactions.some((r) => r.emoji === emoji && r.mine);
+            return (
+              <button
+                key={emoji}
+                type="button"
+                aria-pressed={mine}
+                aria-label={REACTION_LABELS[emoji]}
+                title={REACTION_LABELS[emoji]}
+                onClick={() => {
+                  onReact(emoji);
+                  setPicking(false);
+                }}
+                className={`flex h-10 w-10 items-center justify-center rounded-xl text-xl transition hover:scale-110 hover:bg-gray-800 ${
+                  mine ? 'bg-emerald-500/15' : ''
+                }`}
+              >
+                {emoji}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
