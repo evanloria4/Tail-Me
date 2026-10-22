@@ -350,14 +350,15 @@ function AltLadder({
 
 /**
  * One market (Receiving Yards, Alt Spreads…) as a section that opens on
- * click. Every one starts closed so a long props tab scans as a list; a
- * closed one still says how many picks it holds.
+ * click. They start closed so a long props tab scans as a list (unless it's
+ * the tab's only one); a closed one still says how many picks it holds.
  */
 function MarketSection({
   label,
   count,
   noun,
   picked,
+  defaultOpen = false,
   children,
 }: {
   label: string;
@@ -365,9 +366,11 @@ function MarketSection({
   count: number;
   noun: string;
   picked: number;
+  /** Starts expanded, e.g. when it's the only section in its tab */
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <section className="border-b border-gray-800 last:border-b-0">
       <button
@@ -448,6 +451,10 @@ function PropsPanel({
       </Notice>
     );
   }
+  // A tab with one section (e.g. Anytime TD) opens it; with more, all start
+  // closed so the list is quick to scan
+  const onlySection =
+    category.markets.filter((m) => markets[m.key]?.length).length === 1;
 
   if (category.game) {
     // Alternate spreads / totals
@@ -466,6 +473,7 @@ function PropsPanel({
               label={m.label}
               count={outcomes.length}
               noun="lines"
+              defaultOpen={onlySection}
               picked={outcomes.filter((o) => isPicked(game, m.key, o)).length}
             >
               <div className="space-y-3">
@@ -517,6 +525,7 @@ function PropsPanel({
             label={m.label}
             count={rows.length}
             noun={rows.length === 1 ? 'player' : 'players'}
+            defaultOpen={onlySection}
             picked={outcomes.filter((o) => isPicked(game, m.key, o)).length}
           >
             <ul className="-mt-2 divide-y divide-gray-800">
