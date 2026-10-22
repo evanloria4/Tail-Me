@@ -180,7 +180,7 @@ export default function SlipMenu({
               {series && (
                 <ul className="max-h-64 overflow-y-auto border-t border-gray-800">
                   {[
-                    { id: null as string | null, name: 'No series' },
+                    { id: null as string | null, name: 'No series', emoji: '' },
                     ...series,
                   ].map((s) => {
                     const current = (post.series?.id ?? null) === s.id;
@@ -194,7 +194,7 @@ export default function SlipMenu({
                           className={`${itemClass} ${current ? 'text-emerald-400' : ''}`}
                         >
                           <span className="min-w-0 flex-1 truncate">
-                            {s.id ? `📚 ${s.name}` : s.name}
+                            {s.emoji ? `${s.emoji} ${s.name}` : s.name}
                           </span>
                           {current && <span aria-hidden="true">✓</span>}
                         </button>

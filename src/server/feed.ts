@@ -10,7 +10,7 @@ export const feedInclude = {
     select: { id: true, username: true, fullName: true, avatarUrl: true },
   },
   sportsbook: { select: { key: true, name: true } },
-  series: { select: { id: true, name: true } },
+  series: { select: { id: true, name: true, emoji: true, color: true } },
   bets: {
     orderBy: { order: 'asc' },
     include: {

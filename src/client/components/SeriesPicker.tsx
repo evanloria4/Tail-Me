@@ -116,7 +116,7 @@ export default function SeriesPicker({
         <option value="">No series</option>
         {series?.map((s) => (
           <option key={s.id} value={s.id}>
-            📚 {s.name}
+            {s.emoji} {s.name}
           </option>
         ))}
         <option value={NEW}>+ New series…</option>

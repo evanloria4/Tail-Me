@@ -11,6 +11,7 @@ import {
 } from '../../shared/odds';
 import {
   BetResult,
+  canBeFaded,
   createPostSchema,
   CreatePostInput,
   DELETE_GRACE_MINUTES,
@@ -375,7 +376,13 @@ async function backable(
       type: true,
       lockAt: true,
       lockedAt: true,
-      bets: { select: { id: true, result: true } },
+      bets: {
+        select: {
+          id: true,
+          result: true,
+          legs: { select: { marketKey: true } },
+        },
+      },
     },
   });
   if (!post) {
@@ -449,6 +456,18 @@ router.post<{ postId: string }>(
     const viewerId = req.user!.id;
     const post = await backable(req, res, 'fade');
     if (!post) return;
+    // Checked here, not in backable, so older fades can still be undone
+    if (
+      !canBeFaded(
+        post.type,
+        post.bets.flatMap((b) => b.legs)
+      )
+    ) {
+      res
+        .status(400)
+        .json({ error: 'Only straight bets with two sides can be faded' });
+      return;
+    }
     await prisma.$transaction([
       prisma.tail.deleteMany({
         where: { userId: viewerId, bet: { postId: post.id } },

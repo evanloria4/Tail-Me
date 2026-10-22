@@ -19,6 +19,7 @@ import SeriesPanel from '../components/SeriesPanel';
 import StatTile from '../components/StatTile';
 import { SERIES_DESCRIPTION_MAX, SERIES_NAME_MAX } from '../../shared/series';
 import type { SeriesPage } from '../../shared/series';
+import { SeriesBadge, SeriesCoverPicker } from '../components/SeriesCover';
 import { inSiteZone } from '../../shared/time';
 
 // One series: its record and its slips. The page a future Subscribe button
@@ -38,6 +39,10 @@ function EditSeries({
 }) {
   const [name, setName] = useState(series.name);
   const [description, setDescription] = useState(series.description ?? '');
+  const [cover, setCover] = useState({
+    emoji: series.emoji,
+    color: series.color,
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +50,7 @@ function EditSeries({
     e.preventDefault();
     setSaving(true);
     try {
-      await api.patch(`/series/${series.id}`, { name, description });
+      await api.patch(`/series/${series.id}`, { name, description, ...cover });
       onSaved();
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save'));
@@ -77,6 +82,16 @@ function EditSeries({
           className={`${inputClass} resize-none`}
         />
       </label>
+      <div className="text-sm">
+        <span className="mb-1 block text-gray-400">Cover</span>
+        <div className="max-w-xs">
+          <SeriesCoverPicker
+            emoji={cover.emoji}
+            color={cover.color}
+            onChange={setCover}
+          />
+        </div>
+      </div>
       {error && <p className="text-sm text-red-400">{error}</p>}
       <div className="flex gap-2">
         <button
@@ -179,12 +194,11 @@ export default function Series() {
       <div className="space-y-5 lg:col-start-1 lg:row-start-1 xl:col-start-2">
         <section className="rounded-2xl border border-gray-800 bg-gray-900 p-4">
           <div className="flex items-start gap-4">
-            <span
-              aria-hidden="true"
-              className="flex h-14 w-14 flex-none items-center justify-center rounded-2xl bg-emerald-500/15 text-3xl"
-            >
-              📚
-            </span>
+            <SeriesBadge
+              emoji={series.emoji}
+              color={series.color}
+              className="h-14 w-14 rounded-2xl text-3xl"
+            />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-2xl font-extrabold leading-tight">
                 {series.name}

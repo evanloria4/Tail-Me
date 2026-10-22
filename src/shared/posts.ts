@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { decimalToAmerican, isValidAmerican, parlayDecimal } from './odds';
+import { isOneSidedMarket } from './markets';
 import type { SeriesRef } from './series';
 import type { PersonRef, ReactionSummary } from './social';
 import type { Streak } from './stats';
@@ -307,4 +308,17 @@ export function deleteRule(
   if (!post.bets.some((b) => b.result === 'PENDING')) return 'hide';
   const age = now.getTime() - new Date(post.createdAt).getTime();
   return age < DELETE_GRACE_MINUTES * 60_000 ? 'remove' : 'blocked';
+}
+
+/**
+ * Fade (betting against a slip) is for straight bets with a real other side:
+ * not parlays, ladders or group parlays, and not one-sided scorer props.
+ */
+export function canBeFaded(
+  type: FeedPost['type'],
+  legs: { marketKey: string }[]
+): boolean {
+  return (
+    type === 'STRAIGHT' && !legs.some((l) => isOneSidedMarket(l.marketKey))
+  );
 }

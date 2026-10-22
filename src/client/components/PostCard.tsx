@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatAmerican, formatMoney } from '../../shared/odds';
-import { BetResult, FeedPost } from '../../shared/posts';
+import { BetResult, canBeFaded, FeedPost } from '../../shared/posts';
 import timeAgo from '../lib/time';
 import combinedSlipLink from '../../shared/betslip';
 import useNow from '../lib/useNow';
@@ -40,6 +40,7 @@ import {
   groupLocked,
   GroupSlip,
 } from './GroupParlay';
+import { SeriesBadge } from './SeriesCover';
 import SlipMenu from './SlipMenu';
 import UserAvatar from './UserAvatar';
 
@@ -432,9 +433,14 @@ export default function PostCard({
         <div className="px-4 pt-3">
           <Link
             to={`/u/${post.author.username}/s/${post.series.id}`}
-            className="inline-flex items-center gap-1 rounded-full border border-gray-700 px-2.5 py-0.5 text-xs font-semibold text-gray-300 transition hover:border-emerald-500 hover:text-emerald-400"
+            className="inline-flex items-center gap-1.5 rounded-full border border-gray-700 py-0.5 pl-0.5 pr-2.5 text-xs font-semibold text-gray-300 transition hover:border-emerald-500 hover:text-emerald-400"
           >
-            📚 {post.series.name}
+            <SeriesBadge
+              emoji={post.series.emoji}
+              color={post.series.color}
+              className="h-5 w-5 rounded-full text-[11px]"
+            />
+            {post.series.name}
           </Link>
         </div>
       )}
@@ -648,7 +654,7 @@ export default function PostCard({
             post={post}
             onBack={onBack}
             verb={isGroup ? 'Place it' : 'Tail'}
-            canFade={!isGroup && !isAuthor}
+            canFade={!isAuthor && canBeFaded(post.type, first.legs)}
           >
             {tailCount}
           </TailSection>

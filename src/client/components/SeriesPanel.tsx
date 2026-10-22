@@ -2,8 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api, { apiErrorMessage } from '../lib/api';
 import { netColor, record, settledCount, signedUnits } from '../lib/statFormat';
-import { SERIES_NAME_MAX, SERIES_DESCRIPTION_MAX } from '../../shared/series';
+import {
+  DEFAULT_SERIES_COLOR,
+  DEFAULT_SERIES_EMOJI,
+  SERIES_DESCRIPTION_MAX,
+  SERIES_NAME_MAX,
+} from '../../shared/series';
 import type { SeriesSummary } from '../../shared/series';
+import { SeriesBadge, SeriesCoverPicker } from './SeriesCover';
 
 // A person's series as a side-column panel: one row each (name, record,
 // units), linking to the series page. The owner can start a new one here.
@@ -20,6 +26,10 @@ function NewSeriesForm({
 }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [cover, setCover] = useState({
+    emoji: DEFAULT_SERIES_EMOJI,
+    color: DEFAULT_SERIES_COLOR as string,
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,6 +40,7 @@ function NewSeriesForm({
       const { data } = await api.post<SeriesSummary>('/series', {
         name,
         description: description || undefined,
+        ...cover,
       });
       onCreated(data);
     } catch (err) {
@@ -40,17 +51,24 @@ function NewSeriesForm({
 
   return (
     <form onSubmit={save} className="space-y-2 py-2">
-      <input
-        aria-label="Series name"
-        // eslint-disable-next-line jsx-a11y/no-autofocus
-        autoFocus
-        required
-        maxLength={SERIES_NAME_MAX}
-        placeholder="Name, e.g. CharLadder"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        className={inputClass}
-      />
+      <div className="flex items-center gap-2">
+        <SeriesBadge
+          emoji={cover.emoji}
+          color={cover.color}
+          className="h-8 w-8 rounded-lg text-lg"
+        />
+        <input
+          aria-label="Series name"
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+          required
+          maxLength={SERIES_NAME_MAX}
+          placeholder="Name, e.g. CharLadder"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className={inputClass}
+        />
+      </div>
       <input
         aria-label="Series description"
         maxLength={SERIES_DESCRIPTION_MAX}
@@ -58,6 +76,11 @@ function NewSeriesForm({
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         className={inputClass}
+      />
+      <SeriesCoverPicker
+        emoji={cover.emoji}
+        color={cover.color}
+        onChange={setCover}
       />
       {error && <p className="text-xs text-red-400">{error}</p>}
       <div className="flex gap-2">
@@ -153,7 +176,7 @@ export default function SeriesPanel({
                   current ? 'bg-emerald-500/10' : ''
                 }`}
               >
-                <span aria-hidden="true">📚</span>
+                <SeriesBadge emoji={s.emoji} color={s.color} />
                 <span className="min-w-0 flex-1">
                   <span
                     className={`block truncate font-medium ${current ? 'text-emerald-400' : ''}`}

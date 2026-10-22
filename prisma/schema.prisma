@@ -173,6 +173,9 @@ model Series {
   ownerId     String   @db.Uuid
   name        String
   description String?
+  /// Cover: one of SERIES_EMOJIS on a SERIES_COLORS background (shared/series.ts)
+  emoji       String   @default("📚")
+  color       String   @default("emerald")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

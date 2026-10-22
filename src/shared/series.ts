@@ -9,7 +9,34 @@ import type { StatLine, Streak } from './stats';
 export const SERIES_NAME_MAX = 40;
 export const SERIES_DESCRIPTION_MAX = 160;
 
+/** Cover emojis a series can pick from, in picker order (6 per row) */
+// prettier-ignore
+export const SERIES_EMOJIS = [
+  '📚', '🏈', '🏒', '🏀', '⚾', '🎯',
+  '🪜', '💰', '💵', '💎', '🔥', '🚀',
+  '🍀', '🎲', '🃏', '👑', '🐐', '🦈',
+  '🐺', '⚡', '🌙', '🧪', '🍔', '🍺',
+] as const;
+
+/** Cover background colors, as keys the client maps to theme classes */
+export const SERIES_COLORS = [
+  'emerald',
+  'sky',
+  'violet',
+  'pink',
+  'red',
+  'orange',
+  'yellow',
+  'gray',
+] as const;
+export type SeriesColor = (typeof SERIES_COLORS)[number];
+
+export const DEFAULT_SERIES_EMOJI = '📚';
+export const DEFAULT_SERIES_COLOR: SeriesColor = 'emerald';
+
 export const seriesSchema = z.object({
+  emoji: z.enum(SERIES_EMOJIS).optional(),
+  color: z.enum(SERIES_COLORS).optional(),
   name: z
     .string()
     .trim()
@@ -31,7 +58,13 @@ export const postSeriesSchema = z.object({
 });
 
 /** What a slip card needs to link to its series */
-export type SeriesRef = { id: string; name: string };
+export type SeriesRef = {
+  id: string;
+  name: string;
+  emoji: string;
+  /** Stored as text; unknown values render as the default */
+  color: string;
+};
 
 export type SeriesSummary = SeriesRef & {
   description: string | null;

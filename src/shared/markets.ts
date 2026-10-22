@@ -187,6 +187,13 @@ export function pickerMarketKeys(sportKey: string): Set<string> {
   return keys;
 }
 
+/** Yes-only props (Anytime TD, Anytime Goal): there's no other side to take */
+export function isOneSidedMarket(key: string): boolean {
+  return Object.values(PICKER_CATEGORIES).some((cats) =>
+    cats.some((c) => c.markets.some((m) => m.key === key && m.yesNo))
+  );
+}
+
 /** Display label for any picker market key, alternates included */
 export function marketLabel(sportKey: string, key: string): string {
   if (key === 'h2h') return 'Moneyline';

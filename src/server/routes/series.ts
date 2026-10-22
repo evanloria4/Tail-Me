@@ -19,6 +19,8 @@ const summarySelect = {
   id: true,
   name: true,
   description: true,
+  emoji: true,
+  color: true,
   createdAt: true,
   // Deleted slips still count toward the record, just not the slip count
   posts: {
@@ -38,6 +40,8 @@ type SeriesRow = {
   id: string;
   name: string;
   description: string | null;
+  emoji: string;
+  color: string;
   createdAt: Date;
   posts: {
     type: string;
@@ -71,6 +75,8 @@ function toSummary(row: SeriesRow): SeriesSummary {
     id: row.id,
     name: row.name,
     description: row.description,
+    emoji: row.emoji,
+    color: row.color,
     createdAt: row.createdAt.toISOString(),
     slips: visible.length,
     lastPostAt: visible[0]?.createdAt.toISOString() ?? null,
@@ -144,13 +150,13 @@ router.post('/series', requireAuth, requireSubscription, async (req, res) => {
     return;
   }
   const ownerId = req.user!.id;
-  const { name, description } = parsed.data;
+  const { name, description, emoji, color } = parsed.data;
   if (await nameTaken(ownerId, name)) {
     res.status(409).json({ error: `You already have a series called ${name}` });
     return;
   }
   const row = await prisma.series.create({
-    data: { ownerId, name, description: description || null },
+    data: { ownerId, name, description: description || null, emoji, color },
     select: summarySelect,
   });
   res.status(201).json(toSummary(row));
@@ -174,14 +180,15 @@ router.patch<{ id: string }>('/series/:id', requireAuth, async (req, res) => {
     res.status(404).json({ error: 'Series not found' });
     return;
   }
-  const { name, description } = parsed.data;
+  const { name, description, emoji, color } = parsed.data;
   if (await nameTaken(ownerId, name, existing.id)) {
     res.status(409).json({ error: `You already have a series called ${name}` });
     return;
   }
   const row = await prisma.series.update({
     where: { id: existing.id },
-    data: { name, description: description || null },
+    // Cover fields left out keep what they were
+    data: { name, description: description || null, emoji, color },
     select: summarySelect,
   });
   res.json(toSummary(row));
