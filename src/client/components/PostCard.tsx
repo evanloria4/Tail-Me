@@ -94,9 +94,9 @@ function TailedBadge({ label }: { label: string }) {
 }
 
 /**
- * Tail: straights open the pick straight onto the book's bet slip. Parlays and
- * ladders list each pick with its own add link, since a book link adds one
- * selection at a time (the book's slip collects them into the parlay).
+ * Tail: straights, parlays and ladders open every pick straight onto the
+ * book's bet slip in one link. Slips without usable links (typed-in, other
+ * books) list each pick with its own add link instead.
  */
 function TailSection({
   post,
@@ -118,11 +118,10 @@ function TailSection({
   const home = BOOK_HOMEPAGES[post.sportsbook.key] ?? null;
   const linked = picks.every((pk) => pk.link);
   // One click loads the whole bet: a straight's own link, or for parlays
-  // (group ones too) one link carrying every leg, which FanDuel turns into
-  // one slip (a same-game parlay with its own price when the legs share a
-  // game). Ladder rungs are separate bets, so they keep the pick list.
-  const combined =
-    post.type === 'LADDER' ? null : combinedSlipLink(picks.map((p) => p.link));
+  // (group ones too) and ladders one link carrying every leg, which FanDuel
+  // loads onto one slip (a same-game parlay with its own price when parlay
+  // legs share a game; a ladder's rungs land as singles, one per rung).
+  const combined = combinedSlipLink(picks.map((p) => p.link));
   const oneClick = picks.length === 1 ? (picks[0].link ?? home) : combined;
   const single = !!oneClick;
 
@@ -236,8 +235,13 @@ export default function PostCard({
   const isAuthor = post.author.id === currentUserId;
   const isGroup = post.type === 'GROUP_PARLAY';
   const locked = groupLocked(post);
-  const tails = Math.max(...post.bets.map((b) => b.tailCount));
-  const tailCount = <TailersButton postId={post.id} count={tails} />;
+  const tailCount = (
+    <TailersButton
+      postId={post.id}
+      count={post.tailers.count}
+      recent={post.tailers.recent}
+    />
+  );
   const badges = slipBadges(post);
   const celebrated = isCelebrated(badges);
   const [commentsOpen, setCommentsOpen] = useState(false);

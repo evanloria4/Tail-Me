@@ -1,45 +1,56 @@
 import { Prisma } from '../generated/prisma/client';
 import prisma from './db';
 import { FeedPost, MarketKey } from '../shared/posts';
-import { REACTION_EMOJIS, ReactionSummary } from '../shared/social';
+import { PersonRef, REACTION_EMOJIS, ReactionSummary } from '../shared/social';
 import { currentStreak, POST_TYPES, Streak } from '../shared/stats';
 
-/** Feed shape; `tails` only loads the viewer's own tail so we can show "Tailed" */
-export const feedInclude = (viewerId: string) =>
-  ({
-    author: {
-      select: { id: true, username: true, fullName: true, avatarUrl: true },
-    },
-    sportsbook: { select: { key: true, name: true } },
-    series: { select: { id: true, name: true } },
-    bets: {
-      orderBy: { order: 'asc' },
-      include: {
-        legs: {
-          orderBy: { order: 'asc' },
-          include: {
-            addedBy: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true,
-                avatarUrl: true,
-              },
+/** Feed shape; `tails` loads who tailed, for the avatar stack and "Tailed" */
+export const feedInclude = {
+  author: {
+    select: { id: true, username: true, fullName: true, avatarUrl: true },
+  },
+  sportsbook: { select: { key: true, name: true } },
+  series: { select: { id: true, name: true } },
+  bets: {
+    orderBy: { order: 'asc' },
+    include: {
+      legs: {
+        orderBy: { order: 'asc' },
+        include: {
+          addedBy: {
+            select: {
+              id: true,
+              username: true,
+              fullName: true,
+              avatarUrl: true,
             },
-            // For LIVE tags: when the game starts, and whether it's final
-            event: { select: { commenceTime: true, completed: true } },
+          },
+          // For LIVE tags: when the game starts, and whether it's final
+          event: { select: { commenceTime: true, completed: true } },
+        },
+      },
+      // Friend-group sized, so every tail loads (for the avatar stack)
+      tails: {
+        orderBy: { createdAt: 'desc' },
+        select: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              fullName: true,
+              avatarUrl: true,
+            },
           },
         },
-        _count: { select: { tails: true } },
-        tails: { where: { userId: viewerId }, select: { id: true } },
       },
     },
-    reactions: { select: { emoji: true, userId: true } },
-    _count: { select: { comments: { where: { deletedAt: null } } } },
-  }) satisfies Prisma.PostInclude;
+  },
+  reactions: { select: { emoji: true, userId: true } },
+  _count: { select: { comments: { where: { deletedAt: null } } } },
+} satisfies Prisma.PostInclude;
 
 type PostWithFeed = Prisma.PostGetPayload<{
-  include: ReturnType<typeof feedInclude>;
+  include: typeof feedInclude;
 }>;
 
 /** Each author's current all-time streak, from their settled personal bets */
@@ -93,6 +104,17 @@ export function reactionSummary(
   }).filter((r) => r.count > 0);
 }
 
+/** Distinct tailers, most recent first (a ladder tail lands on every rung) */
+function tailersOf(post: PostWithFeed): FeedPost['tailers'] {
+  const people = new Map<string, PersonRef>();
+  post.bets
+    .flatMap((b) => b.tails)
+    .forEach((t) => {
+      if (!people.has(t.user.id)) people.set(t.user.id, t.user);
+    });
+  return { count: people.size, recent: [...people.values()].slice(0, 3) };
+}
+
 function toFeedPost(
   post: PostWithFeed,
   viewerId: string,
@@ -107,6 +129,7 @@ function toFeedPost(
     sportsbook: post.sportsbook,
     reactions: reactionSummary(post.reactions, viewerId),
     commentCount: post._count.comments,
+    tailers: tailersOf(post),
     series: post.series,
     group:
       post.type === 'GROUP_PARLAY' && post.lockAt
@@ -132,8 +155,8 @@ function toFeedPost(
       decimalOdds: bet.decimalOdds.toNumber(),
       result: bet.result,
       deepLink: bet.deepLink,
-      tailCount: bet._count.tails,
-      tailedByMe: bet.tails.length > 0,
+      tailCount: bet.tails.length,
+      tailedByMe: bet.tails.some((t) => t.user.id === viewerId),
       legs: bet.legs.map((leg) => ({
         id: leg.id,
         sportKey: leg.sportKey,
@@ -156,7 +179,7 @@ function toFeedPost(
   };
 }
 
-/** API shape for a page of posts loaded with `feedInclude(viewerId)` */
+/** API shape for a page of posts loaded with `feedInclude` */
 export async function toFeedPosts(
   posts: PostWithFeed[],
   viewerId: string
@@ -174,7 +197,7 @@ export async function loadFeedPost(
 ): Promise<FeedPost | null> {
   const post = await prisma.post.findFirst({
     where: { id: postId, deletedAt: null },
-    include: feedInclude(viewerId),
+    include: feedInclude,
   });
   if (!post) return null;
   const [feedPost] = await toFeedPosts([post], viewerId);

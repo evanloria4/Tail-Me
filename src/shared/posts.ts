@@ -235,6 +235,8 @@ export type FeedPost = {
     game: { eventId: string; eventLabel: string; sportKey: string } | null;
   } | null;
   commentCount: number;
+  /** Distinct people who tailed, and the latest few for the avatar stack */
+  tailers: { count: number; recent: PersonRef[] };
 };
 
 /** One-line description of a leg, e.g. "Chiefs -3.5", "Over 47.5", "Mahomes Over 1.5 Passing TDs" */

@@ -23,6 +23,7 @@ function post(
     group: null,
     series: null,
     commentCount: 0,
+    tailers: { count: 0, recent: [] },
     bets: bets.map(
       (b, i): FeedBet => ({
         id: `b${i}`,
@@ -86,7 +87,7 @@ describe('slipBadges', () => {
     ).toEqual([]);
   });
 
-  it('marks crowd picks by tail count', () => {
+  it('marks group locks by tail count', () => {
     expect(
       slipBadges(post('STRAIGHT', [{ result: 'PENDING', tails: 4 }]))
     ).toEqual([{ kind: 'POPULAR', tails: 4 }]);

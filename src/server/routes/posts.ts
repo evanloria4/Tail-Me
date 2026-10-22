@@ -173,7 +173,7 @@ router.get('/', requireAuth, async (req, res) => {
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: PAGE_SIZE + 1,
     ...(typeof cursor === 'string' && { cursor: { id: cursor }, skip: 1 }),
-    include: feedInclude(req.user!.id),
+    include: feedInclude,
   });
   const hasMore = posts.length > PAGE_SIZE;
   const page = posts.slice(0, PAGE_SIZE);
@@ -211,7 +211,7 @@ router.get('/active', requireAuth, async (req, res) => {
       },
       orderBy: [{ lockAt: 'asc' }, { id: 'asc' }],
       take: 10,
-      include: feedInclude(req.user!.id),
+      include: feedInclude,
     }),
     prisma.post.findMany({
       where: {
@@ -221,7 +221,7 @@ router.get('/active', requireAuth, async (req, res) => {
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 15,
-      include: feedInclude(req.user!.id),
+      include: feedInclude,
     }),
   ]);
   res.json({
@@ -303,7 +303,7 @@ router.post('/', requireAuth, requireSubscription, async (req, res) => {
       seriesId: seriesId ?? null,
       bets: { create: betsData(input, events, req.user!.id) },
     },
-    include: feedInclude(req.user!.id),
+    include: feedInclude,
   });
   res.status(201).json((await toFeedPosts([post], req.user!.id))[0]);
 });

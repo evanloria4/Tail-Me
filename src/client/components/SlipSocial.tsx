@@ -9,6 +9,7 @@ import { isHot, SlipBadge } from '../../shared/badges';
 import { COMMENT_MAX, REACTION_EMOJIS } from '../../shared/social';
 import type {
   FeedComment,
+  PersonRef,
   ReactionEmoji,
   ReactionSummary,
   Tailer,
@@ -59,7 +60,7 @@ export function CrowdChip({ badges }: { badges: SlipBadge[] }) {
       title={`${popular.tails} people tailed this`}
       className="flex-none rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-400"
     >
-      👥 Crowd pick
+      🔒 Group lock
     </span>
   );
 }
@@ -85,13 +86,37 @@ export function useDismiss(
   }, [open, close, ref]);
 }
 
-/** "3 tails" — opens the list of who tailed */
+/** The latest tailers' faces, overlapped */
+function TailerStack({ people }: { people: PersonRef[] }) {
+  return (
+    <span className="flex flex-none -space-x-1.5">
+      {people.map((p) => (
+        // Solid backing + card-colored ring so overlapped initials stay crisp
+        <span
+          key={p.id}
+          className="rounded-full bg-gray-900 ring-2 ring-gray-900"
+        >
+          <UserAvatar
+            name={p.fullName}
+            url={p.avatarUrl}
+            className="h-5 w-5 text-[10px]"
+          />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Faces + "5 tails" — opens the list of who tailed */
 export function TailersButton({
   postId,
   count,
+  recent,
 }: {
   postId: string;
+  /** Distinct people who tailed */
   count: number;
+  recent: PersonRef[];
 }) {
   const [open, setOpen] = useState(false);
   const [tailers, setTailers] = useState<Tailer[] | null>(null);
@@ -116,14 +141,15 @@ export function TailersButton({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="font-medium hover:text-white hover:underline"
+        className="group flex items-center gap-2 font-medium hover:text-white"
       >
-        {label}
+        <TailerStack people={recent} />
+        <span className="group-hover:underline">{label}</span>
       </button>
       {open && (
         <div className="absolute bottom-full left-0 z-10 mb-2 w-60 overflow-hidden rounded-xl border border-gray-800 bg-gray-900 shadow-xl">
           <p className="border-b border-gray-800 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-            Tailed by
+            Tailed by {count}
           </p>
           {error && <p className="px-3 py-2 text-sm text-red-400">{error}</p>}
           {!tailers && !error && (
@@ -134,20 +160,19 @@ export function TailersButton({
               <li key={t.id}>
                 <Link
                   to={`/u/${t.username}`}
-                  className="flex items-center gap-2.5 px-3 py-2 transition hover:bg-gray-800"
+                  title={`@${t.username}`}
+                  className="flex items-center gap-2 px-3 py-1.5 transition hover:bg-gray-800"
                 >
                   <UserAvatar
                     name={t.fullName}
                     url={t.avatarUrl}
-                    className="h-7 w-7 text-xs"
+                    className="h-5 w-5 text-[10px]"
                   />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-white">
-                      {t.fullName}
-                    </span>
-                    <span className="block truncate text-xs text-gray-500">
-                      @{t.username} · {timeAgo(t.tailedAt)}
-                    </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
+                    {t.fullName}
+                  </span>
+                  <span className="flex-none text-xs tabular-nums text-gray-500">
+                    {timeAgo(t.tailedAt)}
                   </span>
                 </Link>
               </li>

@@ -8,7 +8,7 @@ import type { Streak } from './stats';
 export const HOT_STREAK = 3;
 /** A winning bet at these odds or longer is a big win */
 export const BIG_WIN_ODDS = 400;
-/** Tails before a slip counts as a crowd pick */
+/** Tails before a slip counts as a "Group lock" */
 export const POPULAR_TAILS = 3;
 
 export const isHot = (streak: Streak | null): streak is Streak =>

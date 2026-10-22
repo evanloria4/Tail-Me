@@ -1068,7 +1068,7 @@ async function main() {
 
   // Friends tail each other's bets (never their own) so tail counts show up
   // (0, 1 or 2 tailers per post down the feed; the top slip gets everyone,
-  // which makes it a crowd pick)
+  // which makes it a Group lock)
   const tails = created.flatMap((post, i) =>
     post.bets.flatMap((bet) =>
       userIds

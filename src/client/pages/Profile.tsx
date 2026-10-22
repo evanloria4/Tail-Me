@@ -202,7 +202,7 @@ export default function Profile() {
   const side = useStickyTop<HTMLElement>();
   // Matches PAGE_GRID's lg breakpoint, where the side column appears
   const wide = useMediaQuery('(min-width: 1024px)');
-  const [panel, setPanel] = useState<BreakdownKey>('series');
+  const [panel, setPanel] = useState<BreakdownKey>('type');
 
   const load = useCallback(async () => {
     try {
@@ -263,8 +263,8 @@ export default function Profile() {
   ];
 
   const panels: { key: BreakdownKey; label: string }[] = [
-    { key: 'series', label: 'Series' },
     { key: 'type', label: 'Bet type' },
+    { key: 'series', label: 'Series' },
     ...(leagueKeys.length > 0
       ? [{ key: 'league' as const, label: 'League' }]
       : []),
