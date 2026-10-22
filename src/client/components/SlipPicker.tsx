@@ -33,6 +33,8 @@ import { inputClass } from './ComposerParts';
 import { inSiteZone, SITE_ZONE_LABEL } from '../../shared/time';
 import GroupReview, { GroupMode, PostedKind } from './GroupReview';
 import SeriesPicker from './SeriesPicker';
+import { LiveBadge } from './SlipParts';
+import useNow from '../lib/useNow';
 
 // Sportsbook-style bet picker: choose a league, tap prices to build a
 // slip, then review and post. Prices, lines and add-to-betslip links all come
@@ -56,14 +58,21 @@ type IsPicked = (game: OddsGame, marketKey: string, o: OddsOutcome) => boolean;
 const eventLabelOf = (g: OddsGame) => `${g.awayTeam} @ ${g.homeTeam}`;
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
-function gameTime(iso: string) {
-  const d = new Date(iso);
-  if (d.getTime() <= Date.now()) return 'Live';
-  const when = d.toLocaleString(
+const started = (iso: string, now: number) => new Date(iso).getTime() <= now;
+
+/** Kickoff time, or the LIVE chip once the game's on (its odds are in-game) */
+function GameTime({ iso }: { iso: string }) {
+  const now = useNow();
+  if (started(iso, now)) return <LiveBadge />;
+  const when = new Date(iso).toLocaleString(
     'en-US',
     inSiteZone({ weekday: 'short', hour: 'numeric', minute: '2-digit' })
   );
-  return `${when} ${SITE_ZONE_LABEL}`;
+  return (
+    <span className="text-gray-500">
+      {when} {SITE_ZONE_LABEL}
+    </span>
+  );
 }
 
 // ---------- Small pieces ----------
@@ -242,7 +251,7 @@ function GamesList({
           className="rounded-xl border border-gray-800 bg-gray-900 p-3"
         >
           <div className="mb-2 flex items-center justify-between gap-2 text-xs">
-            <span className="text-gray-500">{gameTime(game.commenceTime)}</span>
+            <GameTime iso={game.commenceTime} />
             <button
               type="button"
               onClick={() => onOpen(game)}
@@ -619,7 +628,9 @@ function GameView({
       <p className="font-bold leading-tight">
         {game.awayTeam} @ {game.homeTeam}
       </p>
-      <p className="text-xs text-gray-500">{gameTime(game.commenceTime)}</p>
+      <p className="mt-0.5 text-xs">
+        <GameTime iso={game.commenceTime} />
+      </p>
 
       <div className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1">
         <Chip active={tab === 'lines'} onClick={() => setTab('lines')}>
@@ -740,6 +751,8 @@ export default function SlipPicker({
   const [seriesId, setSeriesId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Ticks so picks on games that kick off mid-review get their LIVE chip
+  const now = useNow();
 
   const dirty = selections.length > 0 || caption.trim() !== '';
   useEffect(() => {
@@ -896,8 +909,11 @@ export default function SlipPicker({
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                       {s.marketLabel}
                     </p>
-                    <p className="mt-1 text-xs text-emerald-400">
+                    <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-emerald-400">
                       {s.eventLabel}
+                      {s.commenceTime && started(s.commenceTime, now) && (
+                        <LiveBadge />
+                      )}
                     </p>
                     {straight && (
                       <p className="mt-0.5 text-xs text-gray-500">{bookName}</p>

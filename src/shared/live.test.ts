@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { allFinal, gameState, isLive, MAX_GAME_MS, oneGame } from './live';
+import {
+  allFinal,
+  gameState,
+  inGameMinutes,
+  isLive,
+  MAX_GAME_MS,
+  oneGame,
+} from './live';
 
 const start = '2026-10-18T17:00:00Z';
 const t = (minutes: number) => new Date(start).getTime() + minutes * 60_000;
@@ -39,5 +46,19 @@ describe('slip helpers', () => {
     expect(isLive([leg('a')], t(30))).toBe(true);
     expect(allFinal([leg('a', true), leg('b')], t(30))).toBe(false);
     expect(allFinal([leg('a', true), leg('b', true)], t(30))).toBe(true);
+  });
+});
+
+describe('inGameMinutes', () => {
+  const at = (minutes: number) => new Date(t(minutes)).toISOString();
+
+  it('counts minutes into the game for picks posted after kickoff', () => {
+    expect(inGameMinutes(start, at(42.5))).toBe(42);
+  });
+
+  it('is null for picks posted before kickoff or without a game', () => {
+    expect(inGameMinutes(start, at(-1))).toBeNull();
+    expect(inGameMinutes(start, at(0))).toBeNull();
+    expect(inGameMinutes(null, at(30))).toBeNull();
   });
 });

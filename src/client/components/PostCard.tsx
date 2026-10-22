@@ -5,7 +5,7 @@ import { BetResult, canBeFaded, FeedPost } from '../../shared/posts';
 import timeAgo from '../lib/time';
 import combinedSlipLink from '../../shared/betslip';
 import useNow from '../lib/useNow';
-import { allFinal, isLive, oneGame } from '../../shared/live';
+import { allFinal, inGameMinutes, isLive, oneGame } from '../../shared/live';
 import { slipBadges, slipTier } from '../../shared/badges';
 import type { ReactionEmoji } from '../../shared/social';
 import {
@@ -25,6 +25,7 @@ import {
   payoutColor,
   legStatus,
   useLegPreview,
+  InGameBadge,
   LiveBadge,
   ResultBadge,
   returned,
@@ -372,6 +373,25 @@ export default function PostCard({
     if (allFinal(bet.legs, now)) return <ResultBadge result="PENDING" />;
     return null;
   };
+  // Picks posted after kickoff were made at live odds; that's tagged for good
+  const inGameAt = (leg: FeedPost['bets'][number]['legs'][number]) =>
+    inGameMinutes(leg.startsAt, post.createdAt);
+  const inGameLegs = post.bets
+    .flatMap((b) => b.legs)
+    .map(inGameAt)
+    .filter((m): m is number => m != null);
+  const slipInGame = inGameLegs.length ? Math.max(...inGameLegs) : null;
+  const legTag = (leg: FeedPost['bets'][number]['legs'][number]) => {
+    const minutes = inGameAt(leg);
+    const status = first.result === 'PENDING' ? legStatus(leg, now) : null;
+    if (minutes == null && !status) return null;
+    return (
+      <>
+        {minutes != null && <InGameBadge minutes={minutes} />}
+        {status}
+      </>
+    );
+  };
   const ladderLive =
     isLadder &&
     singleGame &&
@@ -511,6 +531,7 @@ export default function PostCard({
                   <span className="rounded border border-gray-700 px-1.5 py-px text-[11px] font-semibold text-gray-400">
                     {post.sportsbook.name}
                   </span>
+                  {slipInGame != null && <InGameBadge minutes={slipInGame} />}
                   {!isLadder && betChip(first)}
                   {ladderLive && <LiveBadge />}
                 </div>
@@ -584,13 +605,9 @@ export default function PostCard({
                         leg={leg}
                         result={legResult}
                         last={i === legList.visible.length - 1}
-                        // Multi-game parlays tag each open leg; settled bets
-                        // don't need it
-                        tag={
-                          !singleGame && first.result === 'PENDING'
-                            ? legStatus(leg, now)
-                            : null
-                        }
+                        // Multi-game parlays tag each open leg (settled bets
+                        // don't need it) and each leg picked mid-game
+                        tag={singleGame ? null : legTag(leg)}
                       />
                     ))}
                   </ol>

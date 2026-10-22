@@ -43,3 +43,16 @@ export const isLive = (legs: LegGame[], now: number) =>
 export const allFinal = (legs: LegGame[], now: number) =>
   legs.length > 0 &&
   legs.every((l) => gameState(l.startsAt, l.gameFinal, now) === 'final');
+
+/**
+ * Minutes into the game a leg was posted, or null if it was posted before
+ * kickoff (or has no game). Those picks were made at live, in-game odds.
+ */
+export function inGameMinutes(
+  startsAt: string | null,
+  postedAt: string
+): number | null {
+  if (!startsAt) return null;
+  const ms = new Date(postedAt).getTime() - new Date(startsAt).getTime();
+  return ms > 0 ? Math.floor(ms / 60_000) : null;
+}

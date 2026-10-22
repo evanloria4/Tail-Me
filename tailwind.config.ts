@@ -26,6 +26,8 @@ module.exports = {
         yellow: scale('yellow', [300]),
         // Hot streaks
         orange: scale('orange', [400]),
+        // In-game picks (posted after kickoff)
+        amber: scale('amber', [400]),
         // Win tiers 3 and 4 (shared/badges.ts)
         violet: scale('violet', [400]),
         pink: scale('pink', [400]),

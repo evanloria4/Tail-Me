@@ -150,6 +150,29 @@ export function LiveBadge() {
 }
 
 /**
+ * A pick posted after its game kicked off, at live odds. Unlike LIVE it
+ * stays on the slip for good, since it says how the bet was made.
+ */
+export function InGameBadge({ minutes }: { minutes: number }) {
+  const into =
+    minutes < 60
+      ? `${minutes}m`
+      : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return (
+    <span
+      title={`Posted ${into} after kickoff, at live odds`}
+      className="inline-flex items-center gap-1 rounded-md border border-amber-400/40 px-1.5 py-px text-[11px] font-semibold text-amber-400"
+    >
+      <span aria-hidden="true">⏱</span>
+      In-game
+      <span className="sr-only">
+        : posted {into} after kickoff, at live odds
+      </span>
+    </span>
+  );
+}
+
+/**
  * The status chip for one unsettled leg of a multi-game slip: LIVE while its
  * game is on, PENDING once the game is over but the grade isn't in yet,
  * nothing before kickoff.
@@ -226,7 +249,11 @@ export function LegRow({
         {leg.eventLabel}
         {tag}
       </p>
-      {tag && <div className="mt-1 sm:hidden">{tag}</div>}
+      {tag && (
+        <div className="mt-1 flex flex-wrap items-center gap-2 sm:hidden">
+          {tag}
+        </div>
+      )}
     </TimelineRow>
   );
 }
