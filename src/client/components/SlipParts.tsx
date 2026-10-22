@@ -215,12 +215,15 @@ export function LegRow({
   result,
   last,
   tag,
+  hideGame = false,
 }: {
   leg: FeedLeg;
   result: BetResult;
   last: boolean;
   /** LIVE / PENDING chip beside the game, for multi-game slips */
   tag?: React.ReactNode;
+  /** Same-game parlays name the game once, up top */
+  hideGame?: boolean;
 }) {
   const { title, market } = legText(leg);
   return (
@@ -235,20 +238,24 @@ export function LegRow({
           <p className="mt-0.5 truncate text-[11px] font-semibold uppercase tracking-wide text-gray-500">
             {withFinal(market, leg.actual)}
             {/* Phones: the game shares this line so long slips stay short */}
-            <span className="font-normal normal-case tracking-normal text-emerald-400 sm:hidden">
-              {' '}
-              · {leg.eventLabel}
-            </span>
+            {!hideGame && (
+              <span className="font-normal normal-case tracking-normal text-emerald-400 sm:hidden">
+                {' '}
+                · {leg.eventLabel}
+              </span>
+            )}
           </p>
         </div>
         <span className="font-mono font-bold tabular-nums">
           {formatAmerican(leg.americanOdds)}
         </span>
       </div>
-      <p className="mt-1.5 hidden flex-wrap items-center gap-2 text-xs text-emerald-400 sm:flex">
-        {leg.eventLabel}
-        {tag}
-      </p>
+      {!hideGame && (
+        <p className="mt-1.5 hidden flex-wrap items-center gap-2 text-xs text-emerald-400 sm:flex">
+          {leg.eventLabel}
+          {tag}
+        </p>
+      )}
       {tag && (
         <div className="mt-1 flex flex-wrap items-center gap-2 sm:hidden">
           {tag}

@@ -302,6 +302,8 @@ export function GroupSlip({
   // Ticks each minute so LIVE tags come and go on their own
   const now = useNow();
   const singleGame = oneGame(bet.legs);
+  // Legs that happen to share a game read as an SGP too, flagged or not
+  const sgp = isSameGameLegs(bet.legs);
   // Long group parlays show the first few legs and a "View all" row
   const legList = useLegPreview(bet.legs);
 
@@ -343,9 +345,9 @@ export function GroupSlip({
               {post.sportsbook.name}
             </span>
             {status}
-            {group.game && (
+            {(group.game || sgp) && (
               <span className={`${statusClass} bg-gray-800 text-gray-300`}>
-                🎯 {group.game.eventLabel} SGP
+                🎯 {group.game?.eventLabel ?? bet.legs[0].eventLabel} SGP
               </span>
             )}
           </div>
@@ -381,7 +383,7 @@ export function GroupSlip({
                 </span>
               </div>
               {/* A one-game parlay already says its game up top */}
-              {!group.game && (
+              {!group.game && !sgp && (
                 <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-emerald-400">
                   {leg.eventLabel}
                   {!singleGame &&

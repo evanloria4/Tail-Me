@@ -11,6 +11,7 @@ import {
 } from '../../shared/odds';
 import {
   BetResult,
+  betUnitsSchema,
   canBeFaded,
   canEditSlip,
   createPostSchema,
@@ -775,6 +776,46 @@ router.put<{ betId: string }>(
         : []),
     ]);
     res.json(await loadFeedPost(post.id, userId));
+  }
+);
+
+/**
+ * The author changes a bet's stake (0 is allowed). Any personal slip, any
+ * time, like the odds; a ladder sets each rung on its own. Group parlays
+ * have no stake of their own.
+ */
+router.put<{ betId: string }>(
+  '/bets/:betId/units',
+  requireAuth,
+  async (req, res) => {
+    const parsed = betUnitsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: parsed.error.issues[0]?.message ?? 'Invalid units' });
+      return;
+    }
+    const userId = req.user!.id;
+    const bet = await prisma.bet.findFirst({
+      where: { id: req.params.betId, post: { deletedAt: null } },
+      select: {
+        id: true,
+        post: { select: { id: true, authorId: true, type: true } },
+      },
+    });
+    if (!bet || bet.post.type === 'GROUP_PARLAY') {
+      res.status(404).json({ error: 'Bet not found' });
+      return;
+    }
+    if (bet.post.authorId !== userId) {
+      res.status(403).json({ error: 'Only the poster can change the units' });
+      return;
+    }
+    await prisma.bet.update({
+      where: { id: bet.id },
+      data: { units: parsed.data.units },
+    });
+    res.json(await loadFeedPost(bet.post.id, userId));
   }
 );
 

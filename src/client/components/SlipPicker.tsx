@@ -65,6 +65,8 @@ type IsPicked = (game: OddsGame, marketKey: string, o: OddsOutcome) => boolean;
 
 const eventLabelOf = (g: OddsGame) => `${g.awayTeam} @ ${g.homeTeam}`;
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+/** Units typed in; blank isn't 0 (0 is allowed, but has to be typed) */
+const toUnits = (v: string) => (v.trim() === '' ? NaN : Number(v));
 
 const started = (iso: string, now: number) => new Date(iso).getTime() <= now;
 
@@ -867,7 +869,7 @@ export default function SlipPicker({
     }
     if (edit) {
       const changes = editPostSchema.safeParse({
-        units: Number(units),
+        units: toUnits(units),
         keepLegIds: selections.flatMap((s) => (s.legId ? [s.legId] : [])),
         legs: selections.filter((s) => !s.legId).map(toLeg),
         slipOdds: mode === 'PARLAY' ? sgp : undefined,
@@ -894,9 +896,9 @@ export default function SlipPicker({
       mode,
       selections,
       sportsbookKey: book,
-      units: Number(units),
+      units: toUnits(units),
       rungUnits: Object.fromEntries(
-        Object.entries(rungUnits).map(([k, v]) => [k, Number(v)])
+        Object.entries(rungUnits).map(([k, v]) => [k, toUnits(v)])
       ),
       slipOdds: mode === 'PARLAY' ? sgp : undefined,
       caption: caption.trim(),

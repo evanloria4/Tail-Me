@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatAmerican, formatMoney } from '../../shared/odds';
-import { BetResult, canBeFaded, FeedPost } from '../../shared/posts';
+import {
+  BetResult,
+  canBeFaded,
+  FeedPost,
+  isSameGameLegs,
+} from '../../shared/posts';
 import timeAgo from '../lib/time';
 import combinedSlipLink from '../../shared/betslip';
 import useNow from '../lib/useNow';
@@ -300,6 +305,7 @@ export default function PostCard({
   onMoveSeries,
   onEdit,
   onOdds,
+  onUnits,
   groupHandlers,
 }: {
   post: FeedPost;
@@ -313,6 +319,8 @@ export default function PostCard({
   onEdit: (post: FeedPost) => void;
   /** Author sets a bet's real odds; resolves false if it didn't save */
   onOdds: (betId: string, americanOdds: number) => Promise<boolean>;
+  /** Author changes a bet's stake; resolves false if it didn't save */
+  onUnits: (betId: string, units: number) => Promise<boolean>;
   groupHandlers: GroupHandlers;
 }) {
   const isAuthor = post.author.id === currentUserId;
@@ -352,6 +360,7 @@ export default function PostCard({
   const isLadder = post.type === 'LADDER';
   const isStraight = post.type === 'STRAIGHT';
   const pick = first.legs[0];
+  const sgp = !isStraight && !isLadder && isSameGameLegs(first.legs);
 
   const rungsHit = post.bets.filter((b) => b.result === 'WON').length;
   const ladderSettled = post.bets.some((b) => b.result !== 'PENDING');
@@ -453,6 +462,7 @@ export default function PostCard({
             onDelete={() => onDelete(post.id)}
             onEdit={() => onEdit(post)}
             onOdds={onOdds}
+            onUnits={onUnits}
           />
         )}
       </header>
@@ -531,9 +541,17 @@ export default function PostCard({
                   </>
                 )}
                 {!isStraight && !isLadder && (
-                  <p className="text-lg font-bold leading-tight">
-                    {slipTitle(post)}
-                  </p>
+                  <>
+                    <p className="text-lg font-bold leading-tight">
+                      {slipTitle(post)}
+                    </p>
+                    {/* An SGP names its game once here, not on every leg */}
+                    {sgp && (
+                      <p className="mt-1.5 text-xs text-emerald-400">
+                        {pick.eventLabel}
+                      </p>
+                    )}
+                  </>
                 )}
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className="rounded border border-gray-700 px-1.5 py-px text-[11px] font-semibold text-gray-400">
@@ -616,6 +634,7 @@ export default function PostCard({
                         // Multi-game parlays tag each open leg (settled bets
                         // don't need it) and each leg picked mid-game
                         tag={singleGame ? null : legTag(leg)}
+                        hideGame={sgp}
                       />
                     ))}
                   </ol>

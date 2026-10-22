@@ -15,22 +15,45 @@ import { RESULT_OPTIONS, RESULT_STYLES } from './SlipParts';
 const itemClass =
   'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-gray-800';
 
-/** One bet's odds: type the book's price, Enter or ✓ saves it */
-function OddsRow({
+/** What a row edits: the book's price, or the stake (0 allowed) */
+const FIELDS = {
+  odds: {
+    format: formatAmerican,
+    parse: (v: string) => Number(v.replace(/^\+/, '')),
+    valid: isValidAmerican,
+    inputMode: 'numeric',
+    saveLabel: 'Save odds',
+  },
+  units: {
+    format: String,
+    parse: Number,
+    valid: (n: number) => Number.isFinite(n) && n >= 0 && n <= 100,
+    inputMode: 'decimal',
+    saveLabel: 'Save units',
+  },
+} as const;
+
+/** One bet's odds or units: type the new number, Enter or ✓ saves it */
+function NumberRow({
+  field,
+  id,
   label,
-  odds,
+  current,
   onSave,
 }: {
+  field: keyof typeof FIELDS;
+  id: string;
   label: string;
-  odds: number;
-  onSave: (odds: number) => Promise<boolean>;
+  current: number;
+  onSave: (next: number) => Promise<boolean>;
 }) {
-  const [value, setValue] = useState(formatAmerican(odds));
+  const f = FIELDS[field];
+  const [value, setValue] = useState(f.format(current));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
-  const next = Number(value.trim().replace(/^\+/, ''));
-  const valid = value.trim() !== '' && isValidAmerican(next);
-  const changed = valid && next !== odds;
+  const next = f.parse(value.trim());
+  const valid = value.trim() !== '' && f.valid(next);
+  const changed = valid && next !== current;
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,14 +72,14 @@ function OddsRow({
     <li>
       <form onSubmit={save} className="flex items-center gap-2 px-3 py-2">
         <label
-          htmlFor={`odds-${label}`}
+          htmlFor={`${field}-${id}`}
           className="min-w-0 flex-1 truncate text-sm"
         >
           {label}
         </label>
         <input
-          id={`odds-${label}`}
-          inputMode="numeric"
+          id={`${field}-${id}`}
+          inputMode={f.inputMode}
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
@@ -70,7 +93,7 @@ function OddsRow({
         <button
           type="submit"
           disabled={!changed || saving}
-          aria-label="Save odds"
+          aria-label={f.saveLabel}
           className="rounded-md bg-emerald-500 px-2 py-1 text-xs font-bold text-gray-950 transition hover:bg-emerald-400 disabled:opacity-30"
         >
           ✓
@@ -87,6 +110,7 @@ export default function SlipMenu({
   onDelete,
   onEdit,
   onOdds,
+  onUnits,
 }: {
   post: FeedPost;
   onSettle: (betId: string, result: BetResult) => void;
@@ -94,12 +118,13 @@ export default function SlipMenu({
   onDelete: () => void;
   onEdit: () => void;
   onOdds: (betId: string, americanOdds: number) => Promise<boolean>;
+  onUnits: (betId: string, units: number) => Promise<boolean>;
 }) {
   const { profile } = useAuth();
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<'menu' | 'series' | 'result' | 'odds'>(
-    'menu'
-  );
+  const [view, setView] = useState<
+    'menu' | 'series' | 'result' | 'odds' | 'units'
+  >('menu');
   const [series, setSeries] = useState<SeriesSummary[] | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const canFile = post.type !== 'GROUP_PARLAY';
@@ -184,6 +209,20 @@ export default function SlipMenu({
                 <button
                   type="button"
                   role="menuitem"
+                  onClick={() => setView('units')}
+                  className={itemClass}
+                >
+                  <span aria-hidden="true">💵</span>
+                  <span className="flex-1">Change units</span>
+                  <span aria-hidden="true" className="text-gray-500">
+                    ›
+                  </span>
+                </button>
+              )}
+              {canFile && (
+                <button
+                  type="button"
+                  role="menuitem"
                   onClick={() => setView('result')}
                   className={itemClass}
                 >
@@ -233,15 +272,44 @@ export default function SlipMenu({
               </button>
               <ul className="border-t border-gray-800">
                 {post.bets.map((bet) => (
-                  <OddsRow
+                  <NumberRow
                     key={bet.id}
+                    field="odds"
+                    id={bet.id}
                     label={
                       post.type === 'LADDER'
                         ? `${bet.legs[0].selection} ${bet.legs[0].line}`
                         : 'Odds'
                     }
-                    odds={bet.americanOdds}
+                    current={bet.americanOdds}
                     onSave={(odds) => onOdds(bet.id, odds)}
+                  />
+                ))}
+              </ul>
+            </>
+          )}
+          {view === 'units' && (
+            <>
+              <button
+                type="button"
+                onClick={() => setView('menu')}
+                className="w-full px-3 pb-1.5 pt-1 text-left text-xs font-semibold text-gray-500 hover:text-white"
+              >
+                ‹ Back
+              </button>
+              <ul className="border-t border-gray-800">
+                {post.bets.map((bet) => (
+                  <NumberRow
+                    key={bet.id}
+                    field="units"
+                    id={bet.id}
+                    label={
+                      post.type === 'LADDER'
+                        ? `${bet.legs[0].selection} ${bet.legs[0].line}`
+                        : 'Units'
+                    }
+                    current={bet.units}
+                    onSave={(n) => onUnits(bet.id, n)}
                   />
                 ))}
               </ul>

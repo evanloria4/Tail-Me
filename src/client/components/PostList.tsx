@@ -235,6 +235,20 @@ export default function PostList({
     }
   };
 
+  const setUnits = async (betId: string, units: number) => {
+    try {
+      const { data } = await api.put<FeedPost>(`/posts/bets/${betId}/units`, {
+        units,
+      });
+      replacePost(data);
+      onChange?.();
+      return true;
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save the units'));
+      return false;
+    }
+  };
+
   const moveSeries = async (postId: string, seriesId: string | null) => {
     try {
       const { data } = await api.put<FeedPost>(`/posts/${postId}/series`, {
@@ -343,6 +357,7 @@ export default function PostList({
           onMoveSeries={moveSeries}
           onEdit={setEditing}
           onOdds={setOdds}
+          onUnits={setUnits}
           groupHandlers={groupHandlers}
         />
       ))}

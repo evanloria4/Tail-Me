@@ -21,8 +21,8 @@ const americanOdds = z
   .refine(isValidAmerican, 'Odds must be a whole number like -110 or +150');
 
 const units = z
-  .number()
-  .positive('Units must be more than 0')
+  .number({ error: 'Enter units (0 is fine)' })
+  .nonnegative("Units can't be negative")
   .max(100, 'Max 100 units');
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -140,6 +140,9 @@ export const joinGroupSchema = z.object({ leg: legSchema });
 
 /** The book's own price for the locked slip (same-game parlays price below the legs multiplied) */
 export const groupPriceSchema = z.object({ americanOdds });
+
+/** A bet's stake, changed after posting (⋯ → Change units) */
+export const betUnitsSchema = z.object({ units });
 
 /**
  * Legs all from one game. Books price those with their own correlation
