@@ -249,6 +249,15 @@ export default function AppLayout() {
                   >
                     Settings
                   </Link>
+                  {profile?.isAdmin && (
+                    <Link
+                      to="/admin"
+                      role="menuitem"
+                      className="block px-4 py-2.5 text-sm text-gray-300 transition hover:bg-gray-800 hover:text-white"
+                    >
+                      Admin
+                    </Link>
+                  )}
                   <DarkModeSwitch className="px-4 py-2.5" />
                   <button
                     type="button"
@@ -294,6 +303,11 @@ export default function AppLayout() {
               <NavLink to="/settings" className={mobileNavClass}>
                 Settings
               </NavLink>
+              {profile?.isAdmin && (
+                <NavLink to="/admin" className={mobileNavClass}>
+                  Admin
+                </NavLink>
+              )}
             </nav>
             <DarkModeSwitch className="mt-1 rounded-lg px-3 py-2.5 !text-base font-medium" />
             <div className="mt-3 flex items-center gap-3 border-t border-gray-800 pt-3 text-sm">

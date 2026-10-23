@@ -43,6 +43,15 @@ export async function requireAuth(
   next();
 }
 
+/** Gate for the admin page's API. Use after requireAuth. */
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.user?.isAdmin) {
+    res.status(403).json({ error: 'Admins only' });
+    return;
+  }
+  next();
+}
+
 /** Gate for posting + the Odds API (`hasAccess`: subscribers, admins, the promo). Use after requireAuth. */
 export function requireSubscription(
   req: Request,

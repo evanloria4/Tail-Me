@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import path from 'path';
+import adminRouter from './routes/admin';
 import authRouter from './routes/auth';
 import billingRouter, { stripeWebhook } from './routes/billing';
 import meRouter from './routes/me';
@@ -54,6 +55,7 @@ app.use('/api/meta', metaRouter);
 app.use('/api/posts', postsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/community', communityRouter);
+app.use('/api/admin', adminRouter);
 // Tailers, reactions, comments: /api/posts/:id/... and /api/comments/:id/...
 app.use('/api', socialRouter);
 // Series: /api/users/:username/series and /api/series/...

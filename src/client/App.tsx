@@ -4,6 +4,7 @@ import { AuthProvider } from './auth/AuthProvider';
 import RequireAuth from './auth/RequireAuth';
 import AppLayout from './components/AppLayout';
 import { ToastProvider } from './components/Toast';
+import Admin from './pages/Admin';
 import Billing from './pages/Billing';
 import Feed from './pages/Feed';
 import Login from './pages/Login';
@@ -31,6 +32,7 @@ export default function App() {
             <Route path="/u/:username/s/:seriesId" element={<Series />} />
             <Route path="/billing" element={<Billing />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/admin" element={<Admin />} />
             <Route path="/new" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
