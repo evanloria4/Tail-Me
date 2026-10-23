@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import api from '../lib/api';
-import { canEditSlip } from '../../shared/posts';
+import { canAddRung, canEditSlip, nextRung } from '../../shared/posts';
 import { formatAmerican, isValidAmerican } from '../../shared/odds';
 import type { BetResult, FeedPost } from '../../shared/posts';
 import type { SeriesSummary } from '../../shared/series';
@@ -11,6 +11,8 @@ import { RESULT_OPTIONS, RESULT_STYLES } from './SlipParts';
 // The author's "⋯" menu on their own slip: edit it before its games start,
 // set the book's real odds, fix a result, move it to a series, or delete it. Keeping these here keeps the card itself uncluttered. Results
 // grade themselves when games end, so "Change result" is only an override.
+// Admins get it on everyone's slips (minus Move to series, which is the
+// poster's own), with edit open past kickoff and delete never blocked.
 
 const itemClass =
   'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-gray-800';
@@ -103,6 +105,158 @@ function NumberRow({
   );
 }
 
+export type RungInput = { line: number; americanOdds: number; units: number };
+
+/**
+ * A new rung for a ladder: the line starts one step past the longest price
+ * (− / + nudge it by that step), then the book's odds and the units
+ */
+function AddRungForm({
+  post,
+  onSave,
+}: {
+  post: FeedPost;
+  onSave: (rung: RungInput) => Promise<boolean>;
+}) {
+  const next = nextRung(
+    post.bets.map((b) => ({
+      line: b.legs[0].line,
+      americanOdds: b.americanOdds,
+      units: b.units,
+    }))
+  );
+  const [line, setLine] = useState(String(next.line));
+  const [odds, setOdds] = useState('');
+  const [units, setUnits] = useState(String(next.units));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const pick = post.bets[0].legs[0];
+  const taken = new Set(post.bets.map((b) => b.legs[0].line));
+
+  const nudge = (dir: 1 | -1) => {
+    const n = Number(line);
+    const base = Number.isFinite(n) ? n : next.line;
+    setLine(String(Math.round((base + dir * next.step) * 100) / 100));
+    setError(null);
+  };
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const rung = {
+      line: Number(line),
+      americanOdds: FIELDS.odds.parse(odds.trim()),
+      units: Number(units),
+    };
+    if (line.trim() === '' || !Number.isFinite(rung.line)) {
+      setError('Enter a line');
+      return;
+    }
+    if (taken.has(rung.line)) {
+      setError('That line is already a rung');
+      return;
+    }
+    if (odds.trim() === '' || !isValidAmerican(rung.americanOdds)) {
+      setError('Odds must look like +150 or -120');
+      return;
+    }
+    if (units.trim() === '' || !FIELDS.units.valid(rung.units)) {
+      setError('Units must be 0 to 100');
+      return;
+    }
+    setSaving(true);
+    const ok = await onSave(rung);
+    setSaving(false);
+    if (!ok) setError('Could not add the rung');
+  };
+
+  const box =
+    'rounded-md border border-gray-700 bg-gray-950 px-2 py-1 text-right font-mono text-sm tabular-nums outline-none focus:border-emerald-500';
+  return (
+    <form
+      onSubmit={save}
+      className="space-y-2 border-t border-gray-800 px-3 py-2"
+    >
+      <p className="truncate text-xs text-gray-400">
+        {pick.playerName ? `${pick.playerName} ` : ''}
+        {pick.selection}
+      </p>
+      <div className="flex items-center gap-2">
+        <span aria-hidden="true" className="flex-1 text-sm">
+          Line
+        </span>
+        <button
+          type="button"
+          onClick={() => nudge(-1)}
+          aria-label={`Line down ${next.step}`}
+          className="h-7 w-7 rounded-md border border-gray-700 text-gray-300 hover:border-emerald-500"
+        >
+          −
+        </button>
+        <input
+          aria-label="Line"
+          inputMode="decimal"
+          value={line}
+          onChange={(e) => {
+            setLine(e.target.value);
+            setError(null);
+          }}
+          className={`w-16 ${box}`}
+        />
+        <button
+          type="button"
+          onClick={() => nudge(1)}
+          aria-label={`Line up ${next.step}`}
+          className="h-7 w-7 rounded-md border border-gray-700 text-gray-300 hover:border-emerald-500"
+        >
+          +
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <span aria-hidden="true" className="flex-1 text-sm">
+          Odds
+        </span>
+        <input
+          aria-label="Odds"
+          inputMode="numeric"
+          placeholder="+250"
+          // The point of the form; the line is usually right already
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+          value={odds}
+          onChange={(e) => {
+            setOdds(e.target.value);
+            setError(null);
+          }}
+          className={`w-20 ${box}`}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <span aria-hidden="true" className="flex-1 text-sm">
+          Units
+        </span>
+        <input
+          aria-label="Units"
+          inputMode="decimal"
+          value={units}
+          onChange={(e) => {
+            setUnits(e.target.value);
+            setError(null);
+          }}
+          className={`w-20 ${box}`}
+        />
+      </div>
+      {error && <p className="text-xs text-red-400">{error}</p>}
+      <button
+        type="submit"
+        disabled={saving}
+        className="w-full rounded-md bg-emerald-500 py-1.5 text-sm font-semibold text-gray-950 transition hover:bg-emerald-400 disabled:opacity-50"
+      >
+        {saving ? 'Adding…' : 'Add rung'}
+      </button>
+    </form>
+  );
+}
+
 export default function SlipMenu({
   post,
   onSettle,
@@ -111,6 +265,7 @@ export default function SlipMenu({
   onEdit,
   onOdds,
   onUnits,
+  onAddRung,
 }: {
   post: FeedPost;
   onSettle: (betId: string, result: BetResult) => void;
@@ -119,15 +274,19 @@ export default function SlipMenu({
   onEdit: () => void;
   onOdds: (betId: string, americanOdds: number) => Promise<boolean>;
   onUnits: (betId: string, units: number) => Promise<boolean>;
+  onAddRung: (rung: RungInput) => Promise<boolean>;
 }) {
   const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<
-    'menu' | 'series' | 'result' | 'odds' | 'units'
+    'menu' | 'series' | 'result' | 'odds' | 'units' | 'rung'
   >('menu');
   const [series, setSeries] = useState<SeriesSummary[] | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const canFile = post.type !== 'GROUP_PARLAY';
+  const isAdmin = !!profile?.isAdmin;
+  const isAuthor = post.author.id === profile?.id;
+  const personal = post.type !== 'GROUP_PARLAY';
+  const canFile = personal && isAuthor;
 
   const close = () => {
     setOpen(false);
@@ -178,8 +337,13 @@ export default function SlipMenu({
         >
           {view === 'menu' && (
             <>
+              {!isAuthor && (
+                <p className="px-3 pb-1.5 pt-1 text-xs font-semibold text-amber-400">
+                  Admin · {post.author.fullName}’s slip
+                </p>
+              )}
               {/* Checked when the menu opens; the server checks again */}
-              {canEditSlip(post) && (
+              {canEditSlip(post, new Date(), isAdmin) && (
                 <button
                   type="button"
                   role="menuitem"
@@ -191,6 +355,20 @@ export default function SlipMenu({
                 >
                   <span aria-hidden="true">📝</span>
                   <span className="flex-1">Edit slip</span>
+                </button>
+              )}
+              {canAddRung(post, new Date(), isAdmin) && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setView('rung')}
+                  className={itemClass}
+                >
+                  <span aria-hidden="true">🪜</span>
+                  <span className="flex-1">Add rung</span>
+                  <span aria-hidden="true" className="text-gray-500">
+                    ›
+                  </span>
                 </button>
               )}
               <button
@@ -205,7 +383,7 @@ export default function SlipMenu({
                   ›
                 </span>
               </button>
-              {canFile && (
+              {personal && (
                 <button
                   type="button"
                   role="menuitem"
@@ -219,7 +397,7 @@ export default function SlipMenu({
                   </span>
                 </button>
               )}
-              {canFile && (
+              {personal && (
                 <button
                   type="button"
                   role="menuitem"
@@ -286,6 +464,25 @@ export default function SlipMenu({
                   />
                 ))}
               </ul>
+            </>
+          )}
+          {view === 'rung' && (
+            <>
+              <button
+                type="button"
+                onClick={() => setView('menu')}
+                className="w-full px-3 pb-1.5 pt-1 text-left text-xs font-semibold text-gray-500 hover:text-white"
+              >
+                ‹ Back
+              </button>
+              <AddRungForm
+                post={post}
+                onSave={async (rung) => {
+                  const ok = await onAddRung(rung);
+                  if (ok) close();
+                  return ok;
+                }}
+              />
             </>
           )}
           {view === 'units' && (

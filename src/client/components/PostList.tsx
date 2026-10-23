@@ -4,6 +4,7 @@ import api, { apiErrorMessage } from '../lib/api';
 import scrollToSlip from '../lib/scrollToSlip';
 import PostCard, { BackAction } from './PostCard';
 import type { GroupHandlers } from './GroupParlay';
+import type { RungInput } from './SlipMenu';
 import useConfirm from './ConfirmDialog';
 import PostComposer from './PostComposer';
 import { useToast } from './Toast';
@@ -233,7 +234,13 @@ export default function PostList({
   const remove = async (postId: string) => {
     const post = posts.find((p) => p.id === postId);
     if (!post) return;
-    const rule = deleteRule(post);
+    const isAdmin = !!profile?.isAdmin;
+    const rule = deleteRule(post, new Date(), isAdmin);
+    // An admin removing someone else's slip
+    const whose =
+      post.author.id === profile?.id
+        ? 'your'
+        : `${post.author.fullName.split(' ')[0]}’s`;
     if (rule === 'blocked') {
       await confirm({
         title: 'Settle it first',
@@ -247,8 +254,8 @@ export default function PostList({
       title: 'Delete this slip?',
       message:
         rule === 'hide'
-          ? 'It comes off the feed for everyone, but it still counts toward your record. Deleting a slip never changes your wins, losses or units.'
-          : 'It comes off the feed for everyone and won’t count toward your record, since it hasn’t been settled yet.',
+          ? `It comes off the feed for everyone, but it still counts toward ${whose} record. Deleting a slip never changes wins, losses or units.`
+          : `It comes off the feed for everyone and won’t count toward ${whose} record, since it hasn’t been settled yet.`,
       confirmLabel: 'Delete',
       danger: true,
     });
@@ -289,6 +296,18 @@ export default function PostList({
       return true;
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save the units'));
+      return false;
+    }
+  };
+
+  const addRung = async (postId: string, rung: RungInput) => {
+    try {
+      const { data } = await api.post<FeedPost>(`/posts/${postId}/rungs`, rung);
+      replacePost(data);
+      onChange?.();
+      return true;
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not add the rung'));
       return false;
     }
   };
@@ -394,6 +413,7 @@ export default function PostList({
           key={post.id}
           post={post}
           currentUserId={profile?.id}
+          isAdmin={!!profile?.isAdmin}
           onSettle={settle}
           onDelete={remove}
           onBack={back}
@@ -402,6 +422,7 @@ export default function PostList({
           onEdit={setEditing}
           onOdds={setOdds}
           onUnits={setUnits}
+          onAddRung={addRung}
           groupHandlers={groupHandlers}
         />
       ))}

@@ -10,8 +10,10 @@ import {
   parlayDecimal,
 } from '../../shared/odds';
 import {
+  addRungSchema,
   BetResult,
   betUnitsSchema,
+  canAddRung,
   canBeFaded,
   canEditSlip,
   createPostSchema,
@@ -25,6 +27,7 @@ import {
   groupResult,
   isGroupLocked,
   joinGroupSchema,
+  LADDER_MAX_RUNGS,
   LegInput,
 } from '../../shared/posts';
 import { postSeriesSchema } from '../../shared/series';
@@ -370,7 +373,7 @@ router.patch<{ betId: string }>(
         .json({ error: 'Settle a group parlay one leg at a time' });
       return;
     }
-    if (bet.post.authorId !== req.user!.id) {
+    if (bet.post.authorId !== req.user!.id && !req.user!.isAdmin) {
       res.status(403).json({ error: 'Only the poster can settle this bet' });
       return;
     }
@@ -785,7 +788,7 @@ router.put<{ betId: string }>(
       return;
     }
     const { post } = bet;
-    if (post.authorId !== userId) {
+    if (post.authorId !== userId && !req.user!.isAdmin) {
       res.status(403).json({ error: 'Only the poster can change the odds' });
       return;
     }
@@ -837,7 +840,7 @@ router.put<{ betId: string }>(
       res.status(404).json({ error: 'Bet not found' });
       return;
     }
-    if (bet.post.authorId !== userId) {
+    if (bet.post.authorId !== userId && !req.user!.isAdmin) {
       res.status(403).json({ error: 'Only the poster can change the units' });
       return;
     }
@@ -846,6 +849,136 @@ router.put<{ betId: string }>(
       data: { units: parsed.data.units },
     });
     res.json(await loadFeedPost(bet.post.id, userId));
+  }
+);
+
+/**
+ * Add a rung to a ladder at a typed line + price (see canAddRung: the author
+ * pregame, admins any time). It copies the ladder's pick, has no book link,
+ * and the grader picks it up like any rung. Rungs are renumbered by line so
+ * the card keeps them in order.
+ */
+router.post<{ postId: string }>(
+  '/:postId/rungs',
+  requireAuth,
+  requireSubscription,
+  async (req, res) => {
+    const parsed = addRungSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: parsed.error.issues[0]?.message ?? 'Invalid rung' });
+      return;
+    }
+    const { isAdmin, id: userId } = req.user!;
+    const post = await prisma.post.findFirst({
+      where: { id: req.params.postId, deletedAt: null },
+      select: {
+        id: true,
+        authorId: true,
+        type: true,
+        bets: {
+          orderBy: { order: 'asc' },
+          select: {
+            id: true,
+            result: true,
+            legs: {
+              select: {
+                result: true,
+                line: true,
+                sportKey: true,
+                eventId: true,
+                eventLabel: true,
+                marketKey: true,
+                marketLabel: true,
+                selection: true,
+                playerId: true,
+                playerName: true,
+                event: { select: { commenceTime: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!post || post.type !== 'LADDER') {
+      res.status(404).json({ error: 'Ladder not found' });
+      return;
+    }
+    if (post.authorId !== userId && !isAdmin) {
+      res.status(403).json({ error: 'Only the poster can add a rung' });
+      return;
+    }
+    const addable = canAddRung(
+      {
+        type: post.type,
+        bets: post.bets.map((b) => ({
+          result: b.result,
+          legs: b.legs.map((l) => ({
+            result: l.result,
+            startsAt: l.event?.commenceTime ?? null,
+          })),
+        })),
+      },
+      new Date(),
+      isAdmin
+    );
+    if (!addable) {
+      res.status(400).json({
+        error:
+          post.bets.length >= LADDER_MAX_RUNGS
+            ? `A ladder can have at most ${LADDER_MAX_RUNGS} rungs`
+            : 'Rungs can only be added before the game starts',
+      });
+      return;
+    }
+    const { line, americanOdds, units } = parsed.data;
+    const lines = post.bets.map((b) => Number(b.legs[0].line));
+    if (lines.includes(line)) {
+      res.status(400).json({ error: 'That line is already a rung' });
+      return;
+    }
+    const [first] = post.bets[0].legs;
+    const pick = {
+      sportKey: first.sportKey,
+      eventId: first.eventId,
+      eventLabel: first.eventLabel,
+      marketKey: first.marketKey,
+      marketLabel: first.marketLabel,
+      selection: first.selection,
+      playerId: first.playerId,
+      playerName: first.playerName,
+    };
+    // Every rung, new one included, by line; (postId, order) is unique, so
+    // park the old ones out of the way first
+    const sorted = [
+      ...post.bets.map((b, i) => ({ id: b.id, line: lines[i] })),
+      { id: null, line },
+    ].sort((a, b) => a.line - b.line);
+    await prisma.$transaction(async (tx) => {
+      await Promise.all(
+        post.bets.map((b, i) =>
+          tx.bet.update({ where: { id: b.id }, data: { order: -1 - i } })
+        )
+      );
+      await Promise.all(
+        sorted.map((r, order) =>
+          r.id
+            ? tx.bet.update({ where: { id: r.id }, data: { order } })
+            : tx.bet.create({
+                data: {
+                  postId: post.id,
+                  order,
+                  units,
+                  americanOdds,
+                  decimalOdds: americanToDecimal(americanOdds),
+                  legs: { create: [{ ...pick, order: 0, line, americanOdds }] },
+                },
+              })
+        )
+      );
+    });
+    res.status(201).json(await loadFeedPost(post.id, userId));
   }
 );
 
@@ -876,7 +1009,11 @@ router.patch<{ legId: string }>(
     }
     const bet = group.bets[0];
     const leg = bet.legs.find((l) => l.id === req.params.legId)!;
-    if (leg.addedById !== userId && group.authorId !== userId) {
+    if (
+      leg.addedById !== userId &&
+      group.authorId !== userId &&
+      !req.user!.isAdmin
+    ) {
       res
         .status(403)
         .json({ error: 'Only the leg’s owner or the creator can settle it' });
@@ -986,20 +1123,25 @@ router.put<{ postId: string }>(
       res.status(404).json({ error: 'Post not found' });
       return;
     }
-    if (post.authorId !== req.user!.id) {
+    const { isAdmin } = req.user!;
+    if (post.authorId !== req.user!.id && !isAdmin) {
       res.status(403).json({ error: 'Only the poster can edit a slip' });
       return;
     }
-    const editable = canEditSlip({
-      type: post.type,
-      bets: post.bets.map((b) => ({
-        result: b.result,
-        legs: b.legs.map((l) => ({
-          result: l.result,
-          startsAt: l.event?.commenceTime ?? null,
+    const editable = canEditSlip(
+      {
+        type: post.type,
+        bets: post.bets.map((b) => ({
+          result: b.result,
+          legs: b.legs.map((l) => ({
+            result: l.result,
+            startsAt: l.event?.commenceTime ?? null,
+          })),
         })),
-      })),
-    });
+      },
+      new Date(),
+      isAdmin
+    );
     if (!editable) {
       res.status(400).json({
         error:
@@ -1036,9 +1178,10 @@ router.put<{ postId: string }>(
         res.status(400).json({ error: 'Add new legs from live odds' });
         return;
       }
-      const startedLeg = input.legs.find(
-        (l) => starts.get(l.eventId!)!.getTime() <= Date.now()
-      );
+      // Admins fixing a slip can add in-game picks the poster really made
+      const startedLeg =
+        !isAdmin &&
+        input.legs.find((l) => starts.get(l.eventId!)!.getTime() <= Date.now());
       if (startedLeg) {
         res
           .status(400)
@@ -1112,11 +1255,16 @@ router.put<{ postId: string }>(
  * Delete your slip (see deleteRule): a settled slip is hidden but keeps
  * counting toward records; one posted by mistake (unsettled, within the
  * grace window) or an unlocked group parlay is removed entirely; anything
- * else has to be settled first.
+ * else has to be settled first. Admins can delete anyone's, any time.
  */
 router.delete<{ postId: string }>('/:postId', requireAuth, async (req, res) => {
+  const { isAdmin } = req.user!;
   const post = await prisma.post.findFirst({
-    where: { id: req.params.postId, authorId: req.user!.id, deletedAt: null },
+    where: {
+      id: req.params.postId,
+      deletedAt: null,
+      ...(!isAdmin && { authorId: req.user!.id }),
+    },
     select: {
       id: true,
       type: true,
@@ -1130,13 +1278,17 @@ router.delete<{ postId: string }>('/:postId', requireAuth, async (req, res) => {
     res.status(404).json({ error: 'Post not found' });
     return;
   }
-  const rule = deleteRule({
-    ...post,
-    group:
-      post.type === 'GROUP_PARLAY' && post.lockAt
-        ? { lockAt: post.lockAt, lockedAt: post.lockedAt }
-        : null,
-  });
+  const rule = deleteRule(
+    {
+      ...post,
+      group:
+        post.type === 'GROUP_PARLAY' && post.lockAt
+          ? { lockAt: post.lockAt, lockedAt: post.lockedAt }
+          : null,
+    },
+    new Date(),
+    isAdmin
+  );
   if (rule === 'blocked') {
     res.status(400).json({
       error: `Settle it first. Unsettled slips can only be deleted within ${DELETE_GRACE_MINUTES} minutes of posting.`,

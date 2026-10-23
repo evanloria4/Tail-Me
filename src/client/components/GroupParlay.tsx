@@ -364,7 +364,7 @@ export function GroupSlip({
           const { title, market } = legText(leg);
           const owner = leg.addedBy;
           const mine = owner?.id === profile?.id;
-          const canEdit = mine || isCreator;
+          const canEdit = mine || isCreator || !!profile?.isAdmin;
           return (
             <TimelineRow
               key={leg.id}

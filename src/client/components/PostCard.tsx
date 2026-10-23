@@ -47,7 +47,7 @@ import {
   GroupSlip,
 } from './GroupParlay';
 import { SeriesBadge } from './SeriesCover';
-import SlipMenu from './SlipMenu';
+import SlipMenu, { type RungInput } from './SlipMenu';
 import UserAvatar from './UserAvatar';
 
 /** Where Tail lands when a pick has no add-to-betslip link (typed-in slips) */
@@ -298,6 +298,7 @@ function TailSection({
 export default function PostCard({
   post,
   currentUserId,
+  isAdmin = false,
   onSettle,
   onDelete,
   onBack,
@@ -306,10 +307,13 @@ export default function PostCard({
   onEdit,
   onOdds,
   onUnits,
+  onAddRung,
   groupHandlers,
 }: {
   post: FeedPost;
   currentUserId?: string;
+  /** Admins get the ⋯ menu on everyone's slips */
+  isAdmin?: boolean;
   onSettle: (betId: string, result: BetResult) => void;
   onDelete: (postId: string) => void;
   onBack: (postId: string, action: BackAction) => void;
@@ -321,6 +325,8 @@ export default function PostCard({
   onOdds: (betId: string, americanOdds: number) => Promise<boolean>;
   /** Author changes a bet's stake; resolves false if it didn't save */
   onUnits: (betId: string, units: number) => Promise<boolean>;
+  /** Author (pregame) or admin adds a ladder rung; false if it didn't save */
+  onAddRung: (postId: string, rung: RungInput) => Promise<boolean>;
   groupHandlers: GroupHandlers;
 }) {
   const isAuthor = post.author.id === currentUserId;
@@ -454,7 +460,7 @@ export default function PostCard({
           </p>
         </div>
         <CrowdChip badges={badges} />
-        {isAuthor && (
+        {(isAuthor || isAdmin) && (
           <SlipMenu
             post={post}
             onSettle={onSettle}
@@ -463,6 +469,7 @@ export default function PostCard({
             onEdit={() => onEdit(post)}
             onOdds={onOdds}
             onUnits={onUnits}
+            onAddRung={(rung) => onAddRung(post.id, rung)}
           />
         )}
       </header>

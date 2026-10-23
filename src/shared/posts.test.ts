@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   BetResult,
   canBeFaded,
+  canAddRung,
   canEditSlip,
+  LADDER_MAX_RUNGS,
+  nextRung,
   createPostSchema,
   deleteRule,
   describeLeg,
@@ -249,6 +252,11 @@ describe('deleteRule', () => {
       )
     ).toBe('blocked');
   });
+
+  it('never blocks an admin, but settled slips still only hide', () => {
+    expect(deleteRule(slip(['PENDING'], 600), now, true)).toBe('remove');
+    expect(deleteRule(slip(['LOST'], 600), now, true)).toBe('hide');
+  });
 });
 
 describe('canBeFaded', () => {
@@ -314,6 +322,70 @@ describe('canEditSlip', () => {
     expect(canEditSlip(slip('LADDER', later), now)).toBe(false);
     expect(canEditSlip(slip('GROUP_PARLAY', later), now)).toBe(false);
     expect(canEditSlip(slip('STRAIGHT', later, 'VOID'), now)).toBe(false);
+  });
+
+  it('lets admins edit past kickoff, but not graded slips or ladders', () => {
+    const started = ['2026-10-25T16:00:00Z'];
+    expect(canEditSlip(slip('STRAIGHT', started), now, true)).toBe(true);
+    expect(canEditSlip(slip('STRAIGHT', started, 'WON'), now, true)).toBe(
+      false
+    );
+    expect(canEditSlip(slip('LADDER', started), now, true)).toBe(false);
+  });
+});
+
+describe('canAddRung', () => {
+  const now = new Date('2026-10-25T17:00:00Z');
+  const ladder = (
+    starts: string,
+    result: BetResult = 'PENDING',
+    rungs = 2
+  ) => ({
+    type: 'LADDER' as const,
+    bets: Array.from({ length: rungs }, () => ({
+      result,
+      legs: [{ result, startsAt: starts }],
+    })),
+  });
+  const later = '2026-10-25T18:00:00Z';
+  const started = '2026-10-25T16:00:00Z';
+
+  it('lets the author add pregame only', () => {
+    expect(canAddRung(ladder(later), now)).toBe(true);
+    expect(canAddRung(ladder(started), now)).toBe(false);
+    expect(canAddRung(ladder(later, 'WON'), now)).toBe(false);
+  });
+
+  it('lets admins add any time, up to the rung limit', () => {
+    expect(canAddRung(ladder(started, 'LOST'), now, true)).toBe(true);
+    expect(
+      canAddRung(ladder(later, 'PENDING', LADDER_MAX_RUNGS), now, true)
+    ).toBe(false);
+  });
+
+  it('is only for ladders', () => {
+    expect(canAddRung({ ...ladder(later), type: 'PARLAY' }, now, true)).toBe(
+      false
+    );
+  });
+});
+
+describe('nextRung', () => {
+  it('steps past the longest price', () => {
+    // Overs climb up
+    expect(
+      nextRung([
+        { line: 174.5, americanOdds: -210, units: 2 },
+        { line: 199.5, americanOdds: 110, units: 1 },
+      ])
+    ).toEqual({ line: 224.5, step: 25, units: 1 });
+    // Unders climb down
+    expect(
+      nextRung([
+        { line: 44.5, americanOdds: -110, units: 1 },
+        { line: 40.5, americanOdds: 160, units: 0.5 },
+      ])
+    ).toEqual({ line: 36.5, step: 4, units: 0.5 });
   });
 });
 

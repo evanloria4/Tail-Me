@@ -293,6 +293,9 @@ export const DELETE_GRACE_MINUTES = 15;
  * - 'remove': posted by mistake (unsettled, within the grace window) or a
  *   group parlay that hasn't locked; it's gone entirely
  * - 'blocked': unsettled and past the grace window; settle it first
+ *
+ * Admins (`asAdmin`) are never blocked: an unsettled slip of anyone's is
+ * removed, since it never counted. Settled ones are still only hidden.
  */
 export type DeleteRule = 'hide' | 'remove' | 'blocked';
 
@@ -303,14 +306,15 @@ export function deleteRule(
     group: { lockAt: string | Date; lockedAt: string | Date | null } | null;
     bets: { result: BetResult }[];
   },
-  now = new Date()
+  now = new Date(),
+  asAdmin = false
 ): DeleteRule {
   if (post.type === 'GROUP_PARLAY' && post.group) {
     if (!isGroupLocked(post.group, now)) return 'remove';
   }
   if (!post.bets.some((b) => b.result === 'PENDING')) return 'hide';
   const age = now.getTime() - new Date(post.createdAt).getTime();
-  return age < DELETE_GRACE_MINUTES * 60_000 ? 'remove' : 'blocked';
+  return asAdmin || age < DELETE_GRACE_MINUTES * 60_000 ? 'remove' : 'blocked';
 }
 
 /**
@@ -335,7 +339,8 @@ export function canBeFaded(
  * Whether the author can still change a slip's legs, units and price:
  * straights and parlays only, nothing graded, and no game on it started yet
  * (so a leg that's already losing can't be dropped). Ladders and group
- * parlays stay as posted.
+ * parlays stay as posted. Admins (`asAdmin`) can edit anyone's straight or
+ * parlay after kickoff too, as long as nothing is graded.
  */
 export function canEditSlip(
   post: {
@@ -345,9 +350,46 @@ export function canEditSlip(
       legs: { result: BetResult; startsAt: string | Date | null }[];
     }[];
   },
-  now = new Date()
+  now = new Date(),
+  asAdmin = false
 ): boolean {
   if (post.type !== 'STRAIGHT' && post.type !== 'PARLAY') return false;
+  return post.bets.every(
+    (b) =>
+      b.result === 'PENDING' &&
+      b.legs.every(
+        (l) =>
+          l.result === 'PENDING' &&
+          (asAdmin ||
+            !l.startsAt ||
+            new Date(l.startsAt).getTime() > now.getTime())
+      )
+  );
+}
+
+// ---------- Ladder rungs ----------
+
+/** Most rungs a ladder can hold, posted or added later */
+export const LADDER_MAX_RUNGS = 10;
+
+/**
+ * Whether a rung can be added to a ladder: the author pregame (nothing graded,
+ * no game started), admins any time. Either way it needs room.
+ */
+export function canAddRung(
+  post: {
+    type: FeedPost['type'];
+    bets: {
+      result: BetResult;
+      legs: { result: BetResult; startsAt: string | Date | null }[];
+    }[];
+  },
+  now = new Date(),
+  asAdmin = false
+): boolean {
+  if (post.type !== 'LADDER' || post.bets.length >= LADDER_MAX_RUNGS)
+    return false;
+  if (asAdmin) return true;
   return post.bets.every(
     (b) =>
       b.result === 'PENDING' &&
@@ -358,6 +400,33 @@ export function canEditSlip(
       )
   );
 }
+
+/**
+ * The next rung up a ladder: one more step past its longest price, the step
+ * being the gap between its two longest prices. Works whichever way the
+ * ladder climbs (Overs up, Unders and favorites down). `step` is what the
+ * line moves by when nudged (always positive).
+ */
+export function nextRung(
+  rungs: { line: number | null; americanOdds: number; units: number }[]
+): { line: number; step: number; units: number } {
+  const byPrice = rungs
+    .filter((r): r is typeof r & { line: number } => r.line != null)
+    .sort((a, b) => b.americanOdds - a.americanOdds);
+  const [top, second] = byPrice;
+  if (!top) return { line: 0, step: 1, units: 1 };
+  const gap = second ? top.line - second.line : 0;
+  const step = Math.round(Math.abs(gap) * 100) / 100 || 1;
+  const line = Math.round((top.line + (gap || step)) * 100) / 100;
+  return { line, step, units: top.units };
+}
+
+/** A rung added to a posted ladder; the pick comes from the ladder itself */
+export const addRungSchema = z.object({
+  line: z.number(),
+  americanOdds,
+  units,
+});
 
 /**
  * Edit a straight / parlay: the legs to keep (by id), new legs from live
