@@ -52,9 +52,7 @@ export type LeaderRow = PersonRef & {
   l5: SettledResult[];
   streak: Streak | null;
   bestStreak: number;
-  /** How their slips that got tailed did */
-  tailed: MiniRecord;
-  /** Fades on their slips, from the faders' side (their loss is a fade win) */
+  /** How the people who faded them did (their loss is a fade win) */
   faded: MiniRecord;
 };
 
@@ -128,9 +126,6 @@ export function leaderRow(
     l5: lastResults(all, 5),
     streak: currentStreak(all),
     bestStreak: bestWinStreak(bets),
-    tailed: mini(
-      bets.filter((b) => b.tails > 0).map((b) => ({ ...b, weight: 1 }))
-    ),
     faded: mini(
       bets
         .filter((b) => b.fades > 0 && FADE_SIDE[b.result])

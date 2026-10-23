@@ -329,13 +329,6 @@ export function LegRow({
           <p className="mt-0.5 truncate text-[11px] font-semibold uppercase tracking-wide text-gray-500">
             {/* The bar carries the stat when there is one */}
             {bar ? market : withFinal(market, leg.actual)}
-            {/* Phones: the game shares this line so long slips stay short */}
-            {!hideGame && (
-              <span className="font-normal normal-case tracking-normal text-emerald-400 sm:hidden">
-                {' '}
-                · {leg.eventLabel}
-              </span>
-            )}
           </p>
         </div>
         <span className="font-mono font-bold tabular-nums">
@@ -343,16 +336,15 @@ export function LegRow({
         </span>
       </div>
       {bar}
+      {/* The game gets its own line under the bet type on every screen */}
       {!hideGame && (
-        <p className="mt-1.5 hidden flex-wrap items-center gap-2 text-xs text-emerald-400 sm:flex">
+        <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-emerald-400">
           {leg.eventLabel}
           {tag}
         </p>
       )}
-      {tag && (
-        <div className="mt-1 flex flex-wrap items-center gap-2 sm:hidden">
-          {tag}
-        </div>
+      {hideGame && tag && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">{tag}</div>
       )}
     </TimelineRow>
   );

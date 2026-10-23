@@ -3,6 +3,7 @@ import prisma from '../db';
 import { requireAuth } from '../middleware/auth';
 import { isHot } from '../../shared/badges';
 import { CommunityStats, dailyTotals } from '../../shared/community';
+import { groupRow } from '../../shared/records';
 import { siteDayKey } from '../../shared/time';
 import {
   currentStreak,
@@ -49,13 +50,15 @@ router.get('/', requireAuth, async (req, res) => {
         post: { select: { authorId: true, type: true, createdAt: true } },
       },
     }),
-    prisma.betLeg.findMany({
-      where: {
-        bet: { post: { type: 'GROUP_PARLAY' } },
-        addedById: { not: null },
-        result: { in: ['WON', 'LOST'] },
+    // Whole group parlays, so a leg can be told apart as the only miss
+    prisma.bet.findMany({
+      where: { post: { type: 'GROUP_PARLAY' } },
+      select: {
+        result: true,
+        postId: true,
+        post: { select: { createdAt: true } },
+        legs: { select: { addedById: true, result: true } },
       },
-      select: { addedById: true, result: true },
     }),
   ]);
 
@@ -110,12 +113,16 @@ router.get('/', requireAuth, async (req, res) => {
       open: groupResults.filter((r) => r === 'PENDING').length,
       legs: users
         .map((u) => {
-          const mine = groupLegs.filter((l) => l.addedById === u.id);
-          return {
-            ...u,
-            hit: mine.filter((l) => l.result === 'WON').length,
-            busted: mine.filter((l) => l.result === 'LOST').length,
-          };
+          const { hit, busted, onlyMiss } = groupRow(
+            u,
+            groupLegs.map((b) => ({
+              postId: b.postId,
+              createdAt: b.post.createdAt,
+              result: b.result,
+              legs: b.legs,
+            }))
+          );
+          return { ...u, hit, busted, onlyMiss };
         })
         .filter((u) => u.hit + u.busted > 0)
         .sort((a, b) => b.hit - a.hit || a.busted - b.busted),

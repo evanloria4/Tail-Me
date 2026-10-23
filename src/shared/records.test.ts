@@ -83,19 +83,6 @@ describe('leaderRow', () => {
     );
     expect(row.faded).toEqual({ wins: 2, losses: 1, pushes: 0 });
   });
-
-  it('records how tailed slips did', () => {
-    const row = leaderRow(
-      ann,
-      [
-        bet({ result: 'WON', tails: 3 }),
-        bet({ result: 'LOST', tails: 1 }),
-        bet({ result: 'LOST' }),
-      ],
-      null
-    );
-    expect(row.tailed).toEqual({ wins: 1, losses: 1, pushes: 0 });
-  });
 });
 
 describe('groupRow', () => {

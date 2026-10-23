@@ -185,15 +185,18 @@ function SortHeader({
     <th
       scope="col"
       aria-sort={active ? 'descending' : undefined}
-      className={`px-2 py-2 font-semibold ${className}`}
+      className={`px-2 py-2 text-center font-semibold ${className}`}
     >
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className={`inline-flex items-center gap-0.5 uppercase tracking-wider transition hover:text-white ${active ? 'text-white' : ''}`}
+        className={`relative uppercase tracking-wider transition hover:text-white ${active ? 'text-white' : ''}`}
       >
         {label}
-        <span aria-hidden="true" className={active ? '' : 'invisible'}>
+        <span
+          aria-hidden="true"
+          className={`absolute left-full ml-0.5 ${active ? '' : 'invisible'}`}
+        >
           ▾
         </span>
       </button>
@@ -211,7 +214,7 @@ function PlainHeader({
   return (
     <th
       scope="col"
-      className={`px-2 py-2 font-semibold uppercase tracking-wider ${className}`}
+      className={`px-2 py-2 text-center font-semibold uppercase tracking-wider ${className}`}
     >
       {label}
     </th>
@@ -255,18 +258,11 @@ function LeaderTable({
             <SortHeader
               label="Units"
               sortKey="units"
-              className="text-right"
               sort={sort}
               onSort={onSort}
             />
-            <SortHeader
-              label="ROI"
-              sortKey="roi"
-              className="text-right"
-              sort={sort}
-              onSort={onSort}
-            />
-            <PlainHeader label="L5" />
+            <SortHeader label="ROI" sortKey="roi" sort={sort} onSort={onSort} />
+            <PlainHeader label="L5" className="!text-left" />
             <SortHeader
               label="Streak"
               sortKey="streak"
@@ -279,8 +275,7 @@ function LeaderTable({
               sort={sort}
               onSort={onSort}
             />
-            <PlainHeader label="Tailed" />
-            <PlainHeader label="Faded" className="pr-4" />
+            <PlainHeader label="Faders" className="pr-4" />
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-800">
@@ -302,16 +297,11 @@ function LeaderTable({
                     <Person person={r} me={r.id === meId} />
                   </span>
                 </td>
-                <td className="whitespace-nowrap px-2 py-2.5 tabular-nums">
+                <td className="whitespace-nowrap px-2 py-2.5 tabular-nums text-center">
                   {settled ? record(r.line) : '–'}
-                  {r.line.pending > 0 && (
-                    <span className="ml-1 text-xs text-gray-500">
-                      ({r.line.pending} open)
-                    </span>
-                  )}
                 </td>
                 <td
-                  className="px-2 py-2.5 tabular-nums"
+                  className="px-2 py-2.5 text-center tabular-nums"
                   title={
                     showRates ? undefined : `Ranks after ${MIN_RANKED} bets`
                   }
@@ -321,11 +311,11 @@ function LeaderTable({
                   </span>
                 </td>
                 <td
-                  className={`whitespace-nowrap px-2 py-2.5 text-right font-semibold tabular-nums ${netColor(r.line.net)}`}
+                  className={`whitespace-nowrap px-2 py-2.5 font-semibold tabular-nums ${netColor(r.line.net)} text-center`}
                 >
                   {settled ? signedUnits(r.line.net) : '–'}
                 </td>
-                <td className="whitespace-nowrap px-2 py-2.5 text-right tabular-nums">
+                <td className="whitespace-nowrap px-2 py-2.5 tabular-nums text-center">
                   <span className={showRates ? '' : 'text-gray-500'}>
                     {pct(r.line.roi, true)}
                   </span>
@@ -337,16 +327,13 @@ function LeaderTable({
                     <span className="text-gray-500">–</span>
                   )}
                 </td>
-                <td className="px-2 py-2.5 tabular-nums">
+                <td className="px-2 py-2.5 tabular-nums text-center">
                   <StreakText streak={r.streak} />
                 </td>
-                <td className="px-2 py-2.5 tabular-nums">
+                <td className="px-2 py-2.5 tabular-nums text-center">
                   {r.bestStreak ? `W${r.bestStreak}` : '–'}
                 </td>
-                <td className="whitespace-nowrap px-2 py-2.5 tabular-nums">
-                  {miniRecord(r.tailed)}
-                </td>
-                <td className="whitespace-nowrap py-2.5 pl-2 pr-4 tabular-nums">
+                <td className="whitespace-nowrap py-2.5 pl-2 pr-4 tabular-nums text-center">
                   {miniRecord(r.faded)}
                 </td>
               </tr>
@@ -381,7 +368,7 @@ function GroupTable({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
             <PlainHeader label="Hit %" />
             <PlainHeader label="💀 Only miss" />
             <PlainHeader label="Cashed" />
-            <PlainHeader label="L5 legs" className="pr-4" />
+            <PlainHeader label="L5 legs" className="pr-4 !text-left" />
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-800">
@@ -395,16 +382,24 @@ function GroupTable({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
               >
                 <Person person={r} me={r.id === meId} />
               </td>
-              <td className="px-2 py-2.5 tabular-nums">{r.parlays}</td>
-              <td className="px-2 py-2.5 font-semibold tabular-nums text-emerald-400">
+              <td className="px-2 py-2.5 tabular-nums text-center">
+                {r.parlays}
+              </td>
+              <td className="px-2 py-2.5 font-semibold tabular-nums text-emerald-400 text-center">
                 {r.hit}
               </td>
-              <td className="px-2 py-2.5 tabular-nums text-red-400">
+              <td className="px-2 py-2.5 tabular-nums text-red-400 text-center">
                 {r.busted}
               </td>
-              <td className="px-2 py-2.5 tabular-nums">{pct(hitPct(r))}</td>
-              <td className="px-2 py-2.5 tabular-nums">{r.onlyMiss}</td>
-              <td className="px-2 py-2.5 tabular-nums">{r.cashed}</td>
+              <td className="px-2 py-2.5 tabular-nums text-center">
+                {pct(hitPct(r))}
+              </td>
+              <td className="px-2 py-2.5 tabular-nums text-center">
+                {r.onlyMiss}
+              </td>
+              <td className="px-2 py-2.5 tabular-nums text-center">
+                {r.cashed}
+              </td>
               <td className="py-2.5 pl-2 pr-4">
                 {r.l5.length ? (
                   <FormDots results={r.l5} size="sm" />
@@ -563,9 +558,8 @@ export default function Records() {
               />
               <p className="text-xs text-gray-500">
                 Ladder rungs count as one bet each. Win % and ROI rank after{' '}
-                {MIN_RANKED} settled bets. L5 and streaks are all-time. Tailed:
-                how their tailed slips did. Faded: how people who faded them
-                did.
+                {MIN_RANKED} settled bets. L5 and streaks are all-time. Faders:
+                how everyone who faded them did.
               </p>
             </div>
           ) : (

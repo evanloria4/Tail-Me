@@ -250,12 +250,13 @@ function GroupRecord({ group }: { group: CommunityStats['group'] }) {
                   </span>
                   /{u.hit + u.busted}
                 </span>
-                {u.busted > 0 && (
+                {/* Only the parlays that lost on their leg alone */}
+                {u.onlyMiss > 0 && (
                   <span
-                    title={`Busted ${u.busted} group ${u.busted === 1 ? 'parlay' : 'parlays'}`}
+                    title={`Only miss on ${u.onlyMiss} group ${u.onlyMiss === 1 ? 'parlay' : 'parlays'}`}
                     className="w-9 text-right text-xs font-semibold text-red-400"
                   >
-                    💀{u.busted}
+                    💀{u.onlyMiss}
                   </span>
                 )}
               </Link>

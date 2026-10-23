@@ -52,6 +52,11 @@ export type CommunityStats = {
     /** Still open or waiting on legs */
     open: number;
     /** Each person's graded legs, most hits first */
-    legs: (PersonRef & { hit: number; busted: number })[];
+    legs: (PersonRef & {
+      hit: number;
+      busted: number;
+      /** Parlays that lost on their leg alone */
+      onlyMiss: number;
+    })[];
   };
 };
