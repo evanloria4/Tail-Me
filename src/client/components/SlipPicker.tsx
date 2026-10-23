@@ -9,11 +9,11 @@ import {
   legToSelection,
   matchesPick,
   Selection,
-  selectionKey,
   selectionTitle,
   slipDecimal,
   SlipMode,
   toLeg,
+  toSelection,
 } from '../lib/slip';
 import {
   formatAmerican,
@@ -26,11 +26,12 @@ import {
 } from '../../shared/odds';
 import {
   LIVE_ODDS_BOOK,
-  marketLabel,
   OddsGame,
   OddsOutcome,
   PickerCategory,
   PICKER_CATEGORIES,
+  SPORT_ORDER,
+  SPORT_TABS,
 } from '../../shared/markets';
 import {
   createPostSchema,
@@ -41,6 +42,7 @@ import { inputClass } from './ComposerParts';
 import { inSiteZone, SITE_ZONE_LABEL } from '../../shared/time';
 import GroupReview, { GroupMode, PostedKind } from './GroupReview';
 import SeriesPicker from './SeriesPicker';
+import SlipImport from './SlipImport';
 import { LiveBadge } from './SlipParts';
 import useNow from '../lib/useNow';
 
@@ -48,22 +50,11 @@ import useNow from '../lib/useNow';
 // slip, then review and post. Prices, lines and add-to-betslip links all come
 // from live odds, so nothing has to be typed in.
 
-const SPORT_ORDER = [
-  'americanfootball_nfl',
-  'americanfootball_ncaaf',
-  'icehockey_nhl',
-];
-const SPORT_TABS: Record<string, string> = {
-  americanfootball_nfl: 'NFL',
-  americanfootball_ncaaf: 'NCAAF',
-  icehockey_nhl: 'NHL',
-};
 const MAX_PICKS = 20;
 
 type Toggle = (game: OddsGame, marketKey: string, o: OddsOutcome) => void;
 type IsPicked = (game: OddsGame, marketKey: string, o: OddsOutcome) => boolean;
 
-const eventLabelOf = (g: OddsGame) => `${g.awayTeam} @ ${g.homeTeam}`;
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 /** Units typed in; blank isn't 0 (0 is allowed, but has to be typed) */
 const toUnits = (v: string) => (v.trim() === '' ? NaN : Number(v));
@@ -824,26 +815,28 @@ export default function SlipPicker({
   const toggle: Toggle = (game, marketKey, o) => {
     // The list only shows the one game, but the server checks it too
     if (onlyGame && game.id !== onlyGame.eventId) return;
-    const key = selectionKey(game.id, marketKey, o);
     setError(null);
     setSelections((prev) => {
       // Tapping a picked price (a posted leg too, when editing) removes it
       if (prev.some((s) => matchesPick(s, game, marketKey, o)))
         return prev.filter((s) => !matchesPick(s, game, marketKey, o));
-      const picked: Selection = {
-        key,
-        sportKey: game.sportKey,
-        eventId: game.id,
-        eventLabel: eventLabelOf(game),
-        marketKey,
-        marketLabel: marketLabel(game.sportKey, marketKey),
-        outcome: o,
-        commenceTime: game.commenceTime,
-      };
+      const picked = toSelection(game, marketKey, o);
       // A group parlay leg is one pick; tapping another swaps it
       if (group) return [picked];
       if (prev.length >= MAX_PICKS) return prev;
       return [...prev, picked];
+    });
+  };
+
+  /** Picks from a pasted link, added after any already on the slip */
+  const addPicks = (picks: Selection[]) => {
+    setError(null);
+    setSelections((prev) => {
+      const have = new Set(prev.map((s) => s.key));
+      return [...prev, ...picks.filter((p) => !have.has(p.key))].slice(
+        0,
+        MAX_PICKS
+      );
     });
   };
 
@@ -1142,6 +1135,13 @@ export default function SlipPicker({
           </span>
           Live odds and lines from {bookName}
         </p>
+        {!group && !edit && (
+          <SlipImport
+            bookName={bookName}
+            onPicks={addPicks}
+            onDone={() => setStep('review')}
+          />
+        )}
         {onlyGame ? (
           <p className="rounded-xl bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-400">
             🎯 This group parlay is a {onlyGame.eventLabel} SGP

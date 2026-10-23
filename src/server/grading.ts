@@ -1,6 +1,8 @@
-// Auto-grading. Every few minutes: find pending legs whose game should be
-// over, look the game up on ESPN, grade game lines from the final score and
-// props from the box score, then roll leg results up into their bets.
+// Auto-grading. Every couple of minutes: find pending legs whose game has
+// started, look the game up on ESPN, grade game lines from the score and props
+// from the box score, then roll leg results up into their bets. While a game
+// is on, only what's already decided is graded (an Under past its line loses
+// right away); those marks are provisional and re-checked at the final.
 // Results a person set (gradedBy MANUAL) are never touched, and anything that
 // can't be matched stays pending for the poster to grade by hand.
 import prisma from './db';
@@ -8,15 +10,15 @@ import { boxScore, EspnGame, findGame } from './espn';
 import {
   betResultFromLegs,
   gradeGameLine,
+  gradeLiveGameLine,
+  gradeLiveProp,
   gradeProp,
   normPlayer,
   propStat,
 } from '../shared/grading';
 import type { BetResult } from '../shared/posts';
 
-const INTERVAL = 10 * 60_000;
-/** A game can't be final sooner than this after it starts */
-const MIN_GAME_LENGTH = 2 * 60 * 60_000;
+const INTERVAL = 2 * 60_000;
 /** Stop retrying games this old; they're left for manual grading */
 const GIVE_UP_AFTER = 7 * 24 * 60 * 60_000;
 
@@ -28,21 +30,48 @@ const NOT_MANUAL = {
   OR: [{ gradedBy: null }, { gradedBy: 'AUTO' as const }],
 };
 
+/** A PENDING grade clears an earlier mid-game mark the game has undone */
 type LegGrade = { result: BetResult; actual: number | null };
+
+type GradableLeg = {
+  sportKey: string;
+  marketKey: string;
+  marketLabel: string | null;
+  playerName: string | null;
+  selection: string;
+  line: { toNumber(): number } | null;
+};
+
+/** Mid-game grade: decided outcomes only, else PENDING */
+async function gradeLegLive(
+  leg: GradableLeg,
+  game: EspnGame
+): Promise<LegGrade | null> {
+  const line = leg.line?.toNumber() ?? null;
+  if (leg.marketKey !== 'player_prop') {
+    const result = gradeLiveGameLine(
+      { marketKey: leg.marketKey, selection: leg.selection, line },
+      game
+    );
+    return { result, actual: null };
+  }
+  const stat = propStat(leg.sportKey, leg.marketLabel);
+  if (!stat || !leg.playerName) return null;
+  const players = await boxScore(leg.sportKey, game.id, true);
+  const player = players.get(normPlayer(leg.playerName));
+  if (!player) return null;
+  // "Final 52" would be wrong mid-game, so the stat waits for the final
+  const result = gradeLiveProp(leg.selection, line, player[stat] ?? 0);
+  return { result, actual: null };
+}
 
 /** Grade one leg against its game, or null if it can't be graded yet */
 async function gradeLeg(
-  leg: {
-    sportKey: string;
-    marketKey: string;
-    marketLabel: string | null;
-    playerName: string | null;
-    selection: string;
-    line: { toNumber(): number } | null;
-  },
+  leg: GradableLeg,
   game: EspnGame
 ): Promise<LegGrade | null> {
   if (game.called) return { result: 'VOID', actual: null };
+  if (game.live) return gradeLegLive(leg, game);
   if (!game.completed) return null;
 
   const line = leg.line?.toNumber() ?? null;
@@ -71,11 +100,14 @@ async function gradeLeg(
 export async function runGrading(now = new Date(), { dryRun = false } = {}) {
   const legs = await prisma.betLeg.findMany({
     where: {
-      result: 'PENDING',
-      gradedBy: null,
+      OR: [
+        { result: 'PENDING', gradedBy: null },
+        // Marked mid-game: re-checked until the game is final
+        { gradedBy: 'AUTO', event: { completed: false } },
+      ],
       event: {
         commenceTime: {
-          lt: new Date(now.getTime() - MIN_GAME_LENGTH),
+          lt: now,
           gt: new Date(now.getTime() - GIVE_UP_AFTER),
         },
       },
@@ -144,10 +176,18 @@ export async function runGrading(now = new Date(), { dryRun = false } = {}) {
       `${leg.eventLabel} | ${leg.playerName ?? ''} ${leg.selection} ${leg.line ?? ''} ${leg.marketLabel ?? leg.marketKey} -> ${grade?.result ?? 'pending'}${grade?.actual != null ? ` (${grade.actual})` : ''}`
     );
     if (!grade || dryRun) continue; // eslint-disable-line no-continue
+    const actual = leg.actual?.toNumber() ?? null;
+    if (grade.result === leg.result && grade.actual === actual) {
+      continue; // eslint-disable-line no-continue
+    }
     // eslint-disable-next-line no-await-in-loop
     await prisma.betLeg.update({
       where: { id: leg.id },
-      data: { result: grade.result, actual: grade.actual, gradedBy: 'AUTO' },
+      data: {
+        result: grade.result,
+        actual: grade.actual,
+        gradedBy: grade.result === 'PENDING' ? null : 'AUTO',
+      },
     });
     touchedBets.add(leg.betId);
     graded += 1;

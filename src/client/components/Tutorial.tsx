@@ -89,7 +89,7 @@ const STEPS: Step[] = [
   {
     icon: '📡',
     title: 'Post from live odds',
-    body: 'Click the green + button, pick a league, and build slips like you would on a sportsbook. Make straight bets or parlays.',
+    body: 'Click the green + button, pick a league, and build slips like you would on a sportsbook. Make straight bets or parlays, or paste a FanDuel bet slip link and the picks fill in for you.',
     visual: (
       <div className={`${mockCard} space-y-2`}>
         <p className="truncate font-semibold">Seahawks @ Broncos</p>

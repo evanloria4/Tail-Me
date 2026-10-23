@@ -208,3 +208,15 @@ export function marketLabel(sportKey: string, key: string): string {
   }
   return key;
 }
+
+/** Leagues in the order the picker lists them, and their short names */
+export const SPORT_ORDER = [
+  'americanfootball_nfl',
+  'americanfootball_ncaaf',
+  'icehockey_nhl',
+];
+export const SPORT_TABS: Record<string, string> = {
+  americanfootball_nfl: 'NFL',
+  americanfootball_ncaaf: 'NCAAF',
+  icehockey_nhl: 'NHL',
+};

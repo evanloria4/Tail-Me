@@ -8,7 +8,8 @@ import useConfirm from './ConfirmDialog';
 import PostComposer from './PostComposer';
 import { useToast } from './Toast';
 import { DELETE_GRACE_MINUTES, deleteRule } from '../../shared/posts';
-import type { BetResult, FeedPost } from '../../shared/posts';
+import type { BetResult, FeedLeg, FeedPost } from '../../shared/posts';
+import { gameState } from '../../shared/live';
 import type { StatRange } from '../../shared/stats';
 import { REACTION_EMOJIS } from '../../shared/social';
 import type { ReactionEmoji, ReactionSummary } from '../../shared/social';
@@ -17,6 +18,20 @@ type FeedPage = { posts: FeedPost[]; nextCursor: string | null };
 
 /** How far down the feed a panel click will page looking for a slip */
 const MAX_FOCUS_PAGES = 10;
+
+/** How often slips with a game on reload (the grader's pace) */
+const REFRESH_MS = 2 * 60_000;
+/** Stop watching an ungraded leg this long after its game started */
+const WATCH_FOR_MS = 24 * 60 * 60_000;
+
+/** A leg whose game is on, or over with its bet still waiting on a grade */
+function watching(leg: FeedLeg, betResult: BetResult, now: number) {
+  if (!leg.startsAt || now - Date.parse(leg.startsAt) > WATCH_FOR_MS) {
+    return false;
+  }
+  const state = gameState(leg.startsAt, leg.gameFinal, now);
+  return state === 'live' || (state === 'final' && betResult === 'PENDING');
+}
 
 /** Optimistic flip of the viewer's reaction, kept in the fixed emoji order */
 function toggleReaction(
@@ -113,6 +128,35 @@ export default function PostList({
       onFocusDone?.(false);
     }
   }, [focusId, loading, posts, cursor, load, onFocusDone]);
+
+  // Slips with a game on (or just over and waiting on a grade) reload every
+  // couple of minutes, matching the grader, so a leg that hits or busts
+  // mid-game shows without a page refresh
+  const postsRef = useRef(posts);
+  postsRef.current = posts;
+  useEffect(() => {
+    const tick = async () => {
+      if (document.hidden) return;
+      const now = Date.now();
+      const ids = postsRef.current
+        .filter((p) =>
+          p.bets.some((b) => b.legs.some((l) => watching(l, b.result, now)))
+        )
+        .map((p) => p.id);
+      if (!ids.length) return;
+      try {
+        const { data } = await api.get<FeedPost[]>('/posts/refresh', {
+          params: { ids: ids.join(',') },
+        });
+        const fresh = new Map(data.map((p) => [p.id, p]));
+        setPosts((prev) => prev.map((p) => fresh.get(p.id) ?? p));
+      } catch {
+        // Next tick tries again
+      }
+    };
+    const id = setInterval(tick, REFRESH_MS);
+    return () => clearInterval(id);
+  }, []);
 
   const settle = async (betId: string, result: BetResult) => {
     const update = (r: BetResult) =>

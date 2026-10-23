@@ -3,6 +3,8 @@ import {
   betResultFromLegs,
   easternDateKey,
   gradeGameLine,
+  gradeLiveGameLine,
+  gradeLiveProp,
   gradeProp,
   normName,
   normPlayer,
@@ -109,6 +111,47 @@ describe('gradeProp', () => {
   it('grades yes props on one or more', () => {
     expect(gradeProp('Yes', null, 1)).toBe('WON');
     expect(gradeProp('Yes', null, 0)).toBe('LOST');
+  });
+});
+
+describe('mid-game grading', () => {
+  it('settles only what the rest of the game can’t undo', () => {
+    expect(gradeLiveProp('Under', 49.5, 52)).toBe('LOST');
+    expect(gradeLiveProp('Over', 49.5, 52)).toBe('WON');
+    expect(gradeLiveProp('Over', 49.5, 49)).toBe('PENDING');
+    expect(gradeLiveProp('Under', 49.5, 49)).toBe('PENDING');
+    // Sitting on the line could still push or go either way
+    expect(gradeLiveProp('Under', 5, 5)).toBe('PENDING');
+    expect(gradeLiveProp('Yes', null, 1)).toBe('WON');
+    expect(gradeLiveProp('Yes', null, 0)).toBe('PENDING');
+  });
+
+  it('grades totals the score has passed, never sides', () => {
+    const live = { ...game, homeScore: 24, awayScore: 21 };
+    expect(
+      gradeLiveGameLine(
+        { marketKey: 'totals', selection: 'Under', line: 44.5 },
+        live
+      )
+    ).toBe('LOST');
+    expect(
+      gradeLiveGameLine(
+        { marketKey: 'totals', selection: 'Over', line: 44.5 },
+        live
+      )
+    ).toBe('WON');
+    expect(
+      gradeLiveGameLine(
+        { marketKey: 'h2h', selection: 'Denver Broncos', line: null },
+        live
+      )
+    ).toBe('PENDING');
+    expect(
+      gradeLiveGameLine(
+        { marketKey: 'spreads', selection: 'Denver Broncos', line: -3.5 },
+        live
+      )
+    ).toBe('PENDING');
   });
 });
 

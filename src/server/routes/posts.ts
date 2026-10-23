@@ -30,6 +30,7 @@ import {
 import { postSeriesSchema } from '../../shared/series';
 import { isStatRange, rangeStart } from '../../shared/stats';
 import { MAX_GAME_MS } from '../../shared/live';
+import { fromSiteInput, siteDayKey } from '../../shared/time';
 
 const router = Router();
 const PAGE_SIZE = 20;
@@ -187,6 +188,29 @@ router.get('/', requireAuth, async (req, res) => {
   });
 });
 
+/** Most posts one refresh call returns */
+const REFRESH_MAX = 30;
+
+/**
+ * Fresh copies of posts the viewer already has, so cards with games on pick
+ * up mid-game grades without a reload. `?ids=a,b,c`; deleted ones are left out.
+ */
+router.get('/refresh', requireAuth, async (req, res) => {
+  const ids =
+    typeof req.query.ids === 'string'
+      ? req.query.ids.split(',').filter(Boolean).slice(0, REFRESH_MAX)
+      : [];
+  if (!ids.length) {
+    res.json([]);
+    return;
+  }
+  const posts = await prisma.post.findMany({
+    where: { id: { in: ids }, deletedAt: null },
+    include: feedInclude,
+  });
+  res.json(await toFeedPosts(posts, req.user!.id));
+});
+
 /**
  * What's in play right now, for the feed's side panels: group parlays not
  * yet settled (taking legs, locked, or live), and personal slips with a game
@@ -194,10 +218,12 @@ router.get('/', requireAuth, async (req, res) => {
  */
 router.get('/active', requireAuth, async (req, res) => {
   const now = new Date();
+  // Midnight Central, so a group parlay settled today stays up with its result
+  const today = fromSiteInput(`${siteDayKey(now)}T00:00`) ?? now;
   // A game that started within the longest possible game length and isn't
-  // marked final yet (same rule as the LIVE tags)
+  // marked final yet (same rule as the LIVE tags). Settled slips count too,
+  // so a parlay that busted mid-game shows it while the game is on.
   const liveLeg = {
-    result: 'PENDING' as const,
     event: {
       completed: false,
       commenceTime: {
@@ -211,7 +237,11 @@ router.get('/active', requireAuth, async (req, res) => {
       where: {
         type: 'GROUP_PARLAY',
         deletedAt: null,
-        bets: { some: { result: 'PENDING' } },
+        bets: {
+          some: {
+            OR: [{ result: 'PENDING' }, { settledAt: { gte: today } }],
+          },
+        },
       },
       orderBy: [{ lockAt: 'asc' }, { id: 'asc' }],
       take: 10,
@@ -221,7 +251,7 @@ router.get('/active', requireAuth, async (req, res) => {
       where: {
         type: { not: 'GROUP_PARLAY' },
         deletedAt: null,
-        bets: { some: { result: 'PENDING', legs: { some: liveLeg } } },
+        bets: { some: { legs: { some: liveLeg } } },
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 15,

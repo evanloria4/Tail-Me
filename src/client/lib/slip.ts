@@ -1,6 +1,10 @@
 // Bet-picker slip logic: what the picked outcomes add up to (straight, parlay
 // or ladder) and how they turn into a post. Kept free of React so it's testable.
-import { marketLabel, type OddsOutcome } from '../../shared/markets';
+import {
+  marketLabel,
+  type OddsGame,
+  type OddsOutcome,
+} from '../../shared/markets';
 import { parlayDecimal } from '../../shared/odds';
 import {
   MARKETS,
@@ -32,6 +36,27 @@ export const selectionKey = (
   marketKey: string,
   o: OddsOutcome
 ) => [eventId, marketKey, o.player ?? '', o.name, o.point ?? ''].join('|');
+
+/** A live-odds outcome as a picked selection */
+export function toSelection(
+  game: Pick<
+    OddsGame,
+    'id' | 'sportKey' | 'awayTeam' | 'homeTeam' | 'commenceTime'
+  >,
+  marketKey: string,
+  o: OddsOutcome
+): Selection {
+  return {
+    key: selectionKey(game.id, marketKey, o),
+    sportKey: game.sportKey,
+    eventId: game.id,
+    eventLabel: `${game.awayTeam} @ ${game.homeTeam}`,
+    marketKey,
+    marketLabel: marketLabel(game.sportKey, marketKey),
+    outcome: o,
+    commenceTime: game.commenceTime,
+  };
+}
 
 /** "player_pass_yds_alternate" -> "player_pass_yds", "alternate_spreads" -> "spreads" */
 export const baseMarket = (key: string) =>

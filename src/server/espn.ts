@@ -18,7 +18,9 @@ const LEAGUE_PATHS: Record<string, string> = {
   icehockey_nhl: 'hockey/nhl',
 };
 
-const SCOREBOARD_TTL = 5 * 60_000;
+// Short enough that a live game's scores and stats keep up with the grader
+const SCOREBOARD_TTL = 2 * 60_000;
+const LIVE_BOX_TTL = 2 * 60_000;
 const BOX_TTL = 30 * 60_000;
 
 export type EspnGame = {
@@ -29,6 +31,8 @@ export type EspnGame = {
   homeScore: number;
   awayScore: number;
   completed: boolean;
+  /** In progress (halftime and intermissions included) */
+  live: boolean;
   /** Postponed / canceled / suspended: bets on it get voided */
   called: boolean;
 };
@@ -61,7 +65,7 @@ type ApiCompetitor = {
 type ApiEvent = {
   id: string;
   date: string;
-  status: { type: { name: string; completed: boolean } };
+  status: { type: { name: string; state?: string; completed: boolean } };
   competitions: { competitors: ApiCompetitor[] }[];
 };
 
@@ -91,6 +95,7 @@ function scoreboard(sportKey: string, date: string): Promise<EspnGame[]> {
           homeScore: Number(home.score ?? 0),
           awayScore: Number(away.score ?? 0),
           completed: e.status.type.completed && status === 'STATUS_FINAL',
+          live: e.status.type.state === 'in',
           called: /POSTPONED|CANCELED|SUSPENDED|FORFEIT/.test(status),
         },
       ];
@@ -215,14 +220,19 @@ function parseBox(sportKey: string, summary: ApiSummary) {
   return players;
 }
 
-/** Player stats for a finished game, keyed by normPlayer(name) */
+/**
+ * Player stats keyed by normPlayer(name): a finished game's, or so far in a
+ * live one (cached briefly and apart from the final's).
+ */
 export function boxScore(
   sportKey: string,
-  espnId: string
+  espnId: string,
+  live = false
 ): Promise<Map<string, PlayerStats>> {
   const path = LEAGUE_PATHS[sportKey];
   if (!path) return Promise.resolve(new Map());
-  return cached(`box:${espnId}`, BOX_TTL, async () =>
+  const key = `box:${espnId}:${live ? 'live' : 'final'}`;
+  return cached(key, live ? LIVE_BOX_TTL : BOX_TTL, async () =>
     parseBox(
       sportKey,
       await get<ApiSummary>(`${BASE}/${path}/summary`, { event: espnId })

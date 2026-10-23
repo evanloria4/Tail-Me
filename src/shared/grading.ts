@@ -81,6 +81,34 @@ export function gradeProp(
   return 'PENDING';
 }
 
+/**
+ * Mid-game: only what's already decided. Stats and scores climb, so a stat
+ * past an Over's line has hit, past an Under's line has lost, and a Yes prop
+ * hits at its first one. Everything else waits for the final. Yardage can
+ * dip (a sack, a loss on a carry), so the grader re-checks these at the final.
+ */
+export function gradeLiveProp(
+  selection: string,
+  line: number | null,
+  actual: number
+): BetResult {
+  if (selection === 'Yes') return actual >= 1 ? 'WON' : 'PENDING';
+  if (line == null || actual <= line) return 'PENDING';
+  if (selection === 'Over') return 'WON';
+  if (selection === 'Under') return 'LOST';
+  return 'PENDING';
+}
+
+/** Mid-game game lines: only a total the score has already passed */
+export function gradeLiveGameLine(leg: GameLeg, game: FinalScore): BetResult {
+  if (leg.marketKey !== 'totals') return 'PENDING';
+  return gradeLiveProp(
+    leg.selection,
+    leg.line,
+    game.homeScore + game.awayScore
+  );
+}
+
 /** A player's box-score line, normalized across sports */
 export type StatKey =
   | 'passYds'
