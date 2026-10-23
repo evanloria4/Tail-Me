@@ -30,6 +30,7 @@ import {
   LADDER_MAX_RUNGS,
   LegInput,
 } from '../../shared/posts';
+import { betResultFromLegs } from '../../shared/grading';
 import { postSeriesSchema } from '../../shared/series';
 import { isStatRange, rangeStart } from '../../shared/stats';
 import { MAX_GAME_MS } from '../../shared/live';
@@ -1082,7 +1083,8 @@ router.put<{ postId: string }>(
  * The author edits a straight or parlay before any of its games start: keep
  * some legs, add new ones from live odds (games that haven't started), change
  * the stake or set the book's price. One leg left makes it a straight, more
- * a parlay. Tails, reactions and comments stay with the slip.
+ * a parlay. Tails, reactions and comments stay with the slip. Admins can
+ * edit anyone's, any time, graded or not.
  */
 router.put<{ postId: string }>(
   '/:postId',
@@ -1107,6 +1109,7 @@ router.put<{ postId: string }>(
           select: {
             id: true,
             result: true,
+            gradedBy: true,
             legs: {
               orderBy: { order: 'asc' },
               select: {
@@ -1217,8 +1220,23 @@ router.put<{ postId: string }>(
       const legs = await tx.betLeg.findMany({
         where: { betId: bet.id },
         orderBy: { order: 'asc' },
-        select: { americanOdds: true, deepLink: true },
+        select: { americanOdds: true, deepLink: true, result: true },
       });
+      // Adding or dropping legs (admins, on a graded slip) re-derives the
+      // result from what's left; a PENDING one goes back to the grader
+      const legsChanged =
+        input.legs.length > 0 || keep.length !== bet.legs.length;
+      const result = legsChanged
+        ? betResultFromLegs(legs.map((l) => l.result))
+        : bet.result;
+      const grade =
+        result === bet.result
+          ? {}
+          : {
+              result,
+              settledAt: result === 'PENDING' ? null : new Date(),
+              gradedBy: result === 'PENDING' ? null : ('MANUAL' as const),
+            };
       // A straight's price is its leg's; a parlay's is the book's or the legs multiplied
       let { americanOdds } = legs[0];
       let decimal = americanToDecimal(americanOdds);
@@ -1231,6 +1249,7 @@ router.put<{ postId: string }>(
       await tx.bet.update({
         where: { id: bet.id },
         data: {
+          ...grade,
           units: input.units,
           americanOdds,
           decimalOdds: decimal,

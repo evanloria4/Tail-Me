@@ -340,7 +340,7 @@ export function canBeFaded(
  * straights and parlays only, nothing graded, and no game on it started yet
  * (so a leg that's already losing can't be dropped). Ladders and group
  * parlays stay as posted. Admins (`asAdmin`) can edit anyone's straight or
- * parlay after kickoff too, as long as nothing is graded.
+ * parlay any time, graded or not, to clean up a friend's mistakes.
  */
 export function canEditSlip(
   post: {
@@ -354,15 +354,14 @@ export function canEditSlip(
   asAdmin = false
 ): boolean {
   if (post.type !== 'STRAIGHT' && post.type !== 'PARLAY') return false;
+  if (asAdmin) return true;
   return post.bets.every(
     (b) =>
       b.result === 'PENDING' &&
       b.legs.every(
         (l) =>
           l.result === 'PENDING' &&
-          (asAdmin ||
-            !l.startsAt ||
-            new Date(l.startsAt).getTime() > now.getTime())
+          (!l.startsAt || new Date(l.startsAt).getTime() > now.getTime())
       )
   );
 }

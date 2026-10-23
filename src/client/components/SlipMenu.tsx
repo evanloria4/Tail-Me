@@ -70,6 +70,16 @@ function NumberRow({
     setError(!ok);
   };
 
+  // Units step by 1 (kept within 0-100); the ✓ still saves
+  const stepper = field === 'units';
+  const nudge = (dir: 1 | -1) => {
+    const base = valid ? next : current;
+    setValue(String(Math.min(100, Math.max(0, base + dir))));
+    setError(false);
+  };
+  const stepClass =
+    'h-7 w-7 flex-none rounded-md border border-gray-700 text-gray-300 transition hover:border-emerald-500 disabled:opacity-30';
+
   return (
     <li>
       <form onSubmit={save} className="flex items-center gap-2 px-3 py-2">
@@ -79,6 +89,17 @@ function NumberRow({
         >
           {label}
         </label>
+        {stepper && (
+          <button
+            type="button"
+            onClick={() => nudge(-1)}
+            disabled={(valid ? next : current) <= 0}
+            aria-label="1 unit less"
+            className={stepClass}
+          >
+            −
+          </button>
+        )}
         <input
           id={`${field}-${id}`}
           inputMode={f.inputMode}
@@ -88,10 +109,21 @@ function NumberRow({
             setError(false);
           }}
           aria-invalid={error}
-          className={`w-20 rounded-md border bg-gray-950 px-2 py-1 text-right font-mono text-sm tabular-nums outline-none focus:border-emerald-500 ${
+          className={`${stepper ? 'w-12' : 'w-20'} rounded-md border bg-gray-950 px-2 py-1 text-right font-mono text-sm tabular-nums outline-none focus:border-emerald-500 ${
             error ? 'border-red-400' : 'border-gray-700'
           }`}
         />
+        {stepper && (
+          <button
+            type="button"
+            onClick={() => nudge(1)}
+            disabled={(valid ? next : current) >= 100}
+            aria-label="1 unit more"
+            className={stepClass}
+          >
+            +
+          </button>
+        )}
         <button
           type="submit"
           disabled={!changed || saving}

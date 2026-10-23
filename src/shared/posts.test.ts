@@ -324,13 +324,12 @@ describe('canEditSlip', () => {
     expect(canEditSlip(slip('STRAIGHT', later, 'VOID'), now)).toBe(false);
   });
 
-  it('lets admins edit past kickoff, but not graded slips or ladders', () => {
+  it('lets admins edit straights and parlays any time, graded too', () => {
     const started = ['2026-10-25T16:00:00Z'];
     expect(canEditSlip(slip('STRAIGHT', started), now, true)).toBe(true);
-    expect(canEditSlip(slip('STRAIGHT', started, 'WON'), now, true)).toBe(
-      false
-    );
+    expect(canEditSlip(slip('PARLAY', started, 'WON'), now, true)).toBe(true);
     expect(canEditSlip(slip('LADDER', started), now, true)).toBe(false);
+    expect(canEditSlip(slip('GROUP_PARLAY', started), now, true)).toBe(false);
   });
 });
 
