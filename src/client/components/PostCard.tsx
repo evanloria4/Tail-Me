@@ -442,6 +442,7 @@ export default function PostCard({
           <UserAvatar
             name={post.author.fullName}
             url={post.author.avatarUrl}
+            color={post.author.avatarColor}
             className="h-10 w-10 text-base"
           />
         </Link>

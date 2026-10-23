@@ -12,6 +12,7 @@ import postsRouter from './routes/posts';
 import usersRouter from './routes/users';
 import socialRouter from './routes/social';
 import communityRouter from './routes/community';
+import recordsRouter from './routes/records';
 import seriesRouter from './routes/series';
 
 // Only the webpack client build; the compiled server lives beside it in dist/
@@ -55,6 +56,7 @@ app.use('/api/meta', metaRouter);
 app.use('/api/posts', postsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/community', communityRouter);
+app.use('/api/records', recordsRouter);
 app.use('/api/admin', adminRouter);
 // Tailers, reactions, comments: /api/posts/:id/... and /api/comments/:id/...
 app.use('/api', socialRouter);

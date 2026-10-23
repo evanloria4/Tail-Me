@@ -33,6 +33,7 @@ router.get<{ username: string }>(
         username: true,
         fullName: true,
         avatarUrl: true,
+        avatarColor: true,
         bio: true,
         createdAt: true,
       },

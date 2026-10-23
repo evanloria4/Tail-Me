@@ -17,6 +17,8 @@ export type Profile = {
   username: string;
   fullName: string;
   avatarUrl: string | null;
+  /** Monogram background when there's no photo */
+  avatarColor: string;
   bio: string | null;
   subscriptionStatus: SubscriptionStatus;
   currentPeriodEnd: string | null;

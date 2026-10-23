@@ -66,6 +66,7 @@ function UserRow({ user }: { user: AdminUser }) {
         <UserAvatar
           name={user.fullName}
           url={user.avatarUrl}
+          color={user.avatarColor}
           className="h-9 w-9 text-sm"
         />
       </Link>

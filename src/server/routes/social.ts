@@ -20,6 +20,7 @@ const personSelect = {
   username: true,
   fullName: true,
   avatarUrl: true,
+  avatarColor: true,
 } as const;
 
 const livePost = (id: string) =>

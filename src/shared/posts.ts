@@ -223,6 +223,8 @@ export type FeedPost = {
     username: string;
     fullName: string;
     avatarUrl: string | null;
+    /** Monogram background when there's no photo */
+    avatarColor: string;
     /** Current all-time run of wins or losses */
     streak: Streak | null;
   };

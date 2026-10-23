@@ -262,6 +262,7 @@ export function LiveNowPanel({
                 <UserAvatar
                   name={post.author.fullName}
                   url={post.author.avatarUrl}
+                  color={post.author.avatarColor}
                   className="h-7 w-7 text-xs"
                 />
                 <span className="min-w-0 flex-1">

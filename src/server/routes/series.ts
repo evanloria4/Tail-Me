@@ -118,7 +118,13 @@ router.get<{ id: string }>('/series/:id', requireAuth, async (req, res) => {
     select: {
       ...summarySelect,
       owner: {
-        select: { id: true, username: true, fullName: true, avatarUrl: true },
+        select: {
+          id: true,
+          username: true,
+          fullName: true,
+          avatarUrl: true,
+          avatarColor: true,
+        },
       },
     },
   });

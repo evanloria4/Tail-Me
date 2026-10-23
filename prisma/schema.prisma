@@ -20,13 +20,15 @@ enum SubscriptionStatus {
 
 /// App profile for a Supabase Auth user. `id` is the Supabase auth.users id.
 model User {
-  id        String   @id @db.Uuid
-  username  String   @unique
-  fullName  String
-  avatarUrl String?
-  bio       String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @db.Uuid
+  username    String   @unique
+  fullName    String
+  avatarUrl   String?
+  /// Monogram background when there's no photo: a SERIES_COLORS key (shared/series.ts)
+  avatarColor String   @default("emerald")
+  bio         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Stripe ($5/mo), synced by the webhook in routes/billing.ts. Access rules: shared/billing.ts
   stripeCustomerId     String?            @unique

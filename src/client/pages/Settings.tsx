@@ -155,11 +155,15 @@ function ProfileSection() {
           key={pickerKey}
           name={profile?.fullName}
           url={profile?.avatarUrl}
+          color={profile?.avatarColor}
           busy={photoBusy}
           onPick={(file) =>
             savePhoto(() => uploadAvatar(file), 'Photo updated')
           }
           onRemove={() => savePhoto(removeAvatar, 'Photo removed')}
+          onColor={(avatarColor) =>
+            savePhoto(() => api.patch('/me', { avatarColor }), 'Color updated')
+          }
         />
         <FormError message={photoError} />
       </div>

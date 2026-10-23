@@ -67,6 +67,8 @@ export type PersonRef = {
   fullName: string;
   /** Profile photo (Supabase Storage public URL), or null for the initial */
   avatarUrl: string | null;
+  /** Monogram background when there's no photo (a SERIES_COLORS key) */
+  avatarColor: string;
 };
 
 export type FeedComment = {

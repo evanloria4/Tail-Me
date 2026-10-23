@@ -188,6 +188,7 @@ function Owner({ owner, mine }: { owner: FeedLeg['addedBy']; mine: boolean }) {
       <UserAvatar
         name={owner.fullName}
         url={owner.avatarUrl}
+        color={owner.avatarColor}
         className="h-5 w-5 text-[10px]"
       />
       {mine ? 'You' : firstName(owner.fullName)}

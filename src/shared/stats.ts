@@ -111,6 +111,10 @@ function settledResults(bets: StreakBet[]): SettledResult[] {
     .filter((r): r is SettledResult => r !== 'PENDING' && r !== 'VOID');
 }
 
+/** The latest `n` settled results, newest first (voids don't count) */
+export const lastResults = (bets: StreakBet[], n: number) =>
+  settledResults(bets).reverse().slice(0, n);
+
 export function currentStreak(bets: StreakBet[]): Streak | null {
   const results = settledResults(bets).filter((r) => r !== 'PUSH');
   const last = results[results.length - 1];
@@ -189,7 +193,7 @@ export function profileStats(
     // A short range shouldn't cut off a long streak
     streak: currentStreak(all),
     bestWinStreak: bestWinStreak(bets),
-    recent: settledResults(bets).reverse().slice(0, 10),
+    recent: lastResults(bets, 10),
   };
 }
 
@@ -201,6 +205,8 @@ export type UserProfile = {
     username: string;
     fullName: string;
     avatarUrl: string | null;
+    /** Monogram background when there's no photo */
+    avatarColor: string;
     bio: string | null;
     createdAt: string;
   };

@@ -6,6 +6,7 @@ const user = (extra: Partial<AdminUser>): AdminUser => ({
   username: 'u',
   fullName: 'U',
   avatarUrl: null,
+  avatarColor: 'emerald',
   isAdmin: false,
   subscriptionStatus: 'NONE',
   currentPeriodEnd: null,

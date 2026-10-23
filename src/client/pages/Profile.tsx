@@ -20,6 +20,7 @@ import PostList from '../components/PostList';
 import SeriesPanel from '../components/SeriesPanel';
 import StatTile from '../components/StatTile';
 import UserAvatar from '../components/UserAvatar';
+import { FormDots, RangeTabs } from '../components/RecordParts';
 import {
   POST_TYPES,
   PostType,
@@ -46,18 +47,6 @@ const TYPE_LABELS: Record<PostType, string> = {
   STRAIGHT: 'Straights',
   PARLAY: 'Parlays',
   LADDER: 'Ladders',
-};
-
-const RANGE_TABS: Record<StatRange, string> = {
-  '7d': '7 days',
-  '30d': '30 days',
-  all: 'All time',
-};
-
-const FORM_STYLES: Record<SettledResult, string> = {
-  WON: 'bg-emerald-500/15 text-emerald-400',
-  LOST: 'bg-red-500/15 text-red-400',
-  PUSH: 'bg-yellow-500/15 text-yellow-300',
 };
 
 // ---------- Pieces ----------
@@ -129,40 +118,6 @@ function StatPanel({
   );
 }
 
-function RangeTabs({
-  value,
-  onChange,
-}: {
-  value: StatRange;
-  onChange: (r: StatRange) => void;
-}) {
-  return (
-    <div
-      role="tablist"
-      aria-label="Date range"
-      className="inline-flex rounded-lg border border-gray-800 bg-gray-900 p-0.5"
-    >
-      {(Object.keys(RANGE_TABS) as StatRange[]).map((r) => (
-        <button
-          key={r}
-          type="button"
-          role="tab"
-          aria-selected={value === r}
-          onClick={() => onChange(r)}
-          className={`rounded-md px-3 py-1 text-sm font-medium transition ${
-            value === r
-              ? 'bg-gray-800 text-white'
-              : 'text-gray-400 hover:text-white'
-          }`}
-        >
-          {RANGE_TABS[r]}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** Last 10 settled bets, newest on the left */
 function Form({ results }: { results: SettledResult[] }) {
   if (!results.length) return null;
   return (
@@ -170,19 +125,7 @@ function Form({ results }: { results: SettledResult[] }) {
       <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
         Last {results.length}
       </span>
-      <ol className="flex flex-wrap gap-1">
-        {results.map((r, i) => (
-          <li
-            // Results have no id; position is the identity here
-            // eslint-disable-next-line react/no-array-index-key
-            key={i}
-            title={r}
-            className={`flex h-6 w-6 items-center justify-center rounded text-[11px] font-bold ${FORM_STYLES[r]}`}
-          >
-            {r[0]}
-          </li>
-        ))}
-      </ol>
+      <FormDots results={results} />
     </div>
   );
 }
@@ -304,6 +247,7 @@ export default function Profile() {
             <UserAvatar
               name={user.fullName}
               url={user.avatarUrl}
+              color={user.avatarColor}
               className="h-16 w-16 text-2xl"
             />
             <div className="min-w-0 flex-1">

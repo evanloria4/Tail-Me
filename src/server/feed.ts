@@ -7,7 +7,13 @@ import { currentStreak, POST_TYPES, Streak } from '../shared/stats';
 /** Feed shape; `tails` loads who tailed, for the avatar stack and "Tailed" */
 export const feedInclude = {
   author: {
-    select: { id: true, username: true, fullName: true, avatarUrl: true },
+    select: {
+      id: true,
+      username: true,
+      fullName: true,
+      avatarUrl: true,
+      avatarColor: true,
+    },
   },
   sportsbook: { select: { key: true, name: true } },
   series: { select: { id: true, name: true, emoji: true, color: true } },
@@ -23,6 +29,7 @@ export const feedInclude = {
               username: true,
               fullName: true,
               avatarUrl: true,
+              avatarColor: true,
             },
           },
           // For LIVE tags: when the game starts, and whether it's final
@@ -39,6 +46,7 @@ export const feedInclude = {
               username: true,
               fullName: true,
               avatarUrl: true,
+              avatarColor: true,
             },
           },
         },

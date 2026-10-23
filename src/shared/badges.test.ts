@@ -16,6 +16,7 @@ function post(
       username: 'u',
       fullName: 'U',
       avatarUrl: null,
+      avatarColor: 'emerald',
       streak: null,
     },
     sportsbook: { key: 'fanduel', name: 'FanDuel' },

@@ -17,7 +17,10 @@ import { useToast } from './Toast';
 import Tutorial from './Tutorial';
 import api from '../lib/api';
 
-const NAV_ITEMS = [{ to: '/', label: 'Feed', end: true }];
+const NAV_ITEMS = [
+  { to: '/', label: 'Feed', end: true },
+  { to: '/records', label: 'Records', end: false },
+];
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `text-base font-medium transition ${
@@ -68,8 +71,23 @@ function ChevronIcon() {
   );
 }
 
-function Avatar({ name, url }: { name?: string; url?: string | null }) {
-  return <UserAvatar name={name} url={url} className="h-10 w-10 text-base" />;
+function Avatar({
+  name,
+  url,
+  color,
+}: {
+  name?: string;
+  url?: string | null;
+  color?: string;
+}) {
+  return (
+    <UserAvatar
+      name={name}
+      url={url}
+      color={color}
+      className="h-10 w-10 text-base"
+    />
+  );
 }
 
 export function DarkModeSwitch({ className = '' }: { className?: string }) {
@@ -219,7 +237,11 @@ export default function AppLayout() {
                 aria-label="Account menu"
                 className="flex items-center gap-1 rounded-full p-0.5 transition hover:bg-gray-800"
               >
-                <Avatar name={profile?.fullName} url={profile?.avatarUrl} />
+                <Avatar
+                  name={profile?.fullName}
+                  url={profile?.avatarUrl}
+                  color={profile?.avatarColor}
+                />
                 <ChevronIcon />
               </button>
               {openMenu === 'user' && (
@@ -317,7 +339,11 @@ export default function AppLayout() {
                 aria-label="View your profile"
                 className="-m-1.5 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1.5 transition hover:bg-gray-900"
               >
-                <Avatar name={profile?.fullName} url={profile?.avatarUrl} />
+                <Avatar
+                  name={profile?.fullName}
+                  url={profile?.avatarUrl}
+                  color={profile?.avatarColor}
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{profile?.fullName}</p>
                   <p className="truncate text-gray-400">@{profile?.username}</p>

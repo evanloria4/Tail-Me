@@ -9,6 +9,7 @@ import Billing from './pages/Billing';
 import Feed from './pages/Feed';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
+import Records from './pages/Records';
 import Series from './pages/Series';
 import Signup from './pages/Signup';
 import Settings from './pages/Settings';
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/u/:username/s/:seriesId" element={<Series />} />
             <Route path="/billing" element={<Billing />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/records" element={<Records />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/new" element={<Navigate to="/" replace />} />
           </Route>

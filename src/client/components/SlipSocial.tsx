@@ -153,6 +153,7 @@ function TailerStack({ people }: { people: PersonRef[] }) {
           <UserAvatar
             name={p.fullName}
             url={p.avatarUrl}
+            color={p.avatarColor}
             className="h-5 w-5 text-[10px]"
           />
         </span>
@@ -225,6 +226,7 @@ export function TailersButton({
                   <UserAvatar
                     name={t.fullName}
                     url={t.avatarUrl}
+                    color={t.avatarColor}
                     className="h-5 w-5 text-[10px]"
                   />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
@@ -506,6 +508,7 @@ export function Comments({
                 <UserAvatar
                   name={c.author.fullName}
                   url={c.author.avatarUrl}
+                  color={c.author.avatarColor}
                   className="h-8 w-8 text-xs"
                 />
               </Link>

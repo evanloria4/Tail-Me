@@ -9,6 +9,7 @@ import {
   removeAvatarFile,
   uploadAvatar,
 } from '../avatars';
+import { SERIES_COLORS } from '../../shared/series';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ export const ownProfile = ({
   username,
   fullName,
   avatarUrl,
+  avatarColor,
   bio,
   subscriptionStatus,
   currentPeriodEnd,
@@ -29,6 +31,7 @@ export const ownProfile = ({
   username,
   fullName,
   avatarUrl,
+  avatarColor,
   bio,
   subscriptionStatus,
   currentPeriodEnd,
@@ -45,9 +48,10 @@ router.get('/', requireAuth, (req, res) => {
 const updateSchema = z.object({
   fullName: z.string().trim().min(1, 'Name is required').max(60).optional(),
   bio: z.string().trim().max(160, 'Bio is 160 characters max').optional(),
+  avatarColor: z.enum(SERIES_COLORS).optional(),
 });
 
-/** Edit your own name / bio (username stays fixed) */
+/** Edit your own name / bio / monogram color (username stays fixed) */
 router.patch('/', requireAuth, async (req, res) => {
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -56,12 +60,13 @@ router.patch('/', requireAuth, async (req, res) => {
       .json({ error: parsed.error.issues[0]?.message ?? 'Invalid profile' });
     return;
   }
-  const { fullName, bio } = parsed.data;
+  const { fullName, bio, avatarColor } = parsed.data;
   const user = await prisma.user.update({
     where: { id: req.user!.id },
     data: {
       ...(fullName !== undefined && { fullName }),
       ...(bio !== undefined && { bio: bio || null }),
+      ...(avatarColor && { avatarColor }),
     },
   });
   res.json(ownProfile(user));

@@ -17,6 +17,7 @@ router.get('/users', async (_req, res) => {
       username: true,
       fullName: true,
       avatarUrl: true,
+      avatarColor: true,
       isAdmin: true,
       subscriptionStatus: true,
       currentPeriodEnd: true,

@@ -46,8 +46,23 @@ function Panel({
   );
 }
 
-function Initial({ name, url }: { name: string; url: string | null }) {
-  return <UserAvatar name={name} url={url} className="h-7 w-7 text-xs" />;
+function Initial({
+  name,
+  url,
+  color,
+}: {
+  name: string;
+  url: string | null;
+  color: string;
+}) {
+  return (
+    <UserAvatar
+      name={name}
+      url={url}
+      color={color}
+      className="h-7 w-7 text-xs"
+    />
+  );
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
@@ -218,7 +233,11 @@ function GroupRecord({ group }: { group: CommunityStats['group'] }) {
                 to={`/u/${u.username}`}
                 className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition hover:bg-gray-800"
               >
-                <Initial name={u.fullName} url={u.avatarUrl} />
+                <Initial
+                  name={u.fullName}
+                  url={u.avatarUrl}
+                  color={u.avatarColor}
+                />
                 <span className="min-w-0 flex-1 truncate font-medium">
                   {u.fullName}
                 </span>
@@ -418,7 +437,11 @@ export default function CommunitySidebar({ stats }: { stats: Stats }) {
                   to={`/u/${u.username}`}
                   className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-2 transition hover:bg-gray-800"
                 >
-                  <Initial name={u.fullName} url={u.avatarUrl} />
+                  <Initial
+                    name={u.fullName}
+                    url={u.avatarUrl}
+                    color={u.avatarColor}
+                  />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">
                     {u.fullName}
                   </span>

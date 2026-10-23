@@ -23,6 +23,7 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   // Optional; uploaded once the account exists and they're signed in
   const [photo, setPhoto] = useState<File | null>(null);
+  const [avatarColor, setAvatarColor] = useState('emerald');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -55,6 +56,13 @@ export default function Signup() {
         password,
       });
       await signIn(email, password);
+      // Same as the photo: nice to have, never worth blocking signup
+      if (!photo && avatarColor !== 'emerald') {
+        await api
+          .patch('/me', { avatarColor })
+          .then(refreshProfile)
+          .catch(() => {});
+      }
       if (photo) {
         // A photo that fails to upload isn't worth blocking signup over; they
         // can add one later in Settings
@@ -108,10 +116,13 @@ export default function Signup() {
         <FormError message={error} />
         <div className="mb-4">
           <span className="mb-2 block text-sm font-medium text-gray-300">
-            Profile photo <span className="text-gray-500">(optional)</span>
+            Profile photo or color{' '}
+            <span className="text-gray-500">(optional)</span>
           </span>
           <AvatarPicker
             name={fullName}
+            color={avatarColor}
+            onColor={setAvatarColor}
             onPick={setPhoto}
             onRemove={() => setPhoto(null)}
           />
