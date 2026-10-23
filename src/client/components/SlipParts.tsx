@@ -107,6 +107,93 @@ export function ResultBadge({ result }: { result: BetResult }) {
 export const withFinal = (market: string, actual: number | null) =>
   actual == null ? market : `${market} · Final ${actual}`;
 
+/**
+ * Where a stat stands against its line, like a sportsbook's live tracker: the
+ * line is the bar's end, so clearing it fills the bar (ladders mark their
+ * lower rungs along the way).
+ * Overs are red until they clear the line, then green; Unders are green
+ * until they pass it, then red. "Yes" props need one.
+ */
+export function StatBar({
+  actual,
+  lines,
+  selection,
+  live,
+}: {
+  actual: number;
+  lines: number[];
+  selection: string;
+  /** LIVE while the game is on, else FINAL */
+  live: boolean;
+}) {
+  // A Yes prop needs one; its line is 0.5 but the bar runs to 1
+  const marks = selection === 'Yes' ? [1] : lines;
+  if (!marks.length) return null;
+  // The (top) line is the end of the bar, so clearing it fills the bar
+  const top = Math.max(...marks);
+  const at = (n: number) => `${Math.min(100, (n / top) * 100)}%`;
+  // Lower ladder rungs get a mark; the top one is the bar's end
+  const inner = marks.filter((m) => m < top);
+  // Overs (and ladders) are ahead once past the first line, Unders while
+  // still under the line, Yes props at their first one
+  let winning = actual > Math.min(...marks);
+  if (selection === 'Under') winning = actual < top;
+  if (selection === 'Yes') winning = actual >= 1;
+  const lineText = selection === 'Yes' ? '1' : marks.join(' / ');
+  return (
+    <div className="mt-1.5 flex items-center gap-2.5">
+      <div
+        role="img"
+        aria-label={`${actual} of ${lineText}`}
+        className="relative h-1.5 w-28 min-w-0 flex-none rounded-full bg-gray-800 sm:w-40"
+      >
+        <div
+          className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ${winning ? 'bg-emerald-500' : 'bg-red-400'}`}
+          style={{ width: at(actual) }}
+        />
+        {inner.map((m) => (
+          <span
+            key={m}
+            aria-hidden="true"
+            className="absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-white"
+            style={{ left: at(m) }}
+          />
+        ))}
+      </div>
+      <span className="flex-none text-[11px] font-semibold tabular-nums">
+        <span className={winning ? 'text-emerald-400' : 'text-red-400'}>
+          {actual}
+        </span>
+        <span className="text-gray-500"> / {lineText}</span>
+        <span
+          className={`ml-1.5 text-[10px] font-bold tracking-wide ${live ? 'text-red-400' : 'text-gray-500'}`}
+        >
+          {live ? 'LIVE' : 'FINAL'}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/** A leg's progress bar once its game has a stat, or nothing */
+export function legStatBar(
+  leg: FeedLeg,
+  now: number,
+  lines: number[] = leg.line == null ? [] : [leg.line]
+): React.ReactNode {
+  if (leg.actual == null) return null;
+  const state = gameState(leg.startsAt, leg.gameFinal, now);
+  if (state === 'upcoming') return null;
+  return (
+    <StatBar
+      actual={leg.actual}
+      lines={lines}
+      selection={leg.selection}
+      live={state === 'live'}
+    />
+  );
+}
+
 /** One stop on the slip's timeline; the connector runs down to the next stop */
 export function TimelineRow({
   result,
@@ -216,16 +303,20 @@ export function LegRow({
   last,
   tag,
   hideGame = false,
+  now,
 }: {
   leg: FeedLeg;
   result: BetResult;
   last: boolean;
+  /** Clock for the live stat bar (the card's ticking now) */
+  now: number;
   /** LIVE / PENDING chip beside the game, for multi-game slips */
   tag?: React.ReactNode;
   /** Same-game parlays name the game once, up top */
   hideGame?: boolean;
 }) {
   const { title, market } = legText(leg);
+  const bar = legStatBar(leg, now);
   return (
     // A graded leg shows its own result; otherwise it follows the bet's
     <TimelineRow
@@ -233,10 +324,11 @@ export function LegRow({
       last={last}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="font-bold leading-snug">{title}</p>
           <p className="mt-0.5 truncate text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            {withFinal(market, leg.actual)}
+            {/* The bar carries the stat when there is one */}
+            {bar ? market : withFinal(market, leg.actual)}
             {/* Phones: the game shares this line so long slips stay short */}
             {!hideGame && (
               <span className="font-normal normal-case tracking-normal text-emerald-400 sm:hidden">
@@ -250,6 +342,7 @@ export function LegRow({
           {formatAmerican(leg.americanOdds)}
         </span>
       </div>
+      {bar}
       {!hideGame && (
         <p className="mt-1.5 hidden flex-wrap items-center gap-2 text-xs text-emerald-400 sm:flex">
           {leg.eventLabel}

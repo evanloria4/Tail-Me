@@ -24,20 +24,11 @@ import type {
 import type { StatRange, Streak } from '../../shared/stats';
 
 // Everyone's records side by side: superlatives up top, then the personal
-// leaderboard or each person's group parlay legs. Wide screens get sortable
-// tables; phones get one card per person so nothing is cut off.
+// leaderboard or each person's group parlay legs. Tables at every width: on
+// phones the name column stays pinned while the stats scroll sideways.
 
 type Tab = 'leaders' | 'group';
 type SortKey = 'units' | 'winPct' | 'roi' | 'bets' | 'streak' | 'best';
-
-const SORTS: { key: SortKey; label: string }[] = [
-  { key: 'units', label: 'Units' },
-  { key: 'winPct', label: 'Win %' },
-  { key: 'roi', label: 'ROI' },
-  { key: 'bets', label: 'Most bets' },
-  { key: 'streak', label: 'Streak' },
-  { key: 'best', label: 'Best streak' },
-];
 
 /** Win % and ROI only rank people with enough settled bets */
 const ranked = (r: LeaderRow) => settledCount(r.line) >= MIN_RANKED;
@@ -97,15 +88,16 @@ function Person({
   return (
     <Link
       to={`/u/${person.username}`}
-      className="flex min-w-0 items-center gap-2.5 hover:underline"
+      className="flex min-w-0 items-center gap-2 hover:underline sm:gap-2.5"
     >
       <UserAvatar
         name={person.fullName}
         url={person.avatarUrl}
         color={person.avatarColor}
-        className="h-8 w-8 flex-none text-sm"
+        className="h-7 w-7 flex-none text-xs sm:h-8 sm:w-8 sm:text-sm"
       />
-      <span className="min-w-0">
+      {/* Narrow on phones so the stats get the room; long names wrap */}
+      <span className="min-w-0 max-w-[7.5rem] sm:max-w-none">
         <span className="block break-words font-semibold leading-tight">
           {person.fullName}
           {me && (
@@ -114,13 +106,20 @@ function Person({
             </span>
           )}
         </span>
-        <span className="block break-all text-xs text-gray-500">
+        <span className="hidden break-all text-xs text-gray-500 sm:block">
           @{person.username}
         </span>
       </span>
     </Link>
   );
 }
+
+/** The pinned name column; solid so scrolled cells pass under it */
+const stickyCell =
+  'sticky left-0 z-10 bg-gray-900 shadow-[1px_0_0_0] shadow-gray-800';
+/** Your row's tint, layered on the pinned cell's solid background */
+const meTint =
+  'bg-[image:linear-gradient(rgb(var(--emerald-500)/0.06),rgb(var(--emerald-500)/0.06))]';
 
 // ---------- Superlatives ----------
 
@@ -235,10 +234,12 @@ function LeaderTable({
       <table className="w-full text-sm">
         <thead className="border-b border-gray-800 text-left text-[10px] text-gray-500">
           <tr>
-            <th scope="col" className="w-10 py-2 pl-4 pr-2 font-semibold">
-              #
+            <th
+              scope="col"
+              className={`${stickyCell} py-2 pl-3 pr-2 font-semibold uppercase tracking-wider sm:pl-4`}
+            >
+              Person
             </th>
-            <PlainHeader label="Person" />
             <SortHeader
               label="Record"
               sortKey="bets"
@@ -291,11 +292,15 @@ function LeaderTable({
                 key={r.id}
                 className={r.id === meId ? 'bg-emerald-500/5' : undefined}
               >
-                <td className="py-2.5 pl-4 pr-2 tabular-nums text-gray-500">
-                  {i + 1}
-                </td>
-                <td className="px-2 py-2.5">
-                  <Person person={r} me={r.id === meId} />
+                <td
+                  className={`${stickyCell} ${r.id === meId ? meTint : ''} py-2.5 pl-3 pr-2 sm:pl-4`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 flex-none text-right text-xs tabular-nums text-gray-500">
+                      {i + 1}
+                    </span>
+                    <Person person={r} me={r.id === meId} />
+                  </span>
                 </td>
                 <td className="whitespace-nowrap px-2 py-2.5 tabular-nums">
                   {settled ? record(r.line) : '–'}
@@ -353,94 +358,6 @@ function LeaderTable({
   );
 }
 
-function Stat({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <dt className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-        {label}
-      </dt>
-      <dd className="mt-0.5 font-semibold tabular-nums">{children}</dd>
-    </div>
-  );
-}
-
-function LeaderCards({ rows, meId }: { rows: LeaderRow[]; meId?: string }) {
-  return (
-    <ol className="space-y-3">
-      {rows.map((r, i) => {
-        const settled = settledCount(r.line) > 0;
-        const showRates = ranked(r);
-        return (
-          <li
-            key={r.id}
-            className={`rounded-2xl border bg-gray-900 p-4 ${r.id === meId ? 'border-emerald-500/40' : 'border-gray-800'}`}
-          >
-            <div className="flex items-start gap-3">
-              <span className="pt-1.5 text-sm font-bold tabular-nums text-gray-500">
-                {i + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <Person person={r} me={r.id === meId} />
-              </div>
-              <span
-                className={`text-lg font-extrabold tabular-nums ${netColor(r.line.net)}`}
-              >
-                {settled ? signedUnits(r.line.net) : '–'}
-              </span>
-            </div>
-            <dl className="mt-3 grid grid-cols-3 gap-x-3 gap-y-2.5 text-sm">
-              <Stat label="Record">
-                {settled ? record(r.line) : '–'}
-                {r.line.pending > 0 && (
-                  <span className="ml-1 text-xs font-normal text-gray-500">
-                    +{r.line.pending}
-                  </span>
-                )}
-              </Stat>
-              <Stat label="Win %">
-                <span className={showRates ? '' : 'text-gray-500'}>
-                  {pct(winPct(r.line))}
-                </span>
-              </Stat>
-              <Stat label="ROI">
-                <span className={showRates ? '' : 'text-gray-500'}>
-                  {pct(r.line.roi, true)}
-                </span>
-              </Stat>
-              <Stat label="Streak">
-                <StreakText streak={r.streak} />
-              </Stat>
-              <Stat label="Best">
-                {r.bestStreak ? `W${r.bestStreak}` : '–'}
-              </Stat>
-              <Stat label="Tailed">{miniRecord(r.tailed)}</Stat>
-              <Stat label="Faded">{miniRecord(r.faded)}</Stat>
-              <div className="col-span-2">
-                <dt className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                  L5
-                </dt>
-                <dd className="mt-1">
-                  {r.l5.length ? (
-                    <FormDots results={r.l5} size="sm" />
-                  ) : (
-                    <span className="text-gray-500">–</span>
-                  )}
-                </dd>
-              </div>
-            </dl>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
 // ---------- Group parlays ----------
 
 const hitPct = (r: GroupRow) =>
@@ -452,7 +369,12 @@ function GroupTable({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
       <table className="w-full text-sm">
         <thead className="border-b border-gray-800 text-left text-[10px] text-gray-500">
           <tr>
-            <PlainHeader label="Person" className="pl-4" />
+            <th
+              scope="col"
+              className={`${stickyCell} py-2 pl-3 pr-2 font-semibold uppercase tracking-wider sm:pl-4`}
+            >
+              Person
+            </th>
             <PlainHeader label="Parlays" />
             <PlainHeader label="Legs hit" />
             <PlainHeader label="Busted" />
@@ -468,7 +390,9 @@ function GroupTable({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
               key={r.id}
               className={r.id === meId ? 'bg-emerald-500/5' : undefined}
             >
-              <td className="py-2.5 pl-4 pr-2">
+              <td
+                className={`${stickyCell} ${r.id === meId ? meTint : ''} py-2.5 pl-3 pr-2 sm:pl-4`}
+              >
                 <Person person={r} me={r.id === meId} />
               </td>
               <td className="px-2 py-2.5 tabular-nums">{r.parlays}</td>
@@ -496,49 +420,6 @@ function GroupTable({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
   );
 }
 
-function GroupCards({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
-  return (
-    <ol className="space-y-3">
-      {rows.map((r) => (
-        <li
-          key={r.id}
-          className={`rounded-2xl border bg-gray-900 p-4 ${r.id === meId ? 'border-emerald-500/40' : 'border-gray-800'}`}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <Person person={r} me={r.id === meId} />
-            <span className="text-lg font-extrabold tabular-nums">
-              {pct(hitPct(r))}
-            </span>
-          </div>
-          <dl className="mt-3 grid grid-cols-3 gap-x-3 gap-y-2.5 text-sm">
-            <Stat label="Parlays">{r.parlays}</Stat>
-            <Stat label="Legs hit">
-              <span className="text-emerald-400">{r.hit}</span>
-            </Stat>
-            <Stat label="Busted">
-              <span className="text-red-400">{r.busted}</span>
-            </Stat>
-            <Stat label="💀 Only miss">{r.onlyMiss}</Stat>
-            <Stat label="Cashed">{r.cashed}</Stat>
-            <div>
-              <dt className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                L5 legs
-              </dt>
-              <dd className="mt-1">
-                {r.l5.length ? (
-                  <FormDots results={r.l5} size="sm" />
-                ) : (
-                  <span className="text-gray-500">–</span>
-                )}
-              </dd>
-            </div>
-          </dl>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 function GroupTab({
   group,
   meId,
@@ -561,12 +442,7 @@ function GroupTab({
       </div>
       {people.length ? (
         <>
-          <div className="hidden lg:block">
-            <GroupTable rows={people} meId={meId} />
-          </div>
-          <div className="lg:hidden">
-            <GroupCards rows={people} meId={meId} />
-          </div>
+          <GroupTable rows={people} meId={meId} />
           <p className="text-xs text-gray-500">
             💀 Only miss: the parlay lost and theirs was the only leg that
             missed. Group parlays never count toward personal records.
@@ -672,42 +548,19 @@ export default function Records() {
                 </button>
               ))}
             </div>
-            {/* Phones sort here; wide screens click the column headers */}
-            {tab === 'leaders' && (
-              <label
-                htmlFor="records-sort"
-                className="flex items-center gap-2 text-sm text-gray-400 lg:hidden"
-              >
-                Sort by
-                <select
-                  id="records-sort"
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value as SortKey)}
-                  className="rounded-lg border border-gray-700 bg-gray-950 px-2 py-1 text-sm text-white"
-                >
-                  {SORTS.map((s) => (
-                    <option key={s.key} value={s.key}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+            <span className="text-xs text-gray-500 lg:hidden">
+              Scroll the table sideways for every stat →
+            </span>
           </div>
 
           {tab === 'leaders' ? (
             <div className="space-y-3">
-              <div className="hidden lg:block">
-                <LeaderTable
-                  rows={rows}
-                  sort={sort}
-                  onSort={setSort}
-                  meId={meId}
-                />
-              </div>
-              <div className="lg:hidden">
-                <LeaderCards rows={rows} meId={meId} />
-              </div>
+              <LeaderTable
+                rows={rows}
+                sort={sort}
+                onSort={setSort}
+                meId={meId}
+              />
               <p className="text-xs text-gray-500">
                 Ladder rungs count as one bet each. Win % and ROI rank after{' '}
                 {MIN_RANKED} settled bets. L5 and streaks are all-time. Tailed:

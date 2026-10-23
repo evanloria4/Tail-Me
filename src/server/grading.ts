@@ -30,7 +30,10 @@ const NOT_MANUAL = {
   OR: [{ gradedBy: null }, { gradedBy: 'AUTO' as const }],
 };
 
-/** A PENDING grade clears an earlier mid-game mark the game has undone */
+/**
+ * `actual` is the stat so far (or the final). A PENDING grade clears an
+ * earlier mid-game mark the game has undone.
+ */
 type LegGrade = { result: BetResult; actual: number | null };
 
 type GradableLeg = {
@@ -42,7 +45,14 @@ type GradableLeg = {
   line: { toNumber(): number } | null;
 };
 
-/** Mid-game grade: decided outcomes only, else PENDING */
+/** What a totals leg tracks: points (or goals) scored by both sides */
+const gameTotal = (leg: GradableLeg, game: EspnGame) =>
+  leg.marketKey === 'totals' ? game.homeScore + game.awayScore : null;
+
+/**
+ * Mid-game: the running stat (for the slip's progress bar) and a grade for
+ * outcomes already decided, else PENDING
+ */
 async function gradeLegLive(
   leg: GradableLeg,
   game: EspnGame
@@ -53,16 +63,15 @@ async function gradeLegLive(
       { marketKey: leg.marketKey, selection: leg.selection, line },
       game
     );
-    return { result, actual: null };
+    return { result, actual: gameTotal(leg, game) };
   }
   const stat = propStat(leg.sportKey, leg.marketLabel);
   if (!stat || !leg.playerName) return null;
   const players = await boxScore(leg.sportKey, game.id, true);
   const player = players.get(normPlayer(leg.playerName));
   if (!player) return null;
-  // "Final 52" would be wrong mid-game, so the stat waits for the final
-  const result = gradeLiveProp(leg.selection, line, player[stat] ?? 0);
-  return { result, actual: null };
+  const actual = player[stat] ?? 0;
+  return { result: gradeLiveProp(leg.selection, line, actual), actual };
 }
 
 /** Grade one leg against its game, or null if it can't be graded yet */
@@ -80,7 +89,9 @@ async function gradeLeg(
       { marketKey: leg.marketKey, selection: leg.selection, line },
       game
     );
-    return result === 'PENDING' ? null : { result, actual: null };
+    return result === 'PENDING'
+      ? null
+      : { result, actual: gameTotal(leg, game) };
   }
 
   const stat = propStat(leg.sportKey, leg.marketLabel);

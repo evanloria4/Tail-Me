@@ -31,6 +31,7 @@ import {
   useLegPreview,
   Total,
   withFinal,
+  legStatBar,
 } from './SlipParts';
 
 // A group parlay on a slip card: one leg per friend, open until the
@@ -366,6 +367,7 @@ export function GroupSlip({
           const owner = leg.addedBy;
           const mine = owner?.id === profile?.id;
           const canEdit = mine || isCreator || !!profile?.isAdmin;
+          const bar = legStatBar(leg, now);
           return (
             <TimelineRow
               key={leg.id}
@@ -373,16 +375,17 @@ export function GroupSlip({
               last={i === legList.visible.length - 1}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="font-bold leading-snug">{title}</p>
                   <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                    {withFinal(market, leg.actual)}
+                    {bar ? market : withFinal(market, leg.actual)}
                   </p>
                 </div>
                 <span className="font-mono font-bold tabular-nums">
                   {formatAmerican(leg.americanOdds)}
                 </span>
               </div>
+              {bar}
               {/* A one-game parlay already says its game up top */}
               {!group.game && !sgp && (
                 <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-emerald-400">

@@ -39,6 +39,7 @@ import {
   Total,
   units,
   withFinal,
+  legStatBar,
 } from './SlipParts';
 import {
   GroupActions,
@@ -370,9 +371,8 @@ export default function PostCard({
 
   const rungsHit = post.bets.filter((b) => b.result === 'WON').length;
   const ladderSettled = post.bets.some((b) => b.result !== 'PENDING');
-  // Every rung grades on the same stat
-  const ladderActual =
-    post.bets.find((b) => b.legs[0].actual != null)?.legs[0].actual ?? null;
+  // Every rung grades on the same stat, so a rung missing it borrows it
+  const ladderStat = post.bets.find((b) => b.legs[0].actual != null)?.legs[0];
   const allSettled = post.bets.every((b) => b.result !== 'PENDING');
   const ladderRisked = post.bets.reduce((s, b) => s + b.units, 0);
   const ladderReturn = post.bets.reduce(
@@ -509,7 +509,7 @@ export default function PostCard({
           <>
             {/* Title bar */}
             <div className="flex items-start justify-between gap-3 border-b border-gray-800 px-4 py-3">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 {isStraight && (
                   // A single pick is the slip's headline, like a book's bet receipt
                   <>
@@ -517,8 +517,11 @@ export default function PostCard({
                       {legText(pick).title}
                     </p>
                     <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                      {withFinal(legText(pick).market, pick.actual)}
+                      {legStatBar(pick, now)
+                        ? legText(pick).market
+                        : withFinal(legText(pick).market, pick.actual)}
                     </p>
+                    {legStatBar(pick, now)}
                     <p className="mt-1.5 text-xs text-emerald-400">
                       {pick.eventLabel}
                     </p>
@@ -538,11 +541,6 @@ export default function PostCard({
                           : legText(pick).market}
                       </span>
                     </p>
-                    {ladderActual != null && (
-                      <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                        Final {ladderActual}
-                      </p>
-                    )}
                     <p className="mt-1.5 text-xs text-emerald-400">
                       {pick.eventLabel}
                     </p>
@@ -592,6 +590,13 @@ export default function PostCard({
                 <ol>
                   {rungList.visible.map((bet, i) => {
                     const leg = bet.legs[0];
+                    const bar = legStatBar(
+                      {
+                        ...leg,
+                        actual: leg.actual ?? ladderStat?.actual ?? null,
+                      },
+                      now
+                    );
                     return (
                       <TimelineRow
                         key={bet.id}
@@ -606,6 +611,7 @@ export default function PostCard({
                             {formatAmerican(bet.americanOdds)}
                           </span>
                         </div>
+                        {bar}
                         <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400">
                           <span>
                             {units(bet.units)}{' '}
@@ -643,6 +649,7 @@ export default function PostCard({
                         // don't need it) and each leg picked mid-game
                         tag={singleGame ? null : legTag(leg)}
                         hideGame={sgp}
+                        now={now}
                       />
                     ))}
                   </ol>
