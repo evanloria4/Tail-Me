@@ -191,6 +191,8 @@ export type FeedLeg = {
   eventId: string | null;
   startsAt: string | null;
   gameFinal: boolean;
+  /** Away-home score and clock ("Q3 4:12", "Final") once the game is on */
+  score: { away: number; home: number; clock: string } | null;
   /** Per-leg result: auto-graded from the game, or set by hand on group parlays */
   result: BetResult;
   /** The stat a graded prop finished on, e.g. 212 (passing yards) */

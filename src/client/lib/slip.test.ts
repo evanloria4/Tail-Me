@@ -215,6 +215,7 @@ describe('legToSelection / matchesPick', () => {
     eventLabel: 'Broncos @ Chiefs',
     startsAt: '2026-10-25T17:00:00Z',
     gameFinal: false,
+    score: null,
     marketKey: 'player_prop' as const,
     marketLabel: 'Passing Yards',
     playerName: 'Bo Nix',

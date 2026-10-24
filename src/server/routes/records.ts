@@ -67,6 +67,7 @@ router.get('/', requireAuth, async (req, res) => {
         postId: p.id,
         createdAt: p.createdAt,
         result: bet.result,
+        decimalOdds: bet.decimalOdds.toNumber(),
         legs: bet.legs.map((l) => ({
           addedById: l.addedById,
           result: l.result,

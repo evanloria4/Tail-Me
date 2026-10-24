@@ -9,6 +9,7 @@ import {
   PlayerStats,
   StatKey,
 } from '../shared/grading';
+import { gameClock } from '../shared/live';
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 
@@ -33,6 +34,8 @@ export type EspnGame = {
   completed: boolean;
   /** In progress (halftime and intermissions included) */
   live: boolean;
+  /** Short clock for slips, e.g. "Q3 4:12", "Half", "Final"; null before */
+  clock: string | null;
   /** Postponed / canceled / suspended: bets on it get voided */
   called: boolean;
 };
@@ -65,7 +68,11 @@ type ApiCompetitor = {
 type ApiEvent = {
   id: string;
   date: string;
-  status: { type: { name: string; state?: string; completed: boolean } };
+  status: {
+    period?: number;
+    displayClock?: string;
+    type: { name: string; state?: string; completed: boolean };
+  };
   competitions: { competitors: ApiCompetitor[] }[];
 };
 
@@ -96,6 +103,11 @@ function scoreboard(sportKey: string, date: string): Promise<EspnGame[]> {
           awayScore: Number(away.score ?? 0),
           completed: e.status.type.completed && status === 'STATUS_FINAL',
           live: e.status.type.state === 'in',
+          clock: gameClock(sportKey, {
+            name: status,
+            period: e.status.period ?? 0,
+            displayClock: e.status.displayClock ?? '',
+          }),
           called: /POSTPONED|CANCELED|SUSPENDED|FORFEIT/.test(status),
         },
       ];

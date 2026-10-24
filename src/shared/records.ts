@@ -19,6 +19,35 @@ import { siteDayKey } from './time';
 // (shared/stats.ts): ladder rungs count one each, voids don't count, deleted
 // slips still do. Group parlays only ever feed the group tab.
 
+/**
+ * A parlay that lost on exactly one leg (pushed or voided legs don't count
+ * against it): the "so close" tally on profiles and Records.
+ */
+export const isOneLegMiss = (result: BetResult, legs: BetResult[]) =>
+  result === 'LOST' &&
+  legs.length >= 2 &&
+  legs.filter((l) => l === 'LOST').length === 1;
+
+export type NearMisses = {
+  count: number;
+  /** What those parlays would have won, in the poster's units */
+  units: number;
+};
+
+/** One-leg misses among personal bets, and the winnings they cost */
+export function nearMisses(
+  bets: {
+    result: BetResult;
+    legs: BetResult[];
+    units: number;
+    decimalOdds: number;
+  }[]
+): NearMisses {
+  const missed = bets.filter((b) => isOneLegMiss(b.result, b.legs));
+  const units = missed.reduce((s, b) => s + b.units * (b.decimalOdds - 1), 0);
+  return { count: missed.length, units: Math.round(units * 100) / 100 };
+}
+
 /** Settled bets before someone ranks on win % / ROI */
 export const MIN_RANKED = 10;
 
@@ -40,6 +69,7 @@ export type RecordGroupParlay = {
   postId: string;
   createdAt: Date;
   result: BetResult;
+  decimalOdds: number;
   legs: { addedById: string | null; result: BetResult }[];
 };
 
@@ -54,6 +84,8 @@ export type LeaderRow = PersonRef & {
   bestStreak: number;
   /** How the people who faded them did (their loss is a fade win) */
   faded: MiniRecord;
+  /** Parlays that lost on one leg, in range */
+  nearMisses: NearMisses;
 };
 
 export type GroupRow = PersonRef & {
@@ -90,6 +122,8 @@ export type RecordsPage = {
     pushes: number;
     open: number;
     people: GroupRow[];
+    /** Group parlays that lost on one leg, and what $10 on each would have paid */
+    nearMisses: { count: number; paid: number };
   };
   superlatives: Superlative[];
 };
@@ -131,6 +165,7 @@ export function leaderRow(
         .filter((b) => b.fades > 0 && FADE_SIDE[b.result])
         .map((b) => ({ result: FADE_SIDE[b.result]!, weight: b.fades }))
     ),
+    nearMisses: nearMisses(bets),
   };
 }
 
@@ -365,6 +400,20 @@ export function recordsPage(
       pushes: results.filter((r) => r === 'PUSH').length,
       open: results.filter((r) => r === 'PENDING').length,
       people: groupRows,
+      nearMisses: (() => {
+        const missed = groups.filter((p) =>
+          isOneLegMiss(
+            p.result,
+            p.legs.map((l) => l.result)
+          )
+        );
+        return {
+          count: missed.length,
+          paid: Math.round(
+            missed.reduce((sum, p) => sum + 10 * p.decimalOdds, 0)
+          ),
+        };
+      })(),
     },
     superlatives: superlatives(people, inRange(bets), groupRows),
   };

@@ -89,6 +89,8 @@ model Event {
   completed    Boolean  @default(false)
   homeScore    Int?
   awayScore    Int?
+  /// Game clock while it's on, e.g. "Q3 4:12", "Half", "P2 08:41"; "Final" after
+  statusDetail String?
   /// ESPN game id, once matched for grading
   espnId       String?
   updatedAt    DateTime @updatedAt

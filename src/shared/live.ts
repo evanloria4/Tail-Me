@@ -56,3 +56,23 @@ export function inGameMinutes(
   const ms = new Date(postedAt).getTime() - new Date(startsAt).getTime();
   return ms > 0 ? Math.floor(ms / 60_000) : null;
 }
+
+/**
+ * A short game clock from ESPN's status: "Q3 4:12", "Half", "End Q1",
+ * "OT 2:05" for football; "P2 08:41", "End P2", "SO" for hockey; "Final".
+ */
+export function gameClock(
+  sportKey: string,
+  status: { name: string; period: number; displayClock: string }
+): string | null {
+  const { name, period, displayClock } = status;
+  if (name === 'STATUS_FINAL') return 'Final';
+  const hockey = sportKey.startsWith('icehockey');
+  const regulation = hockey ? 3 : 4;
+  let label = `${hockey ? 'P' : 'Q'}${period}`;
+  if (period > regulation) label = hockey && period > 4 ? 'SO' : 'OT';
+  if (name === 'STATUS_HALFTIME') return 'Half';
+  if (name === 'STATUS_END_PERIOD') return `End ${label}`;
+  if (name !== 'STATUS_IN_PROGRESS') return null;
+  return label === 'SO' ? label : `${label} ${displayClock}`;
+}

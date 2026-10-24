@@ -33,7 +33,16 @@ export const feedInclude = {
             },
           },
           // For LIVE tags: when the game starts, and whether it's final
-          event: { select: { commenceTime: true, completed: true } },
+          // Score + clock for live and finished games
+          event: {
+            select: {
+              commenceTime: true,
+              completed: true,
+              homeScore: true,
+              awayScore: true,
+              statusDetail: true,
+            },
+          },
         },
       },
       // Friend-group sized, so every tail loads (for the avatar stack)
@@ -174,7 +183,18 @@ function toFeedPost(
         eventId: leg.eventId,
         eventLabel: leg.eventLabel,
         startsAt: leg.event?.commenceTime.toISOString() ?? null,
-        gameFinal: leg.event?.completed ?? false,
+        gameFinal:
+          !!leg.event?.completed || leg.event?.statusDetail === 'Final',
+        score:
+          leg.event?.statusDetail &&
+          leg.event.homeScore != null &&
+          leg.event.awayScore != null
+            ? {
+                away: leg.event.awayScore,
+                home: leg.event.homeScore,
+                clock: leg.event.statusDetail,
+              }
+            : null,
         marketKey: leg.marketKey as MarketKey,
         marketLabel: leg.marketLabel,
         playerName: leg.playerName,

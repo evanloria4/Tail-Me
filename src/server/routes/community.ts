@@ -55,6 +55,7 @@ router.get('/', requireAuth, async (req, res) => {
       where: { post: { type: 'GROUP_PARLAY' } },
       select: {
         result: true,
+        decimalOdds: true,
         postId: true,
         post: { select: { createdAt: true } },
         legs: { select: { addedById: true, result: true } },
@@ -119,6 +120,7 @@ router.get('/', requireAuth, async (req, res) => {
               postId: b.postId,
               createdAt: b.post.createdAt,
               result: b.result,
+              decimalOdds: b.decimalOdds.toNumber(),
               legs: b.legs,
             }))
           );

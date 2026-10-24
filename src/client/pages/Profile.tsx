@@ -179,7 +179,7 @@ export default function Profile() {
   }
   if (!data) return <p className="py-6 text-center text-gray-500">Loading…</p>;
 
-  const { user, stats, tails, viewerTails } = data;
+  const { user, stats, tails, viewerTails, nearMisses } = data;
   const isMe = me?.id === user.id;
   const { overall, streak } = stats;
   const sportTitle = (key: string) =>
@@ -318,6 +318,21 @@ export default function Profile() {
           </div>
 
           <Form results={stats.recent} />
+          {nearMisses.count > 0 && (
+            <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-xl border border-gray-800 bg-gray-900 px-4 py-2.5 text-sm">
+              <span className="font-semibold">
+                <span aria-hidden="true">💔 </span>Missed by one leg
+              </span>
+              <span className="text-gray-400">
+                {nearMisses.count}{' '}
+                {nearMisses.count === 1 ? 'parlay' : 'parlays'} ·{' '}
+                <span className="font-semibold text-win">
+                  {signedUnits(nearMisses.units)}
+                </span>{' '}
+                left on the table
+              </span>
+            </p>
+          )}
         </div>
       </div>
 

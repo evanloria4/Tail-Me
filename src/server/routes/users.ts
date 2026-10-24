@@ -13,6 +13,8 @@ import {
   StatRange,
   UserProfile,
 } from '../../shared/stats';
+import { nearMisses } from '../../shared/records';
+import type { BetResult } from '../../shared/posts';
 
 const router = Router();
 
@@ -62,14 +64,18 @@ router.get<{ username: string }>(
             units: true,
             decimalOdds: true,
             result: true,
-            legs: { select: { sportKey: true } },
+            legs: { select: { sportKey: true, result: true } },
             tails: { select: { userId: true } },
           },
         },
       },
     });
 
-    type Bet = StatBet & { postId: string; tailers: string[] };
+    type Bet = StatBet & {
+      postId: string;
+      tailers: string[];
+      legs: BetResult[];
+    };
     const all: Bet[] = posts.flatMap((p) => {
       const { type } = p;
       if (!isPersonalType(type)) return [];
@@ -85,6 +91,7 @@ router.get<{ username: string }>(
         decimalOdds: b.decimalOdds.toNumber(),
         result: b.result,
         tailers: b.tails.map((t) => t.userId),
+        legs: b.legs.map((l) => l.result),
       }));
     });
     const bets = all.filter(sinceFilter(since));
@@ -98,6 +105,7 @@ router.get<{ username: string }>(
       user: { ...user, createdAt: user.createdAt.toISOString() },
       range,
       stats: profileStats(all, since),
+      nearMisses: nearMisses(bets),
       tails: {
         received: slipTails.size,
         tailers: new Set(bets.flatMap((b) => b.tailers)).size,

@@ -17,6 +17,7 @@ import {
   propStat,
 } from '../shared/grading';
 import type { BetResult } from '../shared/posts';
+import { MAX_GAME_MS } from '../shared/live';
 
 const INTERVAL = 2 * 60_000;
 /** Stop retrying games this old; they're left for manual grading */
@@ -159,6 +160,7 @@ export async function runGrading(now = new Date(), { dryRun = false } = {}) {
               completed: true,
               homeScore: game.homeScore,
               awayScore: game.awayScore,
+              statusDetail: 'Final',
               espnId: game.id,
             },
           });
@@ -231,6 +233,52 @@ export async function runGrading(now = new Date(), { dryRun = false } = {}) {
   return { graded, bets: betsSettled, report };
 }
 
+/**
+ * Score and clock for every game in progress with a leg on it, graded or
+ * not, so slips can show "14-10 · Q3 4:12". Completion is left to
+ * runGrading, which re-checks mid-game grades before a game counts as final.
+ */
+export async function refreshLiveScores(now = new Date()) {
+  const events = await prisma.event.findMany({
+    where: {
+      completed: false,
+      commenceTime: { lte: now, gte: new Date(now.getTime() - MAX_GAME_MS) },
+      legs: { some: {} },
+    },
+  });
+  await Promise.all(
+    events.map(async (ev) => {
+      try {
+        const game = await findGame(
+          ev.sportKey,
+          ev.homeTeam,
+          ev.awayTeam,
+          ev.commenceTime
+        );
+        if (!game?.clock) return;
+        if (
+          game.homeScore === ev.homeScore &&
+          game.awayScore === ev.awayScore &&
+          game.clock === ev.statusDetail
+        ) {
+          return;
+        }
+        await prisma.event.update({
+          where: { id: ev.id },
+          data: {
+            homeScore: game.homeScore,
+            awayScore: game.awayScore,
+            statusDetail: game.clock,
+            espnId: game.id,
+          },
+        });
+      } catch (err) {
+        console.error(`Live scores: ESPN lookup failed for ${ev.id}`, err);
+      }
+    })
+  );
+}
+
 /** Runs the grader shortly after boot, then every INTERVAL */
 export function startGrader() {
   if (process.env.DISABLE_GRADER === 'true') return;
@@ -241,6 +289,7 @@ export function startGrader() {
     try {
       const { graded, bets } = await runGrading();
       if (graded) console.log(`Grading: ${graded} legs, ${bets} bets settled`);
+      await refreshLiveScores();
     } catch (err) {
       console.error('Grading run failed', err);
     } finally {

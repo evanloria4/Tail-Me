@@ -32,6 +32,7 @@ import {
   useLegPreview,
   InGameBadge,
   LiveBadge,
+  GameScore,
   ResultBadge,
   returned,
   slipTitle,
@@ -390,7 +391,10 @@ export default function PostCard({
   const singleGame = oneGame(post.bets.flatMap((b) => b.legs));
   const betChip = (bet: FeedPost['bets'][number]): React.ReactNode => {
     if (bet.result !== 'PENDING') return <ResultBadge result={bet.result} />;
-    if (singleGame && isLive(bet.legs, now)) return <LiveBadge />;
+    // One game: the score in the header says it's live, else a LIVE chip
+    if (singleGame && isLive(bet.legs, now)) {
+      return pick.score ? null : <LiveBadge />;
+    }
     if (allFinal(bet.legs, now)) return <ResultBadge result="PENDING" />;
     return null;
   };
@@ -522,8 +526,9 @@ export default function PostCard({
                         : withFinal(legText(pick).market, pick.actual)}
                     </p>
                     {legStatBar(pick, now)}
-                    <p className="mt-1.5 text-xs text-emerald-400">
+                    <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-emerald-400">
                       {pick.eventLabel}
+                      <GameScore leg={pick} now={now} />
                     </p>
                   </>
                 )}
@@ -541,8 +546,9 @@ export default function PostCard({
                           : legText(pick).market}
                       </span>
                     </p>
-                    <p className="mt-1.5 text-xs text-emerald-400">
+                    <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-emerald-400">
                       {pick.eventLabel}
+                      <GameScore leg={pick} now={now} />
                     </p>
                   </>
                 )}
@@ -553,8 +559,9 @@ export default function PostCard({
                     </p>
                     {/* An SGP names its game once here, not on every leg */}
                     {sgp && (
-                      <p className="mt-1.5 text-xs text-emerald-400">
+                      <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-emerald-400">
                         {pick.eventLabel}
+                        <GameScore leg={pick} now={now} />
                       </p>
                     )}
                   </>
@@ -565,7 +572,7 @@ export default function PostCard({
                   </span>
                   {slipInGame != null && <InGameBadge minutes={slipInGame} />}
                   {!isLadder && betChip(first)}
-                  {ladderLive && <LiveBadge />}
+                  {ladderLive && !pick.score && <LiveBadge />}
                 </div>
               </div>
               {!isLadder && (

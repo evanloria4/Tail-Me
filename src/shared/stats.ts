@@ -1,4 +1,5 @@
 import type { BetResult, FeedPost } from './posts';
+import type { NearMisses } from './records';
 
 // Betting records, shared by the server (profile stats) and tests.
 //
@@ -222,4 +223,6 @@ export type UserProfile = {
   };
   /** How the viewer has done tailing this user; null on your own profile or before your first tail */
   viewerTails: StatLine | null;
+  /** Parlays in range that lost on one leg, and what they would have won */
+  nearMisses: NearMisses;
 };

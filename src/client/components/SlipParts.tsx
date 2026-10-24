@@ -123,7 +123,7 @@ export function StatBar({
   actual: number;
   lines: number[];
   selection: string;
-  /** LIVE while the game is on, else FINAL */
+  /** Game still on: no FINAL label (the score beside the game shows it) */
   live: boolean;
 }) {
   // A Yes prop needs one; its line is 0.5 but the bar runs to 1
@@ -165,11 +165,11 @@ export function StatBar({
           {actual}
         </span>
         <span className="text-gray-500"> / {lineText}</span>
-        <span
-          className={`ml-1.5 text-[10px] font-bold tracking-wide ${live ? 'text-red-400' : 'text-gray-500'}`}
-        >
-          {live ? 'LIVE' : 'FINAL'}
-        </span>
+        {!live && (
+          <span className="ml-1.5 text-[10px] font-bold tracking-wide text-gray-500">
+            FINAL
+          </span>
+        )}
       </span>
     </div>
   );
@@ -260,6 +260,32 @@ export function InGameBadge({ minutes }: { minutes: number }) {
 }
 
 /**
+ * A game's score and clock beside its name: "14-10 · Q3 4:12" with a
+ * pulsing dot while it's on (standing in for a LIVE tag), "Final 24-17"
+ * after. Away score first, matching "Away @ Home".
+ */
+export function GameScore({ leg, now }: { leg: FeedLeg; now: number }) {
+  const { score } = leg;
+  if (!score) return null;
+  const state = gameState(leg.startsAt, leg.gameFinal, now);
+  if (state === 'upcoming') return null;
+  const tally = `${score.away}-${score.home}`;
+  if (state === 'final' || score.clock === 'Final') {
+    return <span className="text-gray-500">Final {tally}</span>;
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 font-semibold text-red-400">
+      <span className="relative flex h-1.5 w-1.5">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75 motion-reduce:hidden" />
+        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
+      </span>
+      <span className="tabular-nums">{tally}</span>
+      <span className="font-medium">· {score.clock}</span>
+    </span>
+  );
+}
+
+/**
  * The status chip for one unsettled leg of a multi-game slip: LIVE while its
  * game is on, PENDING once the game is over but the grade isn't in yet,
  * nothing before kickoff.
@@ -267,7 +293,9 @@ export function InGameBadge({ minutes }: { minutes: number }) {
 export function legStatus(leg: FeedLeg, now: number): React.ReactNode {
   if (leg.result !== 'PENDING') return null;
   const state = gameState(leg.startsAt, leg.gameFinal, now);
-  if (state === 'live') return <LiveBadge />;
+  // The game line's score says it's on; the chip is only for games
+  // without one yet
+  if (state === 'live') return leg.score ? null : <LiveBadge />;
   if (state === 'final') return <ResultBadge result="PENDING" />;
   return null;
 }
@@ -340,6 +368,7 @@ export function LegRow({
       {!hideGame && (
         <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-emerald-400">
           {leg.eventLabel}
+          <GameScore leg={leg} now={now} />
           {tag}
         </p>
       )}

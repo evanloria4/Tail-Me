@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { groupRow, leaderRow, recordsPage, superlatives } from './records';
+import {
+  groupRow,
+  leaderRow,
+  nearMisses,
+  recordsPage,
+  superlatives,
+} from './records';
 import type { RecordBet, RecordGroupParlay } from './records';
 import type { BetResult } from './posts';
 
@@ -94,6 +100,7 @@ describe('groupRow', () => {
     postId: `g${day}`,
     createdAt: new Date(Date.UTC(2026, 9, day)),
     result,
+    decimalOdds: 4,
     legs: legs.map(([addedById, r]) => ({ addedById, result: r })),
   });
 
@@ -205,6 +212,7 @@ describe('recordsPage', () => {
           postId: 'g',
           createdAt: new Date(),
           result: 'WON',
+          decimalOdds: 4,
           legs: [{ addedById: 'a', result: 'WON' }],
         },
       ]
@@ -212,5 +220,63 @@ describe('recordsPage', () => {
     expect(page.leaderboard.map((r) => r.id)).toEqual(['b', 'a']);
     expect(page.group).toMatchObject({ wins: 1, losses: 0 });
     expect(page.group.people.map((r) => r.id)).toEqual(['a']);
+  });
+});
+
+describe('nearMisses', () => {
+  it('counts parlays lost on exactly one leg and what they would have won', () => {
+    expect(
+      nearMisses([
+        // One miss, a push doesn't count against it: would have won 2u * 5
+        {
+          result: 'LOST',
+          legs: ['WON', 'PUSH', 'LOST'],
+          units: 2,
+          decimalOdds: 6,
+        },
+        // Two misses
+        {
+          result: 'LOST',
+          legs: ['LOST', 'LOST', 'WON'],
+          units: 1,
+          decimalOdds: 9,
+        },
+        // A straight isn't a parlay
+        { result: 'LOST', legs: ['LOST'], units: 1, decimalOdds: 2 },
+        { result: 'WON', legs: ['WON', 'WON'], units: 1, decimalOdds: 3 },
+      ])
+    ).toEqual({ count: 1, units: 10 });
+  });
+
+  it('tallies group parlays that missed by one and what $10 would have paid', () => {
+    const page = recordsPage(
+      'all',
+      null,
+      [ann, bo],
+      [],
+      [
+        {
+          postId: 'g1',
+          createdAt: new Date(),
+          result: 'LOST',
+          decimalOdds: 12.5,
+          legs: [
+            { addedById: 'a', result: 'LOST' },
+            { addedById: 'b', result: 'WON' },
+          ],
+        },
+        {
+          postId: 'g2',
+          createdAt: new Date(),
+          result: 'LOST',
+          decimalOdds: 20,
+          legs: [
+            { addedById: 'a', result: 'LOST' },
+            { addedById: 'b', result: 'LOST' },
+          ],
+        },
+      ]
+    );
+    expect(page.group.nearMisses).toEqual({ count: 1, paid: 125 });
   });
 });

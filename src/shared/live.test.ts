@@ -6,6 +6,7 @@ import {
   isLive,
   MAX_GAME_MS,
   oneGame,
+  gameClock,
 } from './live';
 
 const start = '2026-10-18T17:00:00Z';
@@ -60,5 +61,36 @@ describe('inGameMinutes', () => {
     expect(inGameMinutes(start, at(-1))).toBeNull();
     expect(inGameMinutes(start, at(0))).toBeNull();
     expect(inGameMinutes(null, at(30))).toBeNull();
+  });
+});
+
+describe('gameClock', () => {
+  const nfl = 'americanfootball_nfl';
+  const nhl = 'icehockey_nhl';
+  const at = (name: string, period: number, displayClock = '4:12') => ({
+    name,
+    period,
+    displayClock,
+  });
+
+  it('reads football quarters, halftime and overtime', () => {
+    expect(gameClock(nfl, at('STATUS_IN_PROGRESS', 3))).toBe('Q3 4:12');
+    expect(gameClock(nfl, at('STATUS_HALFTIME', 2))).toBe('Half');
+    expect(gameClock(nfl, at('STATUS_END_PERIOD', 1))).toBe('End Q1');
+    expect(gameClock(nfl, at('STATUS_IN_PROGRESS', 5, '2:05'))).toBe('OT 2:05');
+    expect(gameClock(nfl, at('STATUS_FINAL', 4))).toBe('Final');
+  });
+
+  it('reads hockey periods, overtime and shootouts', () => {
+    expect(gameClock(nhl, at('STATUS_IN_PROGRESS', 2, '08:41'))).toBe(
+      'P2 08:41'
+    );
+    expect(gameClock(nhl, at('STATUS_END_PERIOD', 2))).toBe('End P2');
+    expect(gameClock(nhl, at('STATUS_IN_PROGRESS', 4, '3:00'))).toBe('OT 3:00');
+    expect(gameClock(nhl, at('STATUS_IN_PROGRESS', 5))).toBe('SO');
+  });
+
+  it('says nothing before kickoff', () => {
+    expect(gameClock(nfl, at('STATUS_SCHEDULED', 0))).toBeNull();
   });
 });

@@ -21,6 +21,7 @@ import {
   legStatus,
   legText,
   LiveBadge,
+  GameScore,
   PAYOUT_LABELS,
   payoutColor,
   RESULT_OPTIONS,
@@ -321,8 +322,11 @@ export function GroupSlip({
   } else {
     if (bet.result !== 'PENDING') status = <ResultBadge result={bet.result} />;
     // One game: the slip carries the LIVE tag; several: each leg does
-    else if (singleGame && isLive(bet.legs, now)) status = <LiveBadge />;
-    else if (allFinal(bet.legs, now)) status = <ResultBadge result="PENDING" />;
+    else if (singleGame && isLive(bet.legs, now)) {
+      // The score beside the game chip says it's live when there is one
+      status = bet.legs[0].score ? null : <LiveBadge />;
+    } else if (allFinal(bet.legs, now))
+      status = <ResultBadge result="PENDING" />;
     else
       status = (
         <span className={`${statusClass} ${RESULT_STYLES.PENDING}`}>
@@ -350,6 +354,11 @@ export function GroupSlip({
             {(group.game || sgp) && (
               <span className={`${statusClass} bg-gray-800 text-gray-300`}>
                 🎯 {group.game?.eventLabel ?? bet.legs[0].eventLabel} SGP
+              </span>
+            )}
+            {singleGame && locked && (
+              <span className="text-xs">
+                <GameScore leg={bet.legs[0]} now={now} />
               </span>
             )}
           </div>
@@ -390,6 +399,7 @@ export function GroupSlip({
               {!group.game && !sgp && (
                 <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-emerald-400">
                   {leg.eventLabel}
+                  <GameScore leg={leg} now={now} />
                   {!singleGame &&
                     locked &&
                     bet.result === 'PENDING' &&

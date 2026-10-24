@@ -28,7 +28,14 @@ import type { StatRange, Streak } from '../../shared/stats';
 // phones the name column stays pinned while the stats scroll sideways.
 
 type Tab = 'leaders' | 'group';
-type SortKey = 'units' | 'winPct' | 'roi' | 'bets' | 'streak' | 'best';
+type SortKey =
+  | 'units'
+  | 'winPct'
+  | 'roi'
+  | 'bets'
+  | 'streak'
+  | 'best'
+  | 'misses';
 
 /** Win % and ROI only rank people with enough settled bets */
 const ranked = (r: LeaderRow) => settledCount(r.line) >= MIN_RANKED;
@@ -51,6 +58,8 @@ function sortValue(r: LeaderRow, key: SortKey): number {
       return streakValue(r.streak);
     case 'best':
       return r.bestStreak;
+    case 'misses':
+      return r.nearMisses.count;
     default:
       return r.line.net;
   }
@@ -275,6 +284,12 @@ function LeaderTable({
               sort={sort}
               onSort={onSort}
             />
+            <SortHeader
+              label="1-leg misses"
+              sortKey="misses"
+              sort={sort}
+              onSort={onSort}
+            />
             <PlainHeader label="Faders" className="pr-4" />
           </tr>
         </thead>
@@ -332,6 +347,18 @@ function LeaderTable({
                 </td>
                 <td className="px-2 py-2.5 tabular-nums text-center">
                   {r.bestStreak ? `W${r.bestStreak}` : '–'}
+                </td>
+                <td className="whitespace-nowrap px-2 py-2.5 text-center tabular-nums">
+                  {r.nearMisses.count ? (
+                    <>
+                      {r.nearMisses.count}
+                      <span className="ml-1 text-xs text-gray-500">
+                        ({signedUnits(r.nearMisses.units)})
+                      </span>
+                    </>
+                  ) : (
+                    '–'
+                  )}
                 </td>
                 <td className="whitespace-nowrap py-2.5 pl-2 pr-4 tabular-nums text-center">
                   {miniRecord(r.faded)}
@@ -422,7 +449,12 @@ function GroupTab({
   group: RecordsPage['group'];
   meId?: string;
 }) {
-  const { wins, losses, pushes, open, people } = group;
+  const { wins, losses, pushes, open, people, nearMisses } = group;
+  // Who most often sank a parlay on their own
+  const culprits = people
+    .filter((p) => p.onlyMiss > 0)
+    .sort((a, b) => b.onlyMiss - a.onlyMiss)
+    .slice(0, 3);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-2xl border border-gray-800 bg-gray-900 px-4 py-3">
@@ -435,6 +467,44 @@ function GroupTab({
         </span>
         {open > 0 && <span className="text-sm text-gray-500">{open} open</span>}
       </div>
+      {nearMisses.count > 0 && (
+        <div className="rounded-2xl border border-gray-800 bg-gray-900 px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+            <span aria-hidden="true">💔 </span>Missed by one leg
+          </p>
+          <p className="mt-1 text-sm">
+            <span className="text-2xl font-extrabold tabular-nums">
+              {nearMisses.count}
+            </span>{' '}
+            {nearMisses.count === 1 ? 'parlay' : 'parlays'} · $10 on each would
+            have paid{' '}
+            <span className="font-semibold text-win">${nearMisses.paid}</span>
+          </p>
+          {culprits.length > 0 && (
+            <div className="mt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                Most common culprits
+              </p>
+              <ol className="mt-1.5 flex flex-wrap gap-x-4 gap-y-2">
+                {culprits.map((c) => (
+                  <li key={c.id} className="flex items-center gap-2 text-sm">
+                    <UserAvatar
+                      name={c.fullName}
+                      url={c.avatarUrl}
+                      color={c.avatarColor}
+                      className="h-6 w-6 flex-none text-[11px]"
+                    />
+                    <span className="font-medium">{c.fullName}</span>
+                    <span className="font-semibold text-red-400">
+                      💀{c.onlyMiss}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </div>
+      )}
       {people.length ? (
         <>
           <GroupTable rows={people} meId={meId} />
@@ -558,8 +628,9 @@ export default function Records() {
               />
               <p className="text-xs text-gray-500">
                 Ladder rungs count as one bet each. Win % and ROI rank after{' '}
-                {MIN_RANKED} settled bets. L5 and streaks are all-time. Faders:
-                how everyone who faded them did.
+                {MIN_RANKED} settled bets. L5 and streaks are all-time. 1-leg
+                misses: parlays that lost on one leg, with what they would have
+                won. Faders: how everyone who faded them did.
               </p>
             </div>
           ) : (
