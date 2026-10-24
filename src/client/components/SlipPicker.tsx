@@ -43,7 +43,7 @@ import { inSiteZone, SITE_ZONE_LABEL } from '../../shared/time';
 import GroupReview, { GroupMode, PostedKind } from './GroupReview';
 import SeriesPicker from './SeriesPicker';
 import SlipImport from './SlipImport';
-import { LiveBadge } from './SlipParts';
+import { BookChip, LiveBadge } from './SlipParts';
 import useNow from '../lib/useNow';
 
 // Sportsbook-style bet picker: choose a league, tap prices to build a
@@ -1130,9 +1130,7 @@ export default function SlipPicker({
       {header}
       <div className="space-y-3 border-b border-gray-800 px-5 py-3">
         <p className="flex items-center gap-2 text-sm text-gray-400">
-          <span className="rounded border border-gray-700 px-1.5 py-px text-[11px] font-semibold text-gray-300">
-            {bookName}
-          </span>
+          <BookChip bookKey={book} name={bookName} />
           Live odds and lines from {bookName}
         </p>
         {!group && !edit && (

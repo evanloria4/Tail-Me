@@ -223,6 +223,25 @@ export function TimelineRow({
   );
 }
 
+// Books with brand colors; anything else gets the plain outline. Literal
+// white text: the theme's `text-white` turns dark in light mode.
+const BOOK_STYLES: Record<string, string> = {
+  fanduel: 'border-transparent bg-[#1493FF] text-[#fff]',
+};
+
+/** The sportsbook a slip is on (FanDuel in its own blue) */
+export function BookChip({ bookKey, name }: { bookKey: string; name: string }) {
+  return (
+    <span
+      className={`rounded border px-1.5 py-px text-[11px] font-semibold ${
+        BOOK_STYLES[bookKey] ?? 'border-gray-700 text-gray-400'
+      }`}
+    >
+      {name}
+    </span>
+  );
+}
+
 /** A game in progress. Only shown on unsettled bets and legs. */
 export function LiveBadge() {
   return (

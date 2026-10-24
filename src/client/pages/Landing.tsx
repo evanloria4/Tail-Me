@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Logo from '../components/Logo';
+import { BookChip } from '../components/SlipParts';
 import { FREE_UNTIL, isPromoActive } from '../../shared/billing';
 import { inSiteZone } from '../../shared/time';
 
@@ -106,9 +107,7 @@ function HeroSlip() {
           <div>
             <p className="text-lg font-bold leading-tight">3 Leg Parlay</p>
             <div className="mt-2 flex items-center gap-2">
-              <span className="rounded border border-gray-700 px-1.5 py-px text-[11px] font-semibold text-gray-400">
-                FanDuel
-              </span>
+              <BookChip bookKey="fanduel" name="FanDuel" />
               <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold tracking-wide text-emerald-400">
                 WON
               </span>

@@ -43,6 +43,7 @@ import {
   units,
   withFinal,
   legStatBar,
+  BookChip,
 } from './SlipParts';
 import {
   GroupActions,
@@ -586,9 +587,10 @@ export default function PostCard({
                   </>
                 )}
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="rounded border border-gray-700 px-1.5 py-px text-[11px] font-semibold text-gray-400">
-                    {post.sportsbook.name}
-                  </span>
+                  <BookChip
+                    bookKey={post.sportsbook.key}
+                    name={post.sportsbook.name}
+                  />
                   {slipInGame != null && <InGameBadge minutes={slipInGame} />}
                   {!isLadder && betChip(first)}
                   {ladderLive && !pick.score && <LiveBadge />}

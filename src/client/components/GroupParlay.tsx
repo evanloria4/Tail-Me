@@ -18,6 +18,7 @@ import type { BetResult, FeedLeg, FeedPost } from '../../shared/posts';
 import { useLayout } from './AppLayout';
 import UserAvatar from './UserAvatar';
 import {
+  BookChip,
   legStatus,
   legText,
   LiveBadge,
@@ -347,9 +348,10 @@ export function GroupSlip({
             🔒 {when}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="rounded border border-gray-700 px-1.5 py-px text-[11px] font-semibold text-gray-400">
-              {post.sportsbook.name}
-            </span>
+            <BookChip
+              bookKey={post.sportsbook.key}
+              name={post.sportsbook.name}
+            />
             {status}
             {(group.game || sgp) && (
               <span className={`${statusClass} bg-gray-800 text-gray-300`}>
