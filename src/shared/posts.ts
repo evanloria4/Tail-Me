@@ -458,9 +458,10 @@ export type EditPostInput = z.infer<typeof editPostSchema>;
 
 /**
  * Feed filters (GET /posts?status=). Open: anything still waiting on a
- * result. Live: a game on the slip is being played. Won / Lost: settled, a
- * ladder winning if any rung hit and losing if every rung missed. All: every
- * slip, pushes and voids included.
+ * result. Live: a game on the slip is being played. Won / Lost: settled;
+ * ladders by their final net units (up is Won, down is Lost; at exactly
+ * even, more hits than misses is Won and the reverse Lost). All: every slip,
+ * pushes and voids included.
  */
 export const FEED_FILTERS = ['open', 'live', 'won', 'lost', 'all'] as const;
 export type FeedFilter = (typeof FEED_FILTERS)[number];

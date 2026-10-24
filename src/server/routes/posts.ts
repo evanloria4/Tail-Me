@@ -160,8 +160,41 @@ async function knownEvents(ids: string[]): Promise<KnownEvents> {
 const ownsSeries = async (ownerId: string, seriesId: string) =>
   (await prisma.series.count({ where: { id: seriesId, ownerId } })) > 0;
 
+/**
+ * Settled ladders that finished up (sign 1) or down (-1) on net units, the
+ * same net as profiles: a win pays units * (decimal - 1), a loss costs the
+ * units, pushes and voids are 0. At exactly even (0-unit ladders, mostly)
+ * the rungs decide: more hits is Won, more misses is Lost, a tie is neither.
+ */
+async function settledLadderIds(sign: 1 | -1): Promise<string[]> {
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT p."id"
+    FROM "Post" p
+    JOIN "Bet" b ON b."postId" = p."id"
+    WHERE p."type" = 'LADDER' AND p."deletedAt" IS NULL
+    GROUP BY p."id"
+    HAVING bool_and(b."result" <> 'PENDING')
+      AND COALESCE(
+        NULLIF(SIGN(SUM(CASE
+          WHEN b."result" = 'WON' THEN b."units" * (b."decimalOdds" - 1)
+          WHEN b."result" = 'LOST' THEN -b."units"
+          ELSE 0
+        END)), 0),
+        SIGN(SUM(CASE
+          WHEN b."result" = 'WON' THEN 1
+          WHEN b."result" = 'LOST' THEN -1
+          ELSE 0
+        END))
+      ) = ${sign}
+  `;
+  return rows.map((r) => r.id);
+}
+
 /** Which posts a feed filter keeps (FEED_FILTERS) */
-function statusWhere(status: FeedFilter, now: Date): Prisma.PostWhereInput {
+async function statusWhere(
+  status: FeedFilter,
+  now: Date
+): Promise<Prisma.PostWhereInput> {
   switch (status) {
     case 'open':
       return { bets: { some: { result: 'PENDING' } } };
@@ -184,19 +217,27 @@ function statusWhere(status: FeedFilter, now: Date): Prisma.PostWhereInput {
           },
         },
       };
+    // Straights, parlays and group parlays are one bet: its result decides.
+    // Ladders go by their final net units.
     case 'won':
       return {
-        bets: {
-          every: { result: { not: 'PENDING' } },
-          some: { result: 'WON' },
-        },
+        OR: [
+          {
+            type: { not: 'LADDER' },
+            bets: { some: { result: 'WON' } },
+          },
+          { id: { in: await settledLadderIds(1) } },
+        ],
       };
     case 'lost':
       return {
-        bets: {
-          every: { result: { in: ['LOST', 'VOID'] } },
-          some: { result: 'LOST' },
-        },
+        OR: [
+          {
+            type: { not: 'LADDER' },
+            bets: { some: { result: 'LOST' } },
+          },
+          { id: { in: await settledLadderIds(-1) } },
+        ],
       };
     default:
       return {};
@@ -225,7 +266,7 @@ router.get('/', requireAuth, async (req, res) => {
       }),
       ...(since && { createdAt: { gte: since } }),
       ...(typeof series === 'string' && { seriesId: series }),
-      ...(isFeedFilter(status) && statusWhere(status, now)),
+      ...(isFeedFilter(status) ? await statusWhere(status, now) : {}),
     },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: PAGE_SIZE + 1,
