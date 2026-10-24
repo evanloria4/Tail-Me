@@ -188,12 +188,12 @@ const SUPERLATIVE_ICONS: Record<Superlative['key'], string> = {
   legs: '👑',
 };
 
-/** The Leaders tab: every superlative someone qualifies for, brags first */
+/** The Awards tab: every superlative someone qualifies for, brags first */
 function Superlatives({ cards }: { cards: Superlative[] }) {
   if (!cards.length) {
     return (
       <p className="rounded-2xl border border-gray-800 bg-gray-900 px-4 py-6 text-center text-sm text-gray-500">
-        No leaders in this range yet. They fill in as bets settle.
+        No awards in this range yet. They fill in as bets settle.
       </p>
     );
   }
@@ -794,7 +794,7 @@ export default function Records() {
                   ['leaders', 'Leaderboard'],
                   ['group', 'Group parlays'],
                   ['series', 'Series'],
-                  ['awards', 'Leaders'],
+                  ['awards', 'Awards'],
                 ] as const
               ).map(([key, label]) => (
                 <button
