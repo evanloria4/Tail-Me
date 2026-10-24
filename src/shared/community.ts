@@ -33,6 +33,18 @@ export function dailyTotals(
     .sort((a, b) => a.day.localeCompare(b.day));
 }
 
+/**
+ * The Central day a bet belongs to for "Today": the day of its last game
+ * (a late game graded after midnight still counts for the night it was
+ * played; a parlay across two days counts when it resolves). Bets with no
+ * game attached fall back to the day they were posted.
+ */
+export function gameDay(gameStarts: (Date | null)[], postedAt: Date): string {
+  const starts = gameStarts.filter((d): d is Date => d !== null);
+  if (!starts.length) return siteDayKey(postedAt);
+  return siteDayKey(new Date(Math.max(...starts.map((d) => d.getTime()))));
+}
+
 /** A settled personal bet, for the day's superlatives */
 export type TodayBet = {
   authorId: string;
@@ -58,7 +70,7 @@ const signedOdds = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 const signed = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(2)}u`;
 
 /**
- * The day's standouts from bets that settled today: the longest price that
+ * The day's standouts from bets on today's games: the longest price that
  * cashed, who won and lost the most units, and a parlay (3+ legs) that lost
  * on one leg. Each appears only when someone qualifies, in this order.
  */

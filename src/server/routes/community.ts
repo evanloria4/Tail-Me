@@ -6,6 +6,7 @@ import {
   CommunityStats,
   dailyTotals,
   daySuperlatives,
+  gameDay,
 } from '../../shared/community';
 import { groupRow } from '../../shared/records';
 import { fromSiteInput, siteDayKey } from '../../shared/time';
@@ -34,8 +35,13 @@ router.get('/', requireAuth, async (req, res) => {
       ? req.query.month
       : siteDayKey(new Date()).slice(0, 7);
 
-  // Midnight Central: "today" for the day's superlatives
-  const today = fromSiteInput(`${siteDayKey(new Date())}T00:00`) ?? new Date();
+  // "Today" is today's games (Central). Their bets settle today or in the
+  // early hours after, so a few days of settlements covers them.
+  const todayKey = siteDayKey(new Date());
+  const settledSince = new Date(
+    (fromSiteInput(`${todayKey}T00:00`) ?? new Date()).getTime() -
+      3 * 24 * 60 * 60_000
+  );
 
   const [users, rows, groupLegs, settledToday] = await Promise.all([
     prisma.user.findMany({
@@ -69,10 +75,11 @@ router.get('/', requireAuth, async (req, res) => {
         legs: { select: { addedById: true, result: true } },
       },
     }),
-    // Personal bets that settled today, for the day's superlatives
+    // Recently settled personal bets; the ones on today's games feed the
+    // day's superlatives
     prisma.bet.findMany({
       where: {
-        settledAt: { gte: today },
+        settledAt: { gte: settledSince },
         result: { in: ['WON', 'LOST', 'PUSH'] },
         post: { type: { in: POST_TYPES } },
       },
@@ -81,8 +88,10 @@ router.get('/', requireAuth, async (req, res) => {
         americanOdds: true,
         decimalOdds: true,
         result: true,
-        post: { select: { authorId: true } },
-        legs: { select: { result: true } },
+        post: { select: { authorId: true, createdAt: true } },
+        legs: {
+          select: { result: true, event: { select: { commenceTime: true } } },
+        },
       },
     }),
   ]);
@@ -122,14 +131,22 @@ router.get('/', requireAuth, async (req, res) => {
   const body: CommunityStats = {
     today: daySuperlatives(
       users,
-      settledToday.map((b) => ({
-        authorId: b.post.authorId,
-        units: b.units.toNumber(),
-        americanOdds: b.americanOdds,
-        decimalOdds: b.decimalOdds.toNumber(),
-        result: b.result,
-        legs: b.legs.map((l) => l.result),
-      }))
+      settledToday
+        .filter(
+          (b) =>
+            gameDay(
+              b.legs.map((l) => l.event?.commenceTime ?? null),
+              b.post.createdAt
+            ) === todayKey
+        )
+        .map((b) => ({
+          authorId: b.post.authorId,
+          units: b.units.toNumber(),
+          americanOdds: b.americanOdds,
+          decimalOdds: b.decimalOdds.toNumber(),
+          result: b.result,
+          legs: b.legs.map((l) => l.result),
+        }))
     ),
     hot: byUser
       .filter((u) => isHot(u.streak))

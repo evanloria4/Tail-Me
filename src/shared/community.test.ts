@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dailyTotals, daySuperlatives } from './community';
+import { dailyTotals, daySuperlatives, gameDay } from './community';
 import type { TodayBet } from './community';
 
 describe('dailyTotals', () => {
@@ -117,5 +117,29 @@ describe('daySuperlatives', () => {
 
   it('shows nothing before anything settles today', () => {
     expect(daySuperlatives([ann], [])).toEqual([]);
+  });
+});
+
+describe('gameDay', () => {
+  const posted = new Date('2026-10-20T15:00:00Z');
+
+  it('is the Central day of the last game, not when it settled', () => {
+    // 9:30 PM CT Friday kickoff: still Friday, though it's graded after midnight
+    expect(gameDay([new Date('2026-10-24T02:30:00Z')], posted)).toBe(
+      '2026-10-23'
+    );
+  });
+
+  it('takes the latest game on a parlay that spans days', () => {
+    expect(
+      gameDay(
+        [new Date('2026-10-23T23:00:00Z'), new Date('2026-10-25T17:00:00Z')],
+        posted
+      )
+    ).toBe('2026-10-25');
+  });
+
+  it('falls back to the post day with no game attached', () => {
+    expect(gameDay([null], posted)).toBe('2026-10-20');
   });
 });
