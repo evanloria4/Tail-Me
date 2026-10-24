@@ -58,8 +58,9 @@ export async function notify(
               keys: { p256dh: sub.p256dh, auth: sub.auth },
             },
             body,
-            // A day: a phone that's off past that doesn't need old news
-            { TTL: 86400, urgency: 'normal' }
+            // A day: a phone that's off past that doesn't need old news.
+            // 'high' or Apple batches them to save battery (minutes late)
+            { TTL: 86400, urgency: 'high' }
           );
         } catch (err) {
           if (isDeadSubscription(err)) {
