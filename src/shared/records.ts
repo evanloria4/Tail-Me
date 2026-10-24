@@ -103,7 +103,14 @@ export type GroupRow = PersonRef & {
 };
 
 export type Superlative = {
-  key: 'biggest' | 'worstBeat' | 'streak' | 'bestDay' | 'mostTailed' | 'legs';
+  key:
+    | 'biggest'
+    | 'worstBeat'
+    | 'streak'
+    | 'bestDay'
+    | 'mostTailed'
+    | 'bestToTail'
+    | 'legs';
   title: string;
   person: PersonRef;
   /** The headline number, e.g. "+1450" or "+6.20u" */
@@ -337,6 +344,30 @@ export function superlatives(
         title: 'Most tailed',
         value: `${n}`,
         detail: n === 1 ? 'tail' : 'tails',
+        postId: null,
+      },
+      id
+    );
+  }
+
+  // Units everyone who tailed them won, if each bet the poster's units
+  const bestToTail = top(
+    authors.map(([id, mine]) => ({
+      id,
+      n:
+        Math.round(
+          mine.reduce((sum, b) => sum + b.tails * betNet(b), 0) * 100
+        ) / 100,
+    }))
+  );
+  if (bestToTail && bestToTail.n > 0) {
+    const { id, n } = bestToTail;
+    push(
+      {
+        key: 'bestToTail',
+        title: 'Best to tail',
+        value: units(n),
+        detail: 'made for tailers',
         postId: null,
       },
       id

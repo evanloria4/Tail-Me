@@ -10,6 +10,8 @@ import {
 import timeAgo from '../lib/time';
 import combinedSlipLink from '../../shared/betslip';
 import useNow from '../lib/useNow';
+import { netColor, signedUnits } from '../lib/statFormat';
+import { betNet } from '../../shared/stats';
 import { allFinal, inGameMinutes, isLive, oneGame } from '../../shared/live';
 import { slipBadges, slipTier } from '../../shared/badges';
 import type { ReactionEmoji } from '../../shared/social';
@@ -334,6 +336,15 @@ export default function PostCard({
   const isAuthor = post.author.id === currentUserId;
   const isGroup = post.type === 'GROUP_PARLAY';
   const locked = groupLocked(post);
+  // Once a tailed bet settles: what everyone who tailed made, if each bet the
+  // poster's units (real stakes aren't known). Group parlays have no units.
+  const tailedSettled = post.bets.filter(
+    (b) => b.tailCount > 0 && b.result !== 'PENDING' && b.result !== 'VOID'
+  );
+  const tailerUnits = tailedSettled.reduce(
+    (sum, b) => sum + b.tailCount * betNet(b),
+    0
+  );
   const tailCount = (
     <div className="flex items-center gap-3">
       <TailersButton
@@ -341,6 +352,14 @@ export default function PostCard({
         count={post.tailers.count}
         recent={post.tailers.recent}
       />
+      {!isGroup && tailedSettled.length > 0 && (
+        <span
+          title="Everyone who tailed, if each bet the poster's units"
+          className={`text-xs font-semibold tabular-nums ${netColor(tailerUnits)}`}
+        >
+          {signedUnits(tailerUnits)} for tailers
+        </span>
+      )}
       {post.fadeCount > 0 && (
         <TailersButton postId={post.id} count={post.fadeCount} kind="fade" />
       )}

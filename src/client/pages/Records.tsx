@@ -139,6 +139,7 @@ const SUPERLATIVE_ICONS: Record<Superlative['key'], string> = {
   streak: '🔥',
   bestDay: '📅',
   mostTailed: '🎯',
+  bestToTail: '💸',
   legs: '👑',
 };
 

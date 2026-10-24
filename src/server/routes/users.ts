@@ -9,7 +9,6 @@ import {
   rangeStart,
   sinceFilter,
   StatBet,
-  statLine,
   StatRange,
   UserProfile,
 } from '../../shared/stats';
@@ -48,7 +47,6 @@ router.get<{ username: string }>(
     const { query } = req;
     const range: StatRange = isStatRange(query.range) ? query.range : 'all';
     const since = rangeStart(range);
-    const viewerId = req.user!.id;
 
     // Group parlays keep their own record, so they never touch these stats.
     // Deleted slips still count: deleting a loser can't clean up a record.
@@ -95,7 +93,6 @@ router.get<{ username: string }>(
       }));
     });
     const bets = all.filter(sinceFilter(since));
-    const viewerTailed = bets.filter((b) => b.tailers.includes(viewerId));
     // A ladder tail lands on every rung; count each person once per slip
     const slipTails = new Set(
       bets.flatMap((b) => b.tailers.map((u) => `${u}:${b.postId}`))
@@ -109,12 +106,7 @@ router.get<{ username: string }>(
       tails: {
         received: slipTails.size,
         tailers: new Set(bets.flatMap((b) => b.tailers)).size,
-        line: statLine(bets.filter((b) => b.tailers.length > 0)),
       },
-      viewerTails:
-        user.id !== viewerId && viewerTailed.length
-          ? statLine(viewerTailed)
-          : null,
     };
     res.json(body);
   }

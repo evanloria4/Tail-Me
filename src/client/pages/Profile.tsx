@@ -133,7 +133,7 @@ function Form({ results }: { results: SettledResult[] }) {
 
 // ---------- Page ----------
 
-type BreakdownKey = 'series' | 'type' | 'league' | 'tailing';
+type BreakdownKey = 'series' | 'type' | 'league';
 
 export default function Profile() {
   const { username = '' } = useParams();
@@ -182,7 +182,7 @@ export default function Profile() {
   }
   if (!data) return <p className="py-6 text-center text-gray-500">Loading…</p>;
 
-  const { user, stats, tails, viewerTails, nearMisses } = data;
+  const { user, stats, tails, nearMisses } = data;
   const isMe = me?.id === user.id;
   const { overall, streak } = stats;
   const sportTitle = (key: string) =>
@@ -214,11 +214,8 @@ export default function Profile() {
     ...(leagueKeys.length > 0
       ? [{ key: 'league' as const, label: 'League' }]
       : []),
-    ...(settledCount(tails.line) > 0 || viewerTails
-      ? [{ key: 'tailing' as const, label: 'Tailing' }]
-      : []),
   ];
-  // A tab can vanish (e.g. no tailing yet); fall back to the first
+  // A tab can vanish (e.g. no leagues yet); fall back to the first
   const activePanel = panels.some((p) => p.key === panel)
     ? panel
     : panels[0].key;
@@ -416,15 +413,6 @@ export default function Profile() {
                 line={leagueLines.get(key) ?? EMPTY_LINE}
               />
             ))}
-          </StatPanel>
-        )}
-
-        {show('tailing') && (
-          <StatPanel title="Tailing">
-            <StatRow label="Tailed bets" line={tails.line} />
-            {viewerTails && (
-              <StatRow label="When you tail" line={viewerTails} />
-            )}
           </StatPanel>
         )}
       </aside>

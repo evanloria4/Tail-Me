@@ -192,6 +192,23 @@ describe('superlatives', () => {
     });
   });
 
+  it('names who made tailers the most, counting every tailer', () => {
+    const cards = superlatives(
+      [ann, bo],
+      [
+        // Ann: 2 tailers on a +1u winner = +2u
+        bet({ result: 'WON', tails: 2 }),
+        // Bo: 3 tailers on a 1u loser = -3u
+        bet({ authorId: 'b', result: 'LOST', tails: 3 }),
+      ],
+      []
+    );
+    expect(cards.find((c) => c.key === 'bestToTail')).toMatchObject({
+      person: ann,
+      value: '+2.00u',
+    });
+  });
+
   it('leaves out cards nobody qualifies for', () => {
     expect(superlatives([ann], [bet({ result: 'LOST' })], [])).toEqual([]);
   });
