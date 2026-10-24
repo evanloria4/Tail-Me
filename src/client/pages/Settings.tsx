@@ -513,16 +513,12 @@ function NotificationsSection() {
     );
   } else if (support === 'needs-install') {
     device = (
-      <div className="space-y-3">
-        <p className="text-sm text-gray-300">
-          On iPhone, notifications come through the TailMe app. Add it to your
-          home screen (it’s free and takes a few seconds):
-        </p>
-        <IosInstallSteps />
-        <p className="text-xs text-gray-500">
-          Then come back here to turn them on. Needs iOS 16.4 or later.
-        </p>
-      </div>
+      // The steps themselves are under Get the app, right below
+      <p className="text-sm text-gray-300">
+        On iPhone, notifications come through the TailMe app. Add it to your
+        home screen (see Get the app below), then turn them on here. Needs iOS
+        16.4 or later.
+      </p>
     );
   } else if (support === 'unsupported') {
     device = (
