@@ -430,6 +430,10 @@ export function Comments({
       onCount(next.length);
       setDraft('');
       setError(null);
+      // Posted: put the keyboard away so the phone shows the full slip again
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not post the comment'));
     } finally {

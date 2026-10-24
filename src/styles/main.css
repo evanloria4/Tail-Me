@@ -73,3 +73,16 @@
     @apply lg:sticky lg:self-start;
   }
 }
+
+/*
+ * iOS Safari zooms the whole page into any text field under 16px and stays
+ * zoomed after you're done (posting a comment left the page zoomed in). On
+ * phone widths every field is 16px, beating per-field text-sm classes.
+ */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

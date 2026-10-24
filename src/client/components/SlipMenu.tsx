@@ -336,6 +336,23 @@ export default function SlipMenu({
     }
   };
 
+  // One bet: a saved change is the whole edit, so the menu closes on its
+  // own. Ladders have a row per rung and stay open (with Done) for more.
+  const oneBet = post.bets.length === 1;
+  const afterSave = (ok: boolean) => {
+    if (ok && oneBet) close();
+    return ok;
+  };
+  const doneButton = !oneBet && (
+    <button
+      type="button"
+      onClick={close}
+      className="w-full border-t border-gray-800 px-3 py-2 text-sm font-semibold text-emerald-400 hover:bg-gray-800"
+    >
+      Done
+    </button>
+  );
+
   const move = (seriesId: string | null) => {
     close();
     if (seriesId !== (post.series?.id ?? null)) onMove(seriesId);
@@ -492,10 +509,13 @@ export default function SlipMenu({
                         : 'Odds'
                     }
                     current={bet.americanOdds}
-                    onSave={(odds) => onOdds(bet.id, odds)}
+                    onSave={async (odds) =>
+                      afterSave(await onOdds(bet.id, odds))
+                    }
                   />
                 ))}
               </ul>
+              {doneButton}
             </>
           )}
           {view === 'rung' && (
@@ -538,10 +558,11 @@ export default function SlipMenu({
                         : 'Units'
                     }
                     current={bet.units}
-                    onSave={(n) => onUnits(bet.id, n)}
+                    onSave={async (n) => afterSave(await onUnits(bet.id, n))}
                   />
                 ))}
               </ul>
+              {doneButton}
             </>
           )}
           {view === 'result' && (
@@ -567,9 +588,10 @@ export default function SlipMenu({
                     <select
                       aria-label="Result"
                       value={bet.result}
-                      onChange={(e) =>
-                        onSettle(bet.id, e.target.value as BetResult)
-                      }
+                      onChange={(e) => {
+                        onSettle(bet.id, e.target.value as BetResult);
+                        if (oneBet) close();
+                      }}
                       className={`cursor-pointer rounded-md border-none px-2 py-0.5 text-[11px] font-bold tracking-wide outline-none ${RESULT_STYLES[bet.result]}`}
                     >
                       {RESULT_OPTIONS.map((r) => (
@@ -585,6 +607,7 @@ export default function SlipMenu({
                 Results update on their own when games end. A result you set
                 here won&apos;t be changed.
               </p>
+              {doneButton}
             </>
           )}
           {view === 'series' && (

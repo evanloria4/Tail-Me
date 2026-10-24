@@ -60,6 +60,7 @@ Social sports-betting app for one friend group: users post straight / parlay / l
 - ts-node uses a CommonJS override in `tsconfig.json`; client uses ESNext/bundler resolution.
 - Webpack builds to `dist/client` (the only folder Express serves statically); tsc builds to `dist/server`, `dist/shared`, `dist/generated`. Never serve `dist/` itself — it would expose server code. The bundle is content-hashed (cached immutable); `index.html` is sent `no-cache`.
 - helmet CSP allows the Supabase URL for `connect-src`/`img-src`; add any new external origins there.
+- iOS Safari zooms into any text field under 16px and stays zoomed. `main.css` forces 16px on every input / textarea / select below 768px (with !important, over text-sm), so don't fight it with per-field sizes; posting a comment also blurs the field to drop the keyboard.
 - Windows dev machine (CRLF); Prettier uses `endOfLine: 'auto'`.
 
 ## Live odds (bet picker)
