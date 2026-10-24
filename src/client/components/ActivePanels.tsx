@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthProvider';
 import api from '../lib/api';
 import { lockTime } from '../lib/time';
 import useNow from '../lib/useNow';
+import useAutoRefresh from '../lib/useAutoRefresh';
 import { allFinal, isLive } from '../../shared/live';
 import { isGroupLocked } from '../../shared/posts';
 import type { FeedPost } from '../../shared/posts';
@@ -15,27 +16,23 @@ import { SERIES_COLORS } from '../../shared/series';
 // or waiting on games, and every slip with a game on. Clicking a row scrolls
 // the feed to that slip (the feed pages down to find it if needed).
 
-/** Refreshes on its own so LIVE rows come and go without a reload */
-const REFRESH_MS = 2 * 60_000;
-
 type Active = { groups: FeedPost[]; live: FeedPost[] };
 
+/** Refreshes on its own so LIVE rows come and go without a reload */
 export function useActiveSlips(reloadKey?: unknown) {
   const [data, setData] = useState<Active | null>(null);
+  const [tick, setTick] = useState(0);
+  useAutoRefresh(() => setTick((t) => t + 1));
   useEffect(() => {
     let live = true;
-    const load = () =>
-      api
-        .get<Active>('/posts/active')
-        .then(({ data: body }) => live && setData(body))
-        .catch(() => {});
-    load();
-    const id = setInterval(load, REFRESH_MS);
+    api
+      .get<Active>('/posts/active')
+      .then(({ data: body }) => live && setData(body))
+      .catch(() => {});
     return () => {
       live = false;
-      clearInterval(id);
     };
-  }, [reloadKey]);
+  }, [reloadKey, tick]);
   return data;
 }
 

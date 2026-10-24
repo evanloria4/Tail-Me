@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
+import useAutoRefresh from '../lib/useAutoRefresh';
 import {
   netColor,
   pct,
@@ -533,6 +534,10 @@ export default function Records() {
   const [data, setData] = useState<RecordsPage | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Records move as games settle; refetch quietly over what's shown
+  const [tick, setTick] = useState(0);
+  useAutoRefresh(() => setTick((t) => t + 1));
+
   useEffect(() => {
     let live = true;
     api
@@ -549,7 +554,7 @@ export default function Records() {
     return () => {
       live = false;
     };
-  }, [range, feedVersion]);
+  }, [range, feedVersion, tick]);
 
   const rows = useMemo(() => {
     if (!data) return [];

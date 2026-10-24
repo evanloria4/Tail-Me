@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api, { apiErrorMessage } from '../lib/api';
+import useAutoRefresh from '../lib/useAutoRefresh';
 import { netColor, record, signedUnits } from '../lib/statFormat';
 import { CommunityStats, DayTotal } from '../../shared/community';
 import { siteDayKey } from '../../shared/time';
@@ -273,6 +274,9 @@ export function useCommunityStats(reloadKey?: unknown) {
   const [month, setMonth] = useState<string | null>(null);
   const [data, setData] = useState<CommunityStats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Results settle while people watch; refetch quietly, keeping what's shown
+  const [tick, setTick] = useState(0);
+  useAutoRefresh(() => setTick((t) => t + 1));
 
   useEffect(() => {
     api
@@ -286,7 +290,7 @@ export function useCommunityStats(reloadKey?: unknown) {
       .catch((err) =>
         setError(apiErrorMessage(err, 'Could not load group stats'))
       );
-  }, [month, reloadKey]);
+  }, [month, reloadKey, tick]);
 
   return { data, error, setMonth };
 }

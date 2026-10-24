@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import scrollToSlip from '../lib/scrollToSlip';
+import useAutoRefresh from '../lib/useAutoRefresh';
 import PostCard, { BackAction } from './PostCard';
 import type { GroupHandlers } from './GroupParlay';
 import type { RungInput } from './SlipMenu';
@@ -20,8 +21,6 @@ type FeedPage = { posts: FeedPost[]; nextCursor: string | null };
 /** How far down the feed a panel click will page looking for a slip */
 const MAX_FOCUS_PAGES = 10;
 
-/** How often slips with a game on reload (the grader's pace) */
-const REFRESH_MS = 2 * 60_000;
 /** Stop watching an ungraded leg this long after its game started */
 const WATCH_FOR_MS = 24 * 60 * 60_000;
 
@@ -135,29 +134,24 @@ export default function PostList({
   // mid-game shows without a page refresh
   const postsRef = useRef(posts);
   postsRef.current = posts;
-  useEffect(() => {
-    const tick = async () => {
-      if (document.hidden) return;
-      const now = Date.now();
-      const ids = postsRef.current
-        .filter((p) =>
-          p.bets.some((b) => b.legs.some((l) => watching(l, b.result, now)))
-        )
-        .map((p) => p.id);
-      if (!ids.length) return;
-      try {
-        const { data } = await api.get<FeedPost[]>('/posts/refresh', {
-          params: { ids: ids.join(',') },
-        });
-        const fresh = new Map(data.map((p) => [p.id, p]));
-        setPosts((prev) => prev.map((p) => fresh.get(p.id) ?? p));
-      } catch {
-        // Next tick tries again
-      }
-    };
-    const id = setInterval(tick, REFRESH_MS);
-    return () => clearInterval(id);
-  }, []);
+  useAutoRefresh(async () => {
+    const now = Date.now();
+    const ids = postsRef.current
+      .filter((p) =>
+        p.bets.some((b) => b.legs.some((l) => watching(l, b.result, now)))
+      )
+      .map((p) => p.id);
+    if (!ids.length) return;
+    try {
+      const { data } = await api.get<FeedPost[]>('/posts/refresh', {
+        params: { ids: ids.join(',') },
+      });
+      const fresh = new Map(data.map((p) => [p.id, p]));
+      setPosts((prev) => prev.map((p) => fresh.get(p.id) ?? p));
+    } catch {
+      // Next tick tries again
+    }
+  });
 
   const settle = async (betId: string, result: BetResult) => {
     const update = (r: BetResult) =>

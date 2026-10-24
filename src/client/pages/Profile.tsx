@@ -5,6 +5,7 @@ import api, { apiErrorMessage } from '../lib/api';
 import useMeta from '../lib/useMeta';
 import useStickyTop from '../lib/useStickyTop';
 import useMediaQuery from '../lib/useMediaQuery';
+import useAutoRefresh from '../lib/useAutoRefresh';
 import { inSiteZone } from '../../shared/time';
 import { PAGE_GRID, SIDE_COLUMN } from '../lib/layout';
 import {
@@ -163,6 +164,8 @@ export default function Profile() {
   useEffect(() => {
     load();
   }, [load, feedVersion]);
+  // Stats move as games settle; refetch quietly over what's shown
+  useAutoRefresh(load);
 
   // Fresh page per user, not the last person's numbers
   useEffect(() => {
