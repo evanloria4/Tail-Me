@@ -13,10 +13,13 @@ const DEBOUNCE_MS = 150;
 
 export default function UserSearch({
   onDone,
+  autoFocus = false,
   className = '',
 }: {
-  /** After opening a profile, e.g. to close the phone menu */
+  /** After opening a profile, e.g. to close the phone search row */
   onDone?: () => void;
+  /** Focus on mount (the phone search row opens straight into typing) */
+  autoFocus?: boolean;
   className?: string;
 }) {
   const navigate = useNavigate();
@@ -121,15 +124,20 @@ export default function UserSearch({
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
+        // eslint-disable-next-line jsx-a11y/no-autofocus
+        autoFocus={autoFocus}
         onKeyDown={onKeyDown}
-        className="w-full rounded-full border border-gray-800 bg-gray-900 py-1.5 pl-9 pr-3 text-sm text-white placeholder:text-gray-500 outline-none transition focus:border-emerald-500"
+        // 16px on phones: iOS Safari zooms the page into smaller fields
+        className="w-full rounded-full border border-gray-800 bg-gray-900 py-1.5 pl-9 pr-3 text-base text-white md:text-sm placeholder:text-gray-500 outline-none transition focus:border-emerald-500"
       />
       {showList && (
         <ul
           id={listId}
           role="listbox"
           aria-label="Users"
-          className="absolute left-0 right-0 top-full z-30 mt-2 max-h-80 overflow-y-auto rounded-xl border border-gray-800 bg-gray-900 py-1 shadow-xl"
+          // At least 16rem so names fit when the box is narrow (phones),
+          // growing leftward from the box's right edge to stay on screen
+          className="absolute right-0 top-full z-30 mt-2 max-h-80 w-[max(100%,16rem)] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-gray-800 bg-gray-900 py-1 shadow-xl"
         >
           {results.length ? (
             results.map((p, i) => (

@@ -119,7 +119,7 @@ export function DarkModeSwitch({ className = '' }: { className?: string }) {
   );
 }
 
-type OpenMenu = 'mobile' | 'user' | null;
+type OpenMenu = 'mobile' | 'user' | 'search' | null;
 
 export type LayoutContext = {
   /** Opens the slip builder; pass a group parlay to add your leg to it */
@@ -296,27 +296,54 @@ export default function AppLayout() {
             </div>
           </div>
 
+          {/* Phones: a search icon that opens a full-width search row */}
+          <button
+            type="button"
+            onClick={() => toggle('search')}
+            aria-expanded={openMenu === 'search'}
+            aria-controls="mobile-search"
+            aria-label={openMenu === 'search' ? 'Close search' : 'Search users'}
+            className="ml-auto flex-none rounded-lg p-2 text-gray-300 transition hover:bg-gray-800 hover:text-white md:hidden"
+          >
+            <svg
+              viewBox="0 0 20 20"
+              className="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="9" cy="9" r="5.5" />
+              <path d="M13.5 13.5 17 17" />
+            </svg>
+          </button>
           <button
             type="button"
             onClick={() => toggle('mobile')}
             aria-expanded={openMenu === 'mobile'}
             aria-controls="mobile-menu"
             aria-label={openMenu === 'mobile' ? 'Close menu' : 'Open menu'}
-            className="ml-auto rounded-lg p-2 text-gray-300 transition hover:bg-gray-800 hover:text-white md:hidden"
+            className="flex-none rounded-lg p-2 text-gray-300 transition hover:bg-gray-800 hover:text-white md:hidden"
           >
             <MenuIcon open={openMenu === 'mobile'} />
           </button>
         </div>
+
+        {openMenu === 'search' && (
+          <div
+            id="mobile-search"
+            className="border-t border-gray-800 px-5 py-2.5 sm:px-8 md:hidden"
+          >
+            <UserSearch autoFocus onDone={() => setOpenMenu(null)} />
+          </div>
+        )}
 
         {openMenu === 'mobile' && (
           <div
             id="mobile-menu"
             className="border-t border-gray-800 px-5 pb-4 pt-2 sm:px-8 md:hidden"
           >
-            <UserSearch
-              className="mb-2 mt-1"
-              onDone={() => setOpenMenu(null)}
-            />
             <nav className="space-y-1">
               {NAV_ITEMS.map((item) => (
                 <NavLink
