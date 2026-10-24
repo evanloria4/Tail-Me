@@ -7,6 +7,7 @@
 // can't be matched stays pending for the poster to grade by hand.
 import prisma from './db';
 import { boxScore, EspnGame, findGame } from './espn';
+import { noticeSettled, sendGroupReminders } from './notices';
 import {
   betResultFromLegs,
   gradeGameLine,
@@ -232,6 +233,8 @@ export async function runGrading(now = new Date(), { dryRun = false } = {}) {
 
   // Roll leg results up into each bet the poster hasn't graded by hand
   let betsSettled = 0;
+  // Slips with a bet that just went from pending to a result, for notifications
+  const settledPosts = new Set<string>();
   const bets = await prisma.bet.findMany({
     where: { id: { in: [...touchedBets] }, ...NOT_MANUAL },
     include: { legs: { select: { result: true } } },
@@ -240,6 +243,7 @@ export async function runGrading(now = new Date(), { dryRun = false } = {}) {
     bets.map(async (bet) => {
       const result = betResultFromLegs(bet.legs.map((l) => l.result));
       if (result === bet.result) return;
+      if (bet.result === 'PENDING') settledPosts.add(bet.postId);
       await prisma.bet.update({
         where: { id: bet.id },
         data: {
@@ -251,6 +255,7 @@ export async function runGrading(now = new Date(), { dryRun = false } = {}) {
       betsSettled += 1;
     })
   );
+  await noticeSettled([...settledPosts]);
 
   return { graded, bets: betsSettled, report };
 }
@@ -312,6 +317,7 @@ export function startGrader() {
       const { graded, bets } = await runGrading();
       if (graded) console.log(`Grading: ${graded} legs, ${bets} bets settled`);
       await refreshLiveScores();
+      await sendGroupReminders();
     } catch (err) {
       console.error('Grading run failed', err);
     } finally {

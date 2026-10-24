@@ -15,6 +15,7 @@ import PostComposer from './PostComposer';
 import type { JoinTarget, PostedKind } from './GroupReview';
 import { useToast } from './Toast';
 import Tutorial from './Tutorial';
+import NotificationPrompt from './NotificationPrompt';
 import UserSearch from './UserSearch';
 import api from '../lib/api';
 import {
@@ -260,7 +261,7 @@ export default function AppLayout() {
     <div className="min-h-screen bg-gray-950 text-white">
       <header
         ref={headerRef}
-        className="sticky top-0 z-20 border-b border-gray-800 bg-gray-950/90 backdrop-blur"
+        className="sticky top-0 z-20 border-b border-gray-800 bg-gray-950/90 pt-[env(safe-area-inset-top)] backdrop-blur"
       >
         <div className="flex h-16 items-center px-5 sm:px-8 lg:px-16 xl:px-24">
           <Logo />
@@ -491,6 +492,8 @@ export default function AppLayout() {
         </button>
       )}
       <Tutorial open={tourOpen} onDone={finishTour} />
+      {/* Home-screen app's first open: offer notifications after the tour */}
+      <NotificationPrompt ready={!!profile && !tourOpen} />
       <PostComposer
         open={composerOpen}
         onClose={() => setComposerOpen(false)}

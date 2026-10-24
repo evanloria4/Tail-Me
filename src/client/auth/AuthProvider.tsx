@@ -9,6 +9,7 @@ import React, {
 import type { Session } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
 import api from '../lib/api';
+import { disablePush } from '../lib/push';
 import { hasAccess } from '../../shared/billing';
 import type { SubscriptionStatus } from '../../shared/billing';
 
@@ -87,6 +88,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    // A signed-out phone shouldn't keep getting their notifications
+    await disablePush().catch(() => {});
     await supabase.auth.signOut();
   }, []);
 

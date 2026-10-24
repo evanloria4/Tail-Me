@@ -3,6 +3,7 @@ import isReactionEmoji from '../emoji';
 import prisma from '../db';
 import { reactionSummary } from '../feed';
 import { requireAuth } from '../middleware/auth';
+import { noticeComment, noticeReaction } from '../notices';
 import {
   commentSchema,
   FeedComment,
@@ -103,6 +104,7 @@ router.post<{ postId: string }>(
       select: { emoji: true, userId: true },
     });
     res.json(reactionSummary(rows, req.user!.id));
+    if (!count) noticeReaction(postId, req.user!.id, emoji);
   }
 );
 
@@ -179,6 +181,7 @@ router.post<{ postId: string }>(
       select: commentSelect,
     });
     res.status(201).json(toComment(comment, viewerId));
+    noticeComment(req.params.postId, viewerId, parsed.data.body);
   }
 );
 

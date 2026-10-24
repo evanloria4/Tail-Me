@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import { useAuth } from '../auth/AuthProvider';
@@ -8,6 +8,20 @@ import { DarkModeSwitch, useLayout } from '../components/AppLayout';
 import { useToast } from '../components/Toast';
 import AvatarPicker from '../components/AvatarPicker';
 import { removeAvatar, uploadAvatar } from '../lib/avatar';
+import {
+  canPromptInstall,
+  currentSubscription,
+  disablePush,
+  enablePush,
+  isIOS,
+  isStandalone,
+  promptInstall,
+  PushDenied,
+  pushSupport,
+} from '../lib/push';
+import type { NotificationSettings } from '../lib/push';
+import { NOTIFY_LABELS, NOTIFY_TYPES } from '../../shared/notifications';
+import type { NotifyPrefs, NotifyType } from '../../shared/notifications';
 import { isPromoActive, FREE_UNTIL } from '../../shared/billing';
 import { inSiteZone } from '../../shared/time';
 
@@ -349,6 +363,290 @@ const shortDate = (iso: string | Date) =>
   );
 
 /** One line on where their plan stands; the Billing page has the details */
+/** An on/off row, styled like the dark mode switch */
+function SwitchRow({
+  label,
+  hint,
+  on,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  on: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={() => onChange(!on)}
+      className="-mx-2 flex w-[calc(100%+1rem)] items-center justify-between gap-4 rounded-lg px-2 py-2 text-left transition hover:bg-gray-800"
+    >
+      <span className="min-w-0">
+        <span className="block text-sm text-gray-300">{label}</span>
+        <span className="block text-xs text-gray-500">{hint}</span>
+      </span>
+      <span
+        aria-hidden="true"
+        className={`relative h-5 w-9 flex-none rounded-full transition ${
+          on ? 'bg-emerald-500' : 'bg-gray-700'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-[#fff] shadow transition-all ${
+            on ? 'left-[18px]' : 'left-0.5'
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
+/** iPhone: Share → Add to Home Screen; push only works from there */
+function IosInstallSteps() {
+  return (
+    <ol className="list-decimal space-y-1 pl-5 text-sm text-gray-300">
+      <li>
+        In Safari, tap <span className="font-semibold">Share</span> (the square
+        with the arrow)
+      </li>
+      <li>
+        Tap <span className="font-semibold">Add to Home Screen</span>, then{' '}
+        <span className="font-semibold">Add</span>
+      </li>
+      <li>Open TailMe from your home screen and sign in</li>
+    </ol>
+  );
+}
+
+function NotificationsSection() {
+  const toast = useToast();
+  const [settings, setSettings] = useState<NotificationSettings | null>(null);
+  // Whether this device is subscribed; null while checking
+  const [deviceOn, setDeviceOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const support = pushSupport();
+  const blocked =
+    support === 'supported' && Notification.permission === 'denied';
+
+  useEffect(() => {
+    let live = true;
+    api
+      .get<NotificationSettings>('/me/notifications')
+      .then(({ data }) => live && setSettings(data))
+      .catch((err) => {
+        if (live)
+          setError(apiErrorMessage(err, 'Could not load notifications'));
+      });
+    currentSubscription()
+      .then((sub) => live && setDeviceOn(!!sub))
+      .catch(() => live && setDeviceOn(false));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const run = async (work: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+    } catch (err) {
+      if (err instanceof PushDenied) {
+        setError(
+          'Notifications are blocked. Allow them for TailMe in your device or browser settings, then try again.'
+        );
+      } else {
+        setError(
+          isAxiosError(err)
+            ? apiErrorMessage(err, 'Something went wrong')
+            : 'Could not turn notifications on. Try again.'
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const turnOn = () =>
+    run(async () => {
+      await enablePush(settings!.publicKey!);
+      setDeviceOn(true);
+      toast('Notifications on for this device');
+    });
+  const turnOff = () =>
+    run(async () => {
+      await disablePush();
+      setDeviceOn(false);
+      toast('Notifications off for this device');
+    });
+  const sendTest = () =>
+    run(async () => {
+      await api.post('/me/push/test');
+      toast('Sent. It should pop up in a few seconds');
+    });
+
+  const setPref = async (type: NotifyType, on: boolean) => {
+    if (!settings) return;
+    const before = settings.prefs;
+    setSettings({ ...settings, prefs: { ...before, [type]: on } });
+    try {
+      const { data } = await api.patch<{ prefs: NotifyPrefs }>(
+        '/me/notifications',
+        { [type]: on }
+      );
+      setSettings((s) => s && { ...s, prefs: data.prefs });
+    } catch (err) {
+      setSettings((s) => s && { ...s, prefs: before });
+      toast(apiErrorMessage(err, 'Could not save that'));
+    }
+  };
+
+  let device: React.ReactNode;
+  if (settings && !settings.publicKey) {
+    device = (
+      <p className="text-sm text-gray-400">
+        Notifications aren’t switched on for TailMe yet.
+      </p>
+    );
+  } else if (support === 'needs-install') {
+    device = (
+      <div className="space-y-3">
+        <p className="text-sm text-gray-300">
+          On iPhone, notifications come through the TailMe app. Add it to your
+          home screen (it’s free and takes a few seconds):
+        </p>
+        <IosInstallSteps />
+        <p className="text-xs text-gray-500">
+          Then come back here to turn them on. Needs iOS 16.4 or later.
+        </p>
+      </div>
+    );
+  } else if (support === 'unsupported') {
+    device = (
+      <p className="text-sm text-gray-400">
+        This browser can’t show notifications. Try Chrome, Safari or the TailMe
+        app on your phone.
+      </p>
+    );
+  } else if (blocked) {
+    device = (
+      <p className="text-sm text-gray-400">
+        Notifications are blocked for TailMe on this device. Allow them in your
+        settings (on iPhone: Settings → Notifications → TailMe), then reload.
+      </p>
+    );
+  } else {
+    device = (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-gray-300">
+          {deviceOn === null && '…'}
+          {deviceOn === true && 'On for this device'}
+          {deviceOn === false && 'Off for this device'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {deviceOn && (
+            <button
+              type="button"
+              onClick={sendTest}
+              disabled={busy}
+              className={secondaryButton}
+            >
+              Send a test
+            </button>
+          )}
+          {deviceOn ? (
+            <button
+              type="button"
+              onClick={turnOff}
+              disabled={busy}
+              className={secondaryButton}
+            >
+              Turn off
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={turnOn}
+              disabled={busy || deviceOn === null || !settings}
+              className={`${primaryButton} w-40`}
+            >
+              Turn on
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Section title="Notifications">
+      <div className="space-y-5">
+        {device}
+        <FormError message={error} />
+        {settings && (
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">
+              Notify me about
+            </p>
+            {NOTIFY_TYPES.map((type) => (
+              <SwitchRow
+                key={type}
+                label={NOTIFY_LABELS[type].label}
+                hint={NOTIFY_LABELS[type].hint}
+                on={settings.prefs[type]}
+                onChange={(on) => setPref(type, on)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+/** Get the home-screen app; hidden once you're in it */
+function AppSection() {
+  const toast = useToast();
+  const [canInstall, setCanInstall] = useState(canPromptInstall);
+  if (isStandalone()) return null;
+
+  if (isIOS()) {
+    return (
+      <Section title="Get the app">
+        <div className="space-y-3">
+          <p className="text-sm text-gray-300">
+            Put TailMe on your home screen: full screen, its own icon, and
+            notifications.
+          </p>
+          <IosInstallSteps />
+        </div>
+      </Section>
+    );
+  }
+  if (!canInstall) return null;
+  return (
+    <ActionRow
+      title="Get the app"
+      status="Install TailMe: its own icon and window, plus notifications"
+    >
+      <button
+        type="button"
+        onClick={async () => {
+          const installed = await promptInstall();
+          setCanInstall(false);
+          if (installed) toast('Installed. Find TailMe with your apps');
+        }}
+        className={secondaryButton}
+      >
+        Install
+      </button>
+    </ActionRow>
+  );
+}
+
 function planSummary(
   profile: NonNullable<ReturnType<typeof useAuth>['profile']>
 ): string {
@@ -381,7 +679,7 @@ export default function Settings() {
       <header className="pb-8">
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Your profile, sign-in and plan.
+          Your profile, sign-in, notifications and plan.
         </p>
       </header>
 
@@ -389,6 +687,9 @@ export default function Settings() {
       <div className="rounded-2xl border border-gray-800 bg-gray-900 px-5 sm:px-8">
         <ProfileSection />
         <AccountSection />
+
+        <NotificationsSection />
+        <AppSection />
 
         <Section title="Appearance">
           <div className="max-w-xs">

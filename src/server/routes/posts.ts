@@ -5,6 +5,12 @@ import prisma from '../db';
 import { feedInclude, loadFeedPost, toFeedPosts } from '../feed';
 import { requireAuth, requireSubscription } from '../middleware/auth';
 import {
+  noticeBacking,
+  noticeGroupJoin,
+  noticeNewPost,
+  noticeSettled,
+} from '../notices';
+import {
   americanToDecimal,
   decimalToAmerican,
   parlayDecimal,
@@ -435,6 +441,7 @@ router.post('/', requireAuth, requireSubscription, async (req, res) => {
     include: feedInclude,
   });
   res.status(201).json((await toFeedPosts([post], req.user!.id))[0]);
+  noticeNewPost(post.id);
 });
 
 /** Author marks a bet (or ladder rung) won/lost/push/void, or back to pending */
@@ -481,6 +488,9 @@ router.patch<{ betId: string }>(
     });
     // The whole slip comes back since the poster's streak may have moved
     res.json(await loadFeedPost(bet.postId, req.user!.id));
+    if (bet.result === 'PENDING' && result !== 'PENDING') {
+      noticeSettled([bet.postId], req.user!.id);
+    }
   }
 );
 
@@ -550,6 +560,9 @@ router.post<{ postId: string }>(
     const viewerId = req.user!.id;
     const post = await backable(req, res, 'tail');
     if (!post) return;
+    const alreadyTailed = await prisma.tail.count({
+      where: { userId: viewerId, bet: { postId: post.id } },
+    });
     await prisma.$transaction([
       prisma.fade.deleteMany({ where: { postId: post.id, userId: viewerId } }),
       prisma.tail.createMany({
@@ -558,6 +571,10 @@ router.post<{ postId: string }>(
       }),
     ]);
     res.json(await loadFeedPost(post.id, viewerId));
+    // Once per person; placing a group parlay everyone's in isn't news
+    if (!alreadyTailed && post.type !== 'GROUP_PARLAY') {
+      noticeBacking(post.id, viewerId, 'tail');
+    }
   }
 );
 
@@ -596,7 +613,7 @@ router.post<{ postId: string }>(
         .json({ error: 'Only straight bets with two sides can be faded' });
       return;
     }
-    await prisma.$transaction([
+    const [, { count: faded }] = await prisma.$transaction([
       prisma.tail.deleteMany({
         where: { userId: viewerId, bet: { postId: post.id } },
       }),
@@ -606,6 +623,7 @@ router.post<{ postId: string }>(
       }),
     ]);
     res.json(await loadFeedPost(post.id, viewerId));
+    if (faded) noticeBacking(post.id, viewerId, 'fade');
   }
 );
 
@@ -773,6 +791,7 @@ router.post<{ postId: string }>(
       throw err;
     }
     res.status(201).json(await loadFeedPost(group.id, userId));
+    noticeGroupJoin(group.id, userId);
   }
 );
 
@@ -1164,6 +1183,10 @@ router.patch<{ legId: string }>(
       }),
     ]);
     res.json(await loadFeedPost(group.id, userId));
+    const before = groupResult(bet.legs.map((l) => l.result));
+    if (before === 'PENDING' && overall !== 'PENDING') {
+      noticeSettled([group.id], userId);
+    }
   }
 );
 

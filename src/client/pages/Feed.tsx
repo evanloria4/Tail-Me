@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import PostList from '../components/PostList';
 import CommunitySidebar, {
@@ -115,6 +116,17 @@ export default function Feed() {
     },
     [toast, filter]
   );
+
+  // A notification opens /?slip=<id>: find it under All (it may have settled)
+  // and drop the param so a reload doesn't jump there again
+  const [params, setParams] = useSearchParams();
+  const slipParam = params.get('slip');
+  useEffect(() => {
+    if (!slipParam) return;
+    setFilter('all');
+    setFocusId(slipParam);
+    setParams({}, { replace: true });
+  }, [slipParam, setParams]);
 
   // Slips centered, the sticky side column to their right (see lib/layout).
   // Wide screens: top earners, group parlays, who's hot and the calendar all

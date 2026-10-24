@@ -44,14 +44,18 @@ model User {
   /// When they finished or skipped the first-visit tour (null = show it)
   tutorialSeenAt DateTime?
 
-  posts        Post[]
-  tails        Tail[]
-  fades        Fade[]
-  comments     Comment[]
-  reactions    Reaction[]
-  commentVotes CommentVote[]
-  groupLegs    BetLeg[]
-  series       Series[]
+  /// Notification switches they've changed from the defaults (shared/notifications.ts)
+  notifyPrefs Json @default("{}")
+
+  pushSubscriptions PushSubscription[]
+  posts             Post[]
+  tails             Tail[]
+  fades             Fade[]
+  comments          Comment[]
+  reactions         Reaction[]
+  commentVotes      CommentVote[]
+  groupLegs         BetLeg[]
+  series            Series[]
 }
 
 // ---------- Reference data (mirrors The Odds API) ----------
@@ -155,6 +159,8 @@ model Post {
   groupEventLabel String?
   /// Group parlays: when the creator locked it early
   lockedAt        DateTime?
+  /// Group parlays: when the "locks soon" notification went out (sent once)
+  lockReminderAt  DateTime?
   /// The author's series this slip is filed under, if any (personal slips only)
   seriesId        String?
 
@@ -321,6 +327,21 @@ model Reaction {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([postId, userId, emoji])
+}
+
+/// A browser or home-screen app that turned notifications on (Web Push). The
+/// endpoint is the push service's address for it; p256dh + auth encrypt payloads.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @db.Uuid
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ---------- Billing ----------

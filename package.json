@@ -45,6 +45,7 @@
     "react-router-dom": "^7.6.2",
     "stripe": "23.0.0",
     "unicode-emoji-json": "0.9.0",
+    "web-push": "3.6.7",
     "zod": "4.6.5"
   },
   "devDependencies": {
@@ -56,12 +57,14 @@
     "@types/node": "^22.15.29",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
+    "@types/web-push": "3.6.4",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "autoprefixer": "^10.4.21",
     "babel-loader": "^10.0.0",
     "clean-webpack-plugin": "^4.0.0",
     "concurrently": "^9.1.2",
+    "copy-webpack-plugin": "14.0.0",
     "css-loader": "^7.1.2",
     "eslint": "^8.56.0",
     "eslint-config-airbnb": "^19.0.4",

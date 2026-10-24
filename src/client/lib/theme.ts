@@ -12,9 +12,18 @@ function stored(): Theme {
   }
 }
 
+/** The page background (gray-950 in main.css), for the browser / app chrome */
+const CHROME_COLORS: Record<Theme, string> = {
+  light: '#f2f4f6',
+  dark: '#030712',
+};
+
 /** Sets the `dark` class on <html>; the palette in main.css follows it. */
 export function applyTheme(theme: Theme = stored()) {
   document.documentElement.classList.toggle('dark', theme === 'dark');
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', CHROME_COLORS[theme]);
 }
 
 export default function useTheme() {

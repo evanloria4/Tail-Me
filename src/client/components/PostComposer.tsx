@@ -187,7 +187,7 @@ export default function PostComposer({
         e.preventDefault();
         requestClose();
       }}
-      className="m-0 h-full max-h-full w-full max-w-full bg-gray-950 text-white backdrop:bg-black/70 backdrop:backdrop-blur-sm open:flex open:flex-col sm:m-auto sm:h-[88vh] sm:max-h-[56rem] sm:max-w-xl sm:rounded-2xl sm:border sm:border-gray-800 sm:shadow-2xl"
+      className="m-0 h-full max-h-full w-full max-w-full bg-gray-950 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-white backdrop:bg-black/70 backdrop:backdrop-blur-sm open:flex open:flex-col sm:m-auto sm:h-[88vh] sm:p-0 sm:max-h-[56rem] sm:max-w-xl sm:rounded-2xl sm:border sm:border-gray-800 sm:shadow-2xl"
     >
       {open && (
         <Composer

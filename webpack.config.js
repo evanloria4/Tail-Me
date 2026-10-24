@@ -3,6 +3,7 @@ const path = require('path');
 const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+const CopyPlugin = require('copy-webpack-plugin');
 const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 // Own folder so the server only exposes the client build, not tsc's dist/server
 const DIST_DIR = path.resolve(__dirname, 'dist', 'client');
@@ -96,6 +97,10 @@ module.exports = {
     }),
     // Cleans dist/client only; tsc's dist/server, dist/shared, dist/generated are untouched
     new CleanWebpackPlugin(),
+    // Files that need fixed URLs: the service worker, app manifest and icons
+    new CopyPlugin({
+      patterns: [{ from: path.resolve(CLIENT_DIR, 'public'), to: DIST_DIR }],
+    }),
   ],
   resolve: {
     extensions: ['.tsx', '.ts', '.js', '.css'],

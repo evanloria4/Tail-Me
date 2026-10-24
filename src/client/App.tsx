@@ -1,5 +1,6 @@
-import React from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { onNotificationOpen } from './lib/push';
 import { AuthProvider } from './auth/AuthProvider';
 import RequireAuth from './auth/RequireAuth';
 import AppLayout from './components/AppLayout';
@@ -15,6 +16,10 @@ import Signup from './pages/Signup';
 import Settings from './pages/Settings';
 
 export default function App() {
+  // A notification tapped while the app is already open goes to its slip
+  const navigate = useNavigate();
+  useEffect(() => onNotificationOpen((path) => navigate(path)), [navigate]);
+
   return (
     <AuthProvider>
       <ToastProvider>
