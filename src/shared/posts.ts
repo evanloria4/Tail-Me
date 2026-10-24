@@ -455,3 +455,14 @@ export const editPostSchema = z
   );
 
 export type EditPostInput = z.infer<typeof editPostSchema>;
+
+/**
+ * Feed filters (GET /posts?status=). Open: anything still waiting on a
+ * result. Live: a game on the slip is being played. Won / Lost: settled, a
+ * ladder winning if any rung hit and losing if every rung missed. All: every
+ * slip, pushes and voids included.
+ */
+export const FEED_FILTERS = ['open', 'live', 'won', 'lost', 'all'] as const;
+export type FeedFilter = (typeof FEED_FILTERS)[number];
+export const isFeedFilter = (v: unknown): v is FeedFilter =>
+  typeof v === 'string' && (FEED_FILTERS as readonly string[]).includes(v);

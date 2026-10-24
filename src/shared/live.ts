@@ -3,7 +3,7 @@
 // far longer than any game could is treated as over even if it was never
 // matched, so it doesn't sit "live" forever.
 
-/** Longer than any NFL, college or NHL game, overtime included */
+/** Longer than any NFL, college, NBA or NHL game, overtime included */
 export const MAX_GAME_MS = 5 * 60 * 60_000;
 
 export type GameState = 'upcoming' | 'live' | 'final' | 'unknown';
@@ -59,7 +59,7 @@ export function inGameMinutes(
 
 /**
  * A short game clock from ESPN's status: "Q3 4:12", "Half", "End Q1",
- * "OT 2:05" for football; "P2 08:41", "End P2", "SO" for hockey; "Final".
+ * "OT 2:05" for football and basketball; "P2 08:41", "End P2", "SO" for hockey; "Final".
  */
 export function gameClock(
   sportKey: string,

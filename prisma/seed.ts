@@ -3,6 +3,7 @@ import prisma from '../src/server/db';
 const sports = [
   { key: 'americanfootball_nfl', title: 'NFL' },
   { key: 'americanfootball_ncaaf', title: 'NCAA Football' },
+  { key: 'basketball_nba', title: 'NBA' },
   { key: 'icehockey_nhl', title: 'NHL' },
 ];
 

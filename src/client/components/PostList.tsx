@@ -10,7 +10,12 @@ import useConfirm from './ConfirmDialog';
 import PostComposer from './PostComposer';
 import { useToast } from './Toast';
 import { DELETE_GRACE_MINUTES, deleteRule } from '../../shared/posts';
-import type { BetResult, FeedLeg, FeedPost } from '../../shared/posts';
+import type {
+  BetResult,
+  FeedFilter,
+  FeedLeg,
+  FeedPost,
+} from '../../shared/posts';
 import { gameState } from '../../shared/live';
 import type { StatRange } from '../../shared/stats';
 import { REACTION_EMOJIS } from '../../shared/social';
@@ -65,7 +70,10 @@ export default function PostList({
   onChange,
   focusId,
   onFocusDone,
+  status,
 }: {
+  /** Feed filter (FEED_FILTERS); profiles and series pages show everything */
+  status?: FeedFilter;
   /** A slip to scroll to; pages load until it's found (or give up) */
   focusId?: string | null;
   onFocusDone?: (found: boolean) => void;
@@ -87,24 +95,34 @@ export default function PostList({
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Which filters the shown slips came from, so a quick filter switch never
+  // shows (or searches) an older request's slips
+  const listKey = JSON.stringify([author, range, series, status]);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const latest = useRef(0);
 
   const load = useCallback(
     async (after?: string) => {
+      latest.current += 1;
+      const request = latest.current;
       setLoading(true);
       try {
         const { data } = await api.get<FeedPage>('/posts', {
-          params: { cursor: after, author, range, series },
+          params: { cursor: after, author, range, series, status },
         });
+        if (request !== latest.current) return;
         setPosts((prev) => (after ? [...prev, ...data.posts] : data.posts));
         setCursor(data.nextCursor);
+        setLoadedFor(listKey);
         setError(null);
       } catch (err) {
+        if (request !== latest.current) return;
         setError(apiErrorMessage(err, 'Could not load slips'));
       } finally {
-        setLoading(false);
+        if (request === latest.current) setLoading(false);
       }
     },
-    [author, range, series]
+    [author, range, series, status, listKey]
   );
 
   useEffect(() => {
@@ -115,9 +133,9 @@ export default function PostList({
   const focusPages = useRef(0);
   useEffect(() => {
     focusPages.current = 0;
-  }, [focusId]);
+  }, [focusId, listKey]);
   useEffect(() => {
-    if (!focusId || loading) return;
+    if (!focusId || loading || loadedFor !== listKey) return;
     if (posts.some((p) => p.id === focusId)) {
       // Wait a frame so the card is in the DOM
       requestAnimationFrame(() => onFocusDone?.(scrollToSlip(focusId)));
@@ -127,7 +145,7 @@ export default function PostList({
     } else {
       onFocusDone?.(false);
     }
-  }, [focusId, loading, posts, cursor, load, onFocusDone]);
+  }, [focusId, loading, loadedFor, listKey, posts, cursor, load, onFocusDone]);
 
   // Slips with a game on (or just over and waiting on a grade) reload every
   // couple of minutes, matching the grader, so a leg that hits or busts

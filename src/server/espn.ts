@@ -8,6 +8,7 @@ import {
   normPlayer,
   PlayerStats,
   StatKey,
+  withBasketballTotals,
 } from '../shared/grading';
 import { gameClock } from '../shared/live';
 
@@ -16,6 +17,7 @@ const BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 const LEAGUE_PATHS: Record<string, string> = {
   americanfootball_nfl: 'football/nfl',
   americanfootball_ncaaf: 'football/college-football',
+  basketball_nba: 'basketball/nba',
   icehockey_nhl: 'hockey/nhl',
 };
 
@@ -195,19 +197,33 @@ const HOCKEY_COLUMNS: Record<string, StatKey> = {
   shotsTotal: 'shots',
   saves: 'saves',
 };
+/** One stat table per team; threes are "made-attempted" ("3-8" -> 3) */
+const BASKETBALL_COLUMNS: Record<string, StatKey> = {
+  points: 'points',
+  rebounds: 'rebounds',
+  assists: 'assists',
+  steals: 'steals',
+  blocks: 'blocks',
+  'threePointFieldGoalsMade-threePointFieldGoalsAttempted': 'threes',
+};
 
 function parseBox(sportKey: string, summary: ApiSummary) {
   const players = new Map<string, PlayerStats>();
   const hockey = sportKey.startsWith('icehockey');
+  const basketball = sportKey.startsWith('basketball');
   summary.boxscore?.players?.forEach((team) =>
     team.statistics.forEach((cat) =>
       cat.athletes.forEach(({ athlete, stats }) => {
+        // Basketball lists DNPs with no stats; leave them out so their props
+        // wait for a person, like any player who sat
+        if (basketball && !stats.length) return;
         const key = normPlayer(athlete.displayName);
         // Anyone in the box score played: stats they have no column for are 0
         const line = players.get(key) ?? {};
         const col = (name: string) => num(stats[cat.keys.indexOf(name)]);
-        if (hockey) {
-          Object.entries(HOCKEY_COLUMNS).forEach(([column, stat]) => {
+        if (hockey || basketball) {
+          const columns = hockey ? HOCKEY_COLUMNS : BASKETBALL_COLUMNS;
+          Object.entries(columns).forEach(([column, stat]) => {
             if (cat.keys.includes(column)) line[stat] = col(column);
           });
         } else {
@@ -228,6 +244,11 @@ function parseBox(sportKey: string, summary: ApiSummary) {
       // eslint-disable-next-line no-param-reassign
       line.points = (line.goals ?? 0) + (line.assists ?? 0);
     });
+  }
+  if (basketball) {
+    players.forEach((line, key) =>
+      players.set(key, withBasketballTotals(line))
+    );
   }
   return players;
 }

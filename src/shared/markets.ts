@@ -169,9 +169,96 @@ const HOCKEY: PickerCategory[] = [
   ALT_LINES,
 ];
 
+const BASKETBALL: PickerCategory[] = [
+  {
+    key: 'points',
+    label: 'Points',
+    markets: [
+      { key: 'player_points', label: 'Points', alt: 'player_points_alternate' },
+    ],
+  },
+  {
+    key: 'rebounds',
+    label: 'Rebounds',
+    markets: [
+      {
+        key: 'player_rebounds',
+        label: 'Rebounds',
+        alt: 'player_rebounds_alternate',
+      },
+    ],
+  },
+  {
+    key: 'assists',
+    label: 'Assists',
+    markets: [
+      {
+        key: 'player_assists',
+        label: 'Assists',
+        alt: 'player_assists_alternate',
+      },
+    ],
+  },
+  {
+    key: 'threes',
+    label: 'Threes',
+    markets: [
+      {
+        key: 'player_threes',
+        label: 'Made Threes',
+        alt: 'player_threes_alternate',
+      },
+    ],
+  },
+  {
+    key: 'combos',
+    label: 'Combos',
+    markets: [
+      {
+        key: 'player_points_rebounds_assists',
+        label: 'Pts + Reb + Ast',
+        alt: 'player_points_rebounds_assists_alternate',
+      },
+      {
+        key: 'player_points_rebounds',
+        label: 'Pts + Reb',
+        alt: 'player_points_rebounds_alternate',
+      },
+      {
+        key: 'player_points_assists',
+        label: 'Pts + Ast',
+        alt: 'player_points_assists_alternate',
+      },
+      {
+        key: 'player_rebounds_assists',
+        label: 'Reb + Ast',
+        alt: 'player_rebounds_assists_alternate',
+      },
+    ],
+  },
+  {
+    key: 'defense',
+    label: 'Defense',
+    markets: [
+      { key: 'player_steals', label: 'Steals', alt: 'player_steals_alternate' },
+      { key: 'player_blocks', label: 'Blocks', alt: 'player_blocks_alternate' },
+    ],
+  },
+  {
+    key: 'doubles',
+    label: 'Doubles',
+    markets: [
+      { key: 'player_double_double', label: 'Double-Double', yesNo: true },
+      { key: 'player_triple_double', label: 'Triple-Double', yesNo: true },
+    ],
+  },
+  ALT_LINES,
+];
+
 export const PICKER_CATEGORIES: Record<string, PickerCategory[]> = {
   americanfootball_nfl: FOOTBALL,
   americanfootball_ncaaf: FOOTBALL,
+  basketball_nba: BASKETBALL,
   icehockey_nhl: HOCKEY,
 };
 
@@ -213,10 +300,12 @@ export function marketLabel(sportKey: string, key: string): string {
 export const SPORT_ORDER = [
   'americanfootball_nfl',
   'americanfootball_ncaaf',
+  'basketball_nba',
   'icehockey_nhl',
 ];
 export const SPORT_TABS: Record<string, string> = {
   americanfootball_nfl: 'NFL',
   americanfootball_ncaaf: 'NCAAF',
+  basketball_nba: 'NBA',
   icehockey_nhl: 'NHL',
 };

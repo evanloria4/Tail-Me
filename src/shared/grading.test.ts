@@ -9,6 +9,7 @@ import {
   normName,
   normPlayer,
   propStat,
+  withBasketballTotals,
 } from './grading';
 
 const game = {
@@ -162,6 +163,40 @@ describe('propStat', () => {
     expect(propStat('icehockey_nhl', 'Shots on Goal')).toBe('shots');
     expect(propStat('icehockey_nhl', 'Passing Yards')).toBeUndefined();
     expect(propStat('americanfootball_nfl', null)).toBeUndefined();
+  });
+});
+
+describe('basketball props', () => {
+  it('maps NBA labels without mixing them up with hockey', () => {
+    expect(propStat('basketball_nba', 'Points')).toBe('points');
+    expect(propStat('basketball_nba', 'Pts + Reb + Ast')).toBe('pra');
+    expect(propStat('basketball_nba', 'Double-Double')).toBe('doubleDouble');
+    expect(propStat('basketball_nba', 'Shots on Goal')).toBeUndefined();
+    expect(propStat('icehockey_nhl', 'Rebounds')).toBeUndefined();
+  });
+
+  it('adds combos and doubles from the counting stats', () => {
+    const line = withBasketballTotals({
+      points: 24,
+      rebounds: 11,
+      assists: 9,
+      steals: 1,
+      blocks: 0,
+      threes: 3,
+    });
+    expect(line).toMatchObject({ pra: 44, pr: 35, pa: 33, ra: 20 });
+    expect(line.doubleDouble).toBe(1);
+    expect(line.tripleDouble).toBe(0);
+    expect(
+      withBasketballTotals({ points: 12, rebounds: 10, assists: 10 })
+        .tripleDouble
+    ).toBe(1);
+  });
+
+  it('grades a double-double like a Yes prop', () => {
+    expect(gradeProp('Yes', null, 1)).toBe('WON');
+    expect(gradeProp('Yes', null, 0)).toBe('LOST');
+    expect(gradeLiveProp('Yes', null, 0)).toBe('PENDING');
   });
 });
 

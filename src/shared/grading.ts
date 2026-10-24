@@ -124,7 +124,18 @@ export type StatKey =
   | 'assists'
   | 'points'
   | 'shots'
-  | 'saves';
+  | 'saves'
+  | 'rebounds'
+  | 'threes'
+  | 'steals'
+  | 'blocks'
+  | 'pra'
+  | 'pr'
+  | 'pa'
+  | 'ra'
+  /** 1 once a player has one, else 0 (graded like a Yes prop) */
+  | 'doubleDouble'
+  | 'tripleDouble';
 export type PlayerStats = Partial<Record<StatKey, number>>;
 
 /** Prop label (as posted, from shared/markets.ts) -> the stat that grades it */
@@ -146,16 +157,55 @@ const HOCKEY_PROPS: Record<string, StatKey> = {
   'Shots on Goal': 'shots',
   Saves: 'saves',
 };
+const BASKETBALL_PROPS: Record<string, StatKey> = {
+  Points: 'points',
+  Rebounds: 'rebounds',
+  Assists: 'assists',
+  'Made Threes': 'threes',
+  'Pts + Reb + Ast': 'pra',
+  'Pts + Reb': 'pr',
+  'Pts + Ast': 'pa',
+  'Reb + Ast': 'ra',
+  Steals: 'steals',
+  Blocks: 'blocks',
+  'Double-Double': 'doubleDouble',
+  'Triple-Double': 'tripleDouble',
+};
 
 export function propStat(
   sportKey: string,
   marketLabel: string | null
 ): StatKey | undefined {
   if (!marketLabel) return undefined;
-  const table = sportKey.startsWith('icehockey')
-    ? HOCKEY_PROPS
-    : FOOTBALL_PROPS;
+  let table = FOOTBALL_PROPS;
+  if (sportKey.startsWith('icehockey')) table = HOCKEY_PROPS;
+  else if (sportKey.startsWith('basketball')) table = BASKETBALL_PROPS;
   return table[marketLabel];
+}
+
+/**
+ * Basketball's derived stats from a player's counting stats: the combo
+ * props, and double/triple-doubles (10+ in two / three of points, rebounds,
+ * assists, steals, blocks) as 1 or 0.
+ */
+export function withBasketballTotals(line: PlayerStats): PlayerStats {
+  const { points = 0, rebounds = 0, assists = 0 } = line;
+  const tens = [
+    points,
+    rebounds,
+    assists,
+    line.steals ?? 0,
+    line.blocks ?? 0,
+  ].filter((n) => n >= 10).length;
+  return {
+    ...line,
+    pra: points + rebounds + assists,
+    pr: points + rebounds,
+    pa: points + assists,
+    ra: rebounds + assists,
+    doubleDouble: tens >= 2 ? 1 : 0,
+    tripleDouble: tens >= 3 ? 1 : 0,
+  };
 }
 
 /**

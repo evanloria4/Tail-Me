@@ -29,6 +29,8 @@ import {
   joinGroupSchema,
   LADDER_MAX_RUNGS,
   LegInput,
+  FeedFilter,
+  isFeedFilter,
 } from '../../shared/posts';
 import { betResultFromLegs } from '../../shared/grading';
 import { postSeriesSchema } from '../../shared/series';
@@ -158,6 +160,49 @@ async function knownEvents(ids: string[]): Promise<KnownEvents> {
 const ownsSeries = async (ownerId: string, seriesId: string) =>
   (await prisma.series.count({ where: { id: seriesId, ownerId } })) > 0;
 
+/** Which posts a feed filter keeps (FEED_FILTERS) */
+function statusWhere(status: FeedFilter, now: Date): Prisma.PostWhereInput {
+  switch (status) {
+    case 'open':
+      return { bets: { some: { result: 'PENDING' } } };
+    case 'live':
+      // Same rule as the LIVE tags: started, not final, within a game's length
+      return {
+        bets: {
+          some: {
+            legs: {
+              some: {
+                event: {
+                  completed: false,
+                  commenceTime: {
+                    lte: now,
+                    gte: new Date(now.getTime() - MAX_GAME_MS),
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+    case 'won':
+      return {
+        bets: {
+          every: { result: { not: 'PENDING' } },
+          some: { result: 'WON' },
+        },
+      };
+    case 'lost':
+      return {
+        bets: {
+          every: { result: { in: ['LOST', 'VOID'] } },
+          some: { result: 'LOST' },
+        },
+      };
+    default:
+      return {};
+  }
+}
+
 /** Prisma unique-constraint violation */
 const isUniqueViolation = (err: unknown) =>
   err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
@@ -165,11 +210,13 @@ const isUniqueViolation = (err: unknown) =>
 /**
  * Feed: everyone's posts, newest first. `?cursor=<last post id>` for the next
  * page, `?author=<username>` for one user's slips, `?series=<id>` for one
- * series, `?range=7d|30d|all`.
+ * series, `?range=7d|30d|all`, `?status=open|live|won|lost|all` (see
+ * FEED_FILTERS; default all).
  */
 router.get('/', requireAuth, async (req, res) => {
-  const { cursor, author, range, series } = req.query;
+  const { cursor, author, range, series, status } = req.query;
   const since = isStatRange(range) ? rangeStart(range) : null;
+  const now = new Date();
   const posts = await prisma.post.findMany({
     where: {
       deletedAt: null,
@@ -178,6 +225,7 @@ router.get('/', requireAuth, async (req, res) => {
       }),
       ...(since && { createdAt: { gte: since } }),
       ...(typeof series === 'string' && { seriesId: series }),
+      ...(isFeedFilter(status) && statusWhere(status, now)),
     },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: PAGE_SIZE + 1,
