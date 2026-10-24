@@ -17,6 +17,48 @@ import type { BetResult } from '../../shared/posts';
 
 const router = Router();
 
+/** Most people one search returns */
+const SEARCH_LIMIT = 8;
+
+/**
+ * Navbar search: `?q=` matches anywhere in a name or username (any case).
+ * Names starting with the query come first, then A-Z.
+ */
+router.get('/', requireAuth, async (req, res) => {
+  const q =
+    typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 40) : '';
+  if (!q) {
+    res.json([]);
+    return;
+  }
+  const people = await prisma.user.findMany({
+    where: {
+      OR: [
+        { fullName: { contains: q, mode: 'insensitive' } },
+        { username: { contains: q, mode: 'insensitive' } },
+      ],
+    },
+    select: {
+      id: true,
+      username: true,
+      fullName: true,
+      avatarUrl: true,
+      avatarColor: true,
+    },
+    orderBy: { fullName: 'asc' },
+    take: 50,
+  });
+  const lower = q.toLowerCase();
+  const starts = (p: (typeof people)[number]) =>
+    p.fullName.toLowerCase().startsWith(lower) ||
+    p.username.toLowerCase().startsWith(lower);
+  res.json(
+    [...people]
+      .sort((x, y) => Number(starts(y)) - Number(starts(x)))
+      .slice(0, SEARCH_LIMIT)
+  );
+});
+
 /**
  * Profile + betting stats for `?range=7d|30d|all` (default all). Stats are
  * worked out from every bet in memory; fine at friend-group scale.

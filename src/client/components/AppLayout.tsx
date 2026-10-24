@@ -15,6 +15,7 @@ import PostComposer from './PostComposer';
 import type { JoinTarget, PostedKind } from './GroupReview';
 import { useToast } from './Toast';
 import Tutorial from './Tutorial';
+import UserSearch from './UserSearch';
 import api from '../lib/api';
 
 const NAV_ITEMS = [
@@ -215,6 +216,7 @@ export default function AppLayout() {
           <Logo />
 
           <div className="ml-auto hidden items-center gap-8 md:flex">
+            <UserSearch className="w-52 lg:w-64" />
             <nav className="flex items-center gap-8">
               {NAV_ITEMS.map((item) => (
                 <NavLink
@@ -311,6 +313,10 @@ export default function AppLayout() {
             id="mobile-menu"
             className="border-t border-gray-800 px-5 pb-4 pt-2 sm:px-8 md:hidden"
           >
+            <UserSearch
+              className="mb-2 mt-1"
+              onDone={() => setOpenMenu(null)}
+            />
             <nav className="space-y-1">
               {NAV_ITEMS.map((item) => (
                 <NavLink
