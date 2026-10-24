@@ -5,6 +5,7 @@ const sports = [
   { key: 'americanfootball_ncaaf', title: 'NCAA Football' },
   { key: 'basketball_nba', title: 'NBA' },
   { key: 'icehockey_nhl', title: 'NHL' },
+  { key: 'mma_mixed_martial_arts', title: 'UFC' },
 ];
 
 const sportsbooks = [

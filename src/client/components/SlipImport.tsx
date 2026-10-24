@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import api, { apiErrorMessage } from '../lib/api';
 import { Selection, toSelection } from '../lib/slip';
 import useNow from '../lib/useNow';
-import { SPORT_ORDER, SPORT_TABS } from '../../shared/markets';
+import { matchupLabel, SPORT_ORDER, SPORT_TABS } from '../../shared/markets';
 import type { ImportGame, SlipImportResult } from '../../shared/slipImport';
 import { inSiteZone, SITE_ZONE_LABEL } from '../../shared/time';
 import { inputClass } from './ComposerParts';
@@ -33,7 +33,7 @@ function GameRow({
         className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-gray-800 disabled:opacity-50"
       >
         <span className="min-w-0 flex-1 truncate font-semibold">
-          {game.awayTeam} @ {game.homeTeam}
+          {matchupLabel(game.sportKey, game.awayTeam, game.homeTeam)}
         </span>
         {started ? (
           <LiveBadge />
@@ -98,7 +98,9 @@ export default function SlipImport({
       const tried = result?.games.find((g) => g.id === ids[ids.length - 1]);
       const gained = data.picks.length > (result?.picks.length ?? 0);
       setMissedGame(
-        tried && !gained ? `${tried.awayTeam} @ ${tried.homeTeam}` : null
+        tried && !gained
+          ? matchupLabel(tried.sportKey, tried.awayTeam, tried.homeTeam)
+          : null
       );
       if (gained) setQuery('');
       setEventIds(data.searched);

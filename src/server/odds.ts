@@ -12,7 +12,7 @@ import type {
   OddsGame,
   OddsOutcome,
 } from '../shared/markets';
-import { GAME_MARKETS, LIVE_ODDS_BOOK } from '../shared/markets';
+import { gameMarkets, LIVE_ODDS_BOOK } from '../shared/markets';
 
 const BASE_URL = 'https://api.the-odds-api.com/v4';
 
@@ -166,12 +166,12 @@ function toBooks(bookmakers: ApiBookmaker[]): Record<string, BookOdds> {
 
 // ---------- Public API ----------
 
-/** Upcoming + live games with spreads, totals and moneylines at every book */
+/** Upcoming + live games with their game lines (spreads, totals, moneylines; fights only moneylines) */
 export function getGames(sportKey: string): Promise<OddsGame[]> {
   return cached(`games:${sportKey}`, GAMES_TTL, async () => {
     const events = await request<ApiEvent[]>(`/sports/${sportKey}/odds`, {
       bookmakers: await bookmakerKeys(),
-      markets: GAME_MARKETS.join(','),
+      markets: gameMarkets(sportKey).join(','),
     });
 
     // Keep Event rows current so posted legs can reference them

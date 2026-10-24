@@ -90,6 +90,15 @@ describe('gameClock', () => {
     expect(gameClock(nhl, at('STATUS_IN_PROGRESS', 5))).toBe('SO');
   });
 
+  it('reads fight rounds', () => {
+    const ufc = 'mma_mixed_martial_arts';
+    expect(gameClock(ufc, at('STATUS_IN_PROGRESS', 2, '3:12'))).toBe('R2 3:12');
+    expect(gameClock(ufc, at('STATUS_IN_PROGRESS', 5, '1:00'))).toBe('R5 1:00');
+    expect(gameClock(ufc, at('STATUS_END_PERIOD', 1))).toBe('End R1');
+    expect(gameClock(ufc, at('STATUS_SCHEDULED', 0))).toBeNull();
+    expect(gameClock(ufc, at('STATUS_FINAL', 3))).toBe('Final');
+  });
+
   it('says nothing before kickoff', () => {
     expect(gameClock(nfl, at('STATUS_SCHEDULED', 0))).toBeNull();
   });

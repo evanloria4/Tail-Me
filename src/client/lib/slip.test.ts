@@ -6,6 +6,7 @@ import {
   buildPost,
   canLadder,
   isSameGame,
+  mainLinesFromAlts,
   legToSelection,
   matchesPick,
   Selection,
@@ -244,5 +245,34 @@ describe('legToSelection / matchesPick', () => {
       matchesPick(s, game, 'player_pass_yds', { ...o, point: 210.5 })
     ).toBe(false);
     expect(matchesPick(s, game, 'player_rush_yds', o)).toBe(false);
+  });
+});
+
+describe('mainLinesFromAlts', () => {
+  const alt = (player: string, name: string, point: number, price: number) =>
+    ({ player, name, point, price }) as OddsOutcome;
+
+  it('picks each team’s most evenly priced Over / Under', () => {
+    const lines = mainLinesFromAlts([
+      alt('Saints', 'Over', 17.5, -196),
+      alt('Saints', 'Under', 17.5, 152),
+      alt('Saints', 'Over', 20.5, -115),
+      alt('Saints', 'Under', 20.5, -111),
+      alt('Saints', 'Over', 23.5, 142),
+      alt('Saints', 'Under', 23.5, -184),
+      alt('Steelers', 'Over', 23.5, -122),
+      alt('Steelers', 'Under', 23.5, -104),
+      alt('Steelers', 'Over', 27.5, 190),
+    ]);
+    expect(lines.map((o) => `${o.player} ${o.name} ${o.point}`)).toEqual([
+      'Saints Over 20.5',
+      'Saints Under 20.5',
+      'Steelers Over 23.5',
+      'Steelers Under 23.5',
+    ]);
+  });
+
+  it('skips points without both sides', () => {
+    expect(mainLinesFromAlts([alt('Saints', 'Over', 20.5, -110)])).toEqual([]);
   });
 });

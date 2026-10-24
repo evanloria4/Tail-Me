@@ -59,7 +59,8 @@ export function inGameMinutes(
 
 /**
  * A short game clock from ESPN's status: "Q3 4:12", "Half", "End Q1",
- * "OT 2:05" for football and basketball; "P2 08:41", "End P2", "SO" for hockey; "Final".
+ * "OT 2:05" for football and basketball; "P2 08:41", "End P2", "SO" for hockey;
+ * "R2 3:12" for fights; "Final".
  */
 export function gameClock(
   sportKey: string,
@@ -67,6 +68,12 @@ export function gameClock(
 ): string | null {
   const { name, period, displayClock } = status;
   if (name === 'STATUS_FINAL') return 'Final';
+  // Fights go by round, with no halves or overtime
+  if (sportKey.startsWith('mma')) {
+    if (name === 'STATUS_END_PERIOD') return `End R${period}`;
+    if (name !== 'STATUS_IN_PROGRESS') return null;
+    return `R${period} ${displayClock}`;
+  }
   const hockey = sportKey.startsWith('icehockey');
   const regulation = hockey ? 3 : 4;
   let label = `${hockey ? 'P' : 'Q'}${period}`;

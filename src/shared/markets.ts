@@ -49,6 +49,9 @@ export type PickerMarket = {
   alt?: string;
   /** One-sided props like "Anytime TD" (outcome name "Yes") */
   yesNo?: boolean;
+  /** Load the alt market too, and show its most even line when the book
+   * lists no main one (FanDuel posts some games' team totals only as alts) */
+  altFallback?: boolean;
 };
 
 export type PickerCategory = {
@@ -66,6 +69,25 @@ const ALT_LINES: PickerCategory = {
   markets: [
     { key: 'alternate_spreads', label: 'Alt Spread' },
     { key: 'alternate_totals', label: 'Alt Total' },
+    { key: 'alternate_team_totals', label: 'Alt Team Total' },
+  ],
+};
+
+/** How team totals are labeled; graded from the team's score, not a box score */
+export const TEAM_TOTAL_LABEL = 'Team Total';
+
+// Team totals come shaped like props (Over/Under, the team as the "player"),
+// so they ride the prop machinery: rows, alt-line ladders, imports
+const TEAM_TOTALS: PickerCategory = {
+  key: 'team',
+  label: 'Team Totals',
+  markets: [
+    {
+      key: 'team_totals',
+      label: TEAM_TOTAL_LABEL,
+      alt: 'alternate_team_totals',
+      altFallback: true,
+    },
   ],
 };
 
@@ -121,6 +143,7 @@ const FOOTBALL: PickerCategory[] = [
     label: 'Touchdowns',
     markets: [{ key: 'player_anytime_td', label: 'Anytime TD', yesNo: true }],
   },
+  TEAM_TOTALS,
   ALT_LINES,
 ];
 
@@ -166,6 +189,7 @@ const HOCKEY: PickerCategory[] = [
       },
     ],
   },
+  TEAM_TOTALS,
   ALT_LINES,
 ];
 
@@ -252,6 +276,7 @@ const BASKETBALL: PickerCategory[] = [
       { key: 'player_triple_double', label: 'Triple-Double', yesNo: true },
     ],
   },
+  TEAM_TOTALS,
   ALT_LINES,
 ];
 
@@ -286,6 +311,10 @@ export function marketLabel(sportKey: string, key: string): string {
   if (key === 'h2h') return 'Moneyline';
   if (key === 'spreads') return 'Spread';
   if (key === 'totals') return 'Total';
+  // From the Team Totals or Alt Lines tab alike: graded by this label
+  if (key === 'team_totals' || key === 'alternate_team_totals') {
+    return TEAM_TOTAL_LABEL;
+  }
   // eslint-disable-next-line no-restricted-syntax
   for (const c of PICKER_CATEGORIES[sportKey] ?? []) {
     // eslint-disable-next-line no-restricted-syntax
@@ -302,10 +331,23 @@ export const SPORT_ORDER = [
   'americanfootball_ncaaf',
   'basketball_nba',
   'icehockey_nhl',
+  'mma_mixed_martial_arts',
 ];
 export const SPORT_TABS: Record<string, string> = {
   americanfootball_nfl: 'NFL',
   americanfootball_ncaaf: 'NCAAF',
   basketball_nba: 'NBA',
   icehockey_nhl: 'NHL',
+  mma_mixed_martial_arts: 'UFC',
 };
+
+/** Fights (UFC): two fighters, a winner, no spreads, totals or props */
+export const isFight = (sportKey: string) => sportKey.startsWith('mma');
+
+/** The game-line markets a sport offers */
+export const gameMarkets = (sportKey: string): readonly string[] =>
+  isFight(sportKey) ? ['h2h'] : GAME_MARKETS;
+
+/** "Bears @ Packers", or "Buckley vs Malott" for a fight */
+export const matchupLabel = (sportKey: string, away: string, home: string) =>
+  `${away} ${isFight(sportKey) ? 'vs' : '@'} ${home}`;

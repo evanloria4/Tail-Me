@@ -11,6 +11,7 @@ import {
   withBasketballTotals,
 } from '../shared/grading';
 import { gameClock } from '../shared/live';
+import { isFight } from '../shared/markets';
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 
@@ -19,6 +20,7 @@ const LEAGUE_PATHS: Record<string, string> = {
   americanfootball_ncaaf: 'football/college-football',
   basketball_nba: 'basketball/nba',
   icehockey_nhl: 'hockey/nhl',
+  mma_mixed_martial_arts: 'mma/ufc',
 };
 
 // Short enough that a live game's scores and stats keep up with the grader
@@ -63,20 +65,68 @@ async function get<T>(url: string, params: Record<string, string> = {}) {
 // ---------- Scoreboards ----------
 
 type ApiCompetitor = {
-  homeAway: 'home' | 'away';
+  homeAway?: 'home' | 'away';
   score?: string;
-  team: { displayName: string };
+  /** Fights: the fighter, and whether they won */
+  winner?: boolean;
+  team?: { displayName: string };
+  athlete?: { displayName: string };
+};
+type ApiStatus = {
+  period?: number;
+  displayClock?: string;
+  type: { name: string; state?: string; completed: boolean };
+};
+type ApiCompetition = {
+  id: string;
+  date?: string;
+  status?: ApiStatus;
+  competitors: ApiCompetitor[];
 };
 type ApiEvent = {
   id: string;
   date: string;
-  status: {
-    period?: number;
-    displayClock?: string;
-    type: { name: string; state?: string; completed: boolean };
-  };
-  competitions: { competitors: ApiCompetitor[] }[];
+  status: ApiStatus;
+  competitions: ApiCompetition[];
 };
+
+/** Where a game stands, from ESPN's status */
+function fromStatus(sportKey: string, status: ApiStatus) {
+  const { name } = status.type;
+  return {
+    completed: status.type.completed && name === 'STATUS_FINAL',
+    live: status.type.state === 'in',
+    clock: gameClock(sportKey, {
+      name,
+      period: status.period ?? 0,
+      displayClock: status.displayClock ?? '',
+    }),
+    called: /POSTPONED|CANCELED|SUSPENDED|FORFEIT/.test(name),
+  };
+}
+
+/**
+ * A fight card is one ESPN event holding every bout; each bout is a game
+ * here. There's no score, so the winner gets 1 and the loser 0 (a draw is
+ * 0-0, a push), which lets moneylines grade like any game.
+ */
+function fights(sportKey: string, e: ApiEvent): EspnGame[] {
+  return e.competitions.flatMap((c) => {
+    const [a, b] = c.competitors;
+    if (!a?.athlete || !b?.athlete) return [];
+    return [
+      {
+        id: c.id,
+        start: new Date(c.date ?? e.date),
+        homeTeam: a.athlete.displayName,
+        awayTeam: b.athlete.displayName,
+        homeScore: a.winner ? 1 : 0,
+        awayScore: b.winner ? 1 : 0,
+        ...fromStatus(sportKey, c.status ?? e.status),
+      },
+    ];
+  });
+}
 
 function scoreboard(sportKey: string, date: string): Promise<EspnGame[]> {
   const path = LEAGUE_PATHS[sportKey];
@@ -89,12 +139,13 @@ function scoreboard(sportKey: string, date: string): Promise<EspnGame[]> {
       `${BASE}/${path}/scoreboard`,
       params
     );
+    if (isFight(sportKey))
+      return body.events.flatMap((e) => fights(sportKey, e));
     return body.events.flatMap((e) => {
       const teams = e.competitions[0]?.competitors ?? [];
       const home = teams.find((t) => t.homeAway === 'home');
       const away = teams.find((t) => t.homeAway === 'away');
-      if (!home || !away) return [];
-      const status = e.status.type.name;
+      if (!home?.team || !away?.team) return [];
       return [
         {
           id: e.id,
@@ -103,23 +154,27 @@ function scoreboard(sportKey: string, date: string): Promise<EspnGame[]> {
           awayTeam: away.team.displayName,
           homeScore: Number(home.score ?? 0),
           awayScore: Number(away.score ?? 0),
-          completed: e.status.type.completed && status === 'STATUS_FINAL',
-          live: e.status.type.state === 'in',
-          clock: gameClock(sportKey, {
-            name: status,
-            period: e.status.period ?? 0,
-            displayClock: e.status.displayClock ?? '',
-          }),
-          called: /POSTPONED|CANCELED|SUSPENDED|FORFEIT/.test(status),
+          ...fromStatus(sportKey, e.status),
         },
       ];
     });
   });
 }
 
+/** The same game with its sides flipped, scores following their names */
+const flipped = (g: EspnGame): EspnGame => ({
+  ...g,
+  homeTeam: g.awayTeam,
+  awayTeam: g.homeTeam,
+  homeScore: g.awayScore,
+  awayScore: g.homeScore,
+});
+
 /**
  * Finds our game on ESPN: same Eastern date (or the day either side), both
- * team names matching, or failing that one team and a start within 6 hours.
+ * team names matching (either way round; fights have no home side, and the
+ * result is flipped to match ours), or failing that one team and a start
+ * within 6 hours.
  */
 export async function findGame(
   sportKey: string,
@@ -142,10 +197,12 @@ export async function findGame(
   const away = normName(awayTeam);
   const near = (g: EspnGame) =>
     Math.abs(g.start.getTime() - start.getTime()) < 6 * 60 * 60_000;
+  const both = (g: EspnGame) =>
+    normName(g.homeTeam) === home && normName(g.awayTeam) === away;
+  const reversed = games.find((g) => both(flipped(g)));
   return (
-    games.find(
-      (g) => normName(g.homeTeam) === home && normName(g.awayTeam) === away
-    ) ??
+    games.find(both) ??
+    (reversed ? flipped(reversed) : undefined) ??
     games.find(
       (g) =>
         near(g) &&

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { formatAmerican, payout } from '../../shared/odds';
 import type { BetResult, FeedLeg, FeedPost } from '../../shared/posts';
 import { gameState } from '../../shared/live';
+import { isFight } from '../../shared/markets';
 
 // Building blocks of a slip card, shared by regular slips and group parlays.
 // Slip layout follows a sportsbook bet slip: a title bar with the total
@@ -288,9 +289,10 @@ export function GameScore({ leg, now }: { leg: FeedLeg; now: number }) {
   if (!score) return null;
   const state = gameState(leg.startsAt, leg.gameFinal, now);
   if (state === 'upcoming') return null;
-  const tally = `${score.away}-${score.home}`;
+  // Fights have no score to show, only the round (the result says who won)
+  const tally = isFight(leg.sportKey) ? '' : `${score.away}-${score.home}`;
   if (state === 'final' || score.clock === 'Final') {
-    return <span className="text-gray-500">Final {tally}</span>;
+    return <span className="text-gray-500">Final{tally && ` ${tally}`}</span>;
   }
   return (
     <span className="inline-flex items-center gap-1.5 font-semibold text-red-400">
@@ -298,8 +300,11 @@ export function GameScore({ leg, now }: { leg: FeedLeg; now: number }) {
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75 motion-reduce:hidden" />
         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
       </span>
-      <span className="tabular-nums">{tally}</span>
-      <span className="font-medium">· {score.clock}</span>
+      {tally && <span className="tabular-nums">{tally}</span>}
+      <span className="font-medium">
+        {tally && '· '}
+        {score.clock}
+      </span>
     </span>
   );
 }

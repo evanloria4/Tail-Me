@@ -9,6 +9,7 @@ import {
   normName,
   normPlayer,
   propStat,
+  teamScore,
   withBasketballTotals,
 } from './grading';
 
@@ -216,5 +217,51 @@ describe('easternDateKey', () => {
   it('uses the US Eastern calendar day', () => {
     // 8:15 PM ET on Oct 15 is already Oct 16 in UTC
     expect(easternDateKey(new Date('2026-10-16T00:15:00Z'))).toBe('20261015');
+  });
+});
+
+describe('team totals', () => {
+  const sides = { homeTeam: 'Denver Broncos', awayTeam: 'Seattle Seahawks' };
+
+  it("tracks the named team's score", () => {
+    expect(teamScore('Denver Broncos', sides, game)).toBe(17);
+    expect(teamScore('seattle seahawks', sides, game)).toBe(14);
+  });
+
+  it('is null for a team that isn’t in the game', () => {
+    expect(teamScore('Chicago Bears', sides, game)).toBeNull();
+    expect(teamScore(null, sides, game)).toBeNull();
+  });
+
+  it('grades like an over/under on that score', () => {
+    expect(gradeProp('Over', 16.5, 17)).toBe('WON');
+    expect(gradeProp('Under', 14.5, 14)).toBe('WON');
+    expect(gradeLiveProp('Over', 13.5, 14)).toBe('WON');
+  });
+});
+
+describe('fights', () => {
+  // A bout graded as 1-0 for the winner (server/espn.ts)
+  const fight = {
+    homeTeam: 'Mike Malott',
+    awayTeam: 'Joaquin Buckley',
+    homeScore: 1,
+    awayScore: 0,
+  };
+  const ml = (selection: string) => ({
+    marketKey: 'h2h',
+    selection,
+    line: null,
+  });
+
+  it('pays the winner’s moneyline', () => {
+    expect(gradeGameLine(ml('Mike Malott'), fight)).toBe('WON');
+    expect(gradeGameLine(ml('Joaquin Buckley'), fight)).toBe('LOST');
+  });
+
+  it('pushes a draw', () => {
+    expect(gradeGameLine(ml('Mike Malott'), { ...fight, homeScore: 0 })).toBe(
+      'PUSH'
+    );
   });
 });

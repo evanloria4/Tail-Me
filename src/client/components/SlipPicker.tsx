@@ -14,6 +14,7 @@ import {
   canLadder,
   isSameGame,
   legToSelection,
+  mainLinesFromAlts,
   matchesPick,
   Selection,
   selectionTitle,
@@ -32,12 +33,15 @@ import {
   payout,
 } from '../../shared/odds';
 import {
+  isFight,
   LIVE_ODDS_BOOK,
+  matchupLabel,
   OddsGame,
   OddsOutcome,
   PickerCategory,
   PICKER_CATEGORIES,
   SPORT_ORDER,
+  TEAM_TOTAL_LABEL,
   SPORT_TABS,
 } from '../../shared/markets';
 import {
@@ -203,6 +207,8 @@ function GameBoard({
   isPicked: IsPicked;
 }) {
   const takenBy = useContext(TakenContext);
+  // Fights only have a winner: no spread or total columns
+  const lines = !isFight(game.sportKey);
   const markets = game.books[book]?.markets ?? {};
   const find = (key: string, name: string) =>
     markets[key]?.find((o) => o.name === name);
@@ -225,21 +231,28 @@ function GameBoard({
         <p className="truncate text-sm font-semibold" title={team}>
           {team}
         </p>
-        {cell('spreads', spread, spread && signed(spread.point ?? 0))}
-        {cell(
-          'totals',
-          total,
-          total && `${totalSide === 'Over' ? 'O' : 'U'} ${total.point}`
-        )}
+        {lines && cell('spreads', spread, spread && signed(spread.point ?? 0))}
+        {lines &&
+          cell(
+            'totals',
+            total,
+            total && `${totalSide === 'Over' ? 'O' : 'U'} ${total.point}`
+          )}
         {cell('h2h', ml)}
       </>
     );
   };
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_repeat(3,4.25rem)] items-center gap-1.5 sm:grid-cols-[minmax(0,1fr)_repeat(3,5.25rem)]">
+    <div
+      className={`grid items-center gap-1.5 ${
+        lines
+          ? 'grid-cols-[minmax(0,1fr)_repeat(3,4.25rem)] sm:grid-cols-[minmax(0,1fr)_repeat(3,5.25rem)]'
+          : 'grid-cols-[minmax(0,1fr)_4.25rem] sm:grid-cols-[minmax(0,1fr)_5.25rem]'
+      }`}
+    >
       <span />
-      {['Spread', 'Total', 'Money'].map((h) => (
+      {(lines ? ['Spread', 'Total', 'Money'] : ['Money']).map((h) => (
         <span
           key={h}
           className="text-center text-[10px] font-semibold uppercase tracking-wider text-gray-500"
@@ -272,6 +285,8 @@ function GamesList({
   onlyGameId?: string;
 }) {
   const { data: all, loading, error } = useGames(sportKey);
+  // Fights have nothing past the moneyline
+  const hasMore = (PICKER_CATEGORIES[sportKey] ?? []).length > 0;
   const games = onlyGameId ? all?.filter((g) => g.id === onlyGameId) : all;
   // One-game group parlay: skip the list and open the game itself
   const only = onlyGameId ? games?.[0] : undefined;
@@ -292,15 +307,17 @@ function GamesList({
           key={game.id}
           className="rounded-xl border border-gray-800 bg-gray-900 p-3"
         >
-          <div className="mb-2 flex items-center justify-between gap-2 text-xs">
+          <div className="mb-2 flex min-h-[1.25rem] items-center justify-between gap-2 text-xs">
             <GameTime iso={game.commenceTime} />
-            <button
-              type="button"
-              onClick={() => onOpen(game)}
-              className="font-semibold text-emerald-400 hover:underline"
-            >
-              Props & alt lines ›
-            </button>
+            {hasMore && (
+              <button
+                type="button"
+                onClick={() => onOpen(game)}
+                className="font-semibold text-emerald-400 hover:underline"
+              >
+                Props & alt lines ›
+              </button>
+            )}
           </div>
           {game.books[book] ? (
             <GameBoard
@@ -311,7 +328,8 @@ function GamesList({
             />
           ) : (
             <p className="py-2 text-sm text-gray-500">
-              {game.awayTeam} @ {game.homeTeam}: no {bookName} lines yet
+              {matchupLabel(game.sportKey, game.awayTeam, game.homeTeam)}: no{' '}
+              {bookName} lines yet
             </p>
           )}
         </div>
@@ -415,13 +433,13 @@ function MarketSection({
         onClick={() => setOpen(!open)}
         className="flex w-full items-center gap-2 py-3 text-left"
       >
-        <span className="font-bold">{label}</span>
+        <span className="min-w-0 truncate font-bold">{label}</span>
         {picked > 0 && (
           <span className="rounded-full bg-emerald-500/15 px-2 py-px text-[11px] font-bold text-emerald-400">
             {picked} picked
           </span>
         )}
-        <span className="ml-auto text-xs text-gray-500">
+        <span className="ml-auto shrink-0 text-xs text-gray-500">
           {count} {noun}
         </span>
         <span
@@ -473,7 +491,13 @@ function PropsPanel({
   toggle: Toggle;
   isPicked: IsPicked;
 }) {
-  const keys = useMemo(() => category.markets.map((m) => m.key), [category]);
+  const keys = useMemo(
+    () =>
+      category.markets.flatMap((m) =>
+        m.altFallback && m.alt ? [m.key, m.alt] : [m.key]
+      ),
+    [category]
+  );
   const { data, loading, error } = useEventMarkets(sportKey, game.id, keys);
   const [openAlt, setOpenAlt] = useState<string | null>(null);
   const takenBy = useContext(TakenContext);
@@ -481,7 +505,19 @@ function PropsPanel({
   if (loading) return <Notice>Loading {category.label.toLowerCase()}…</Notice>;
   if (error) return <Notice>{error}</Notice>;
   const markets = data?.books[book]?.markets ?? {};
-  if (!category.markets.some((m) => markets[m.key]?.length)) {
+  /**
+   * What a section lists, and under which market key it's picked: the main
+   * market, or when the book posts only alternates (altFallback), each
+   * player's most even alt line, picked as that alt
+   */
+  const section = (m: PickerCategory['markets'][number]) => {
+    const main = markets[m.key] ?? [];
+    if (main.length || !m.altFallback || !m.alt) {
+      return { key: m.key, outcomes: main };
+    }
+    return { key: m.alt, outcomes: mainLinesFromAlts(markets[m.alt] ?? []) };
+  };
+  if (!category.markets.some((m) => section(m).outcomes.length)) {
     return (
       <Notice>
         {bookName} has no {category.label.toLowerCase()} for this game yet.
@@ -491,62 +527,96 @@ function PropsPanel({
   // A tab with one section (e.g. Anytime TD) opens it; with more, all start
   // closed so the list is quick to scan
   const onlySection =
-    category.markets.filter((m) => markets[m.key]?.length).length === 1;
+    category.markets.filter((m) => section(m).outcomes.length).length === 1;
+
+  const teams = [game.awayTeam, game.homeTeam];
+  const overUnder = ['Over', 'Under'];
+
+  /**
+   * One section of alt lines as rows of price buttons, one row per group:
+   * per team for spreads, Over / Under for totals
+   */
+  const lineSection = (
+    id: string,
+    label: string,
+    marketKey: string,
+    outcomes: OddsOutcome[],
+    sides: string[],
+    open: boolean
+  ) => {
+    if (!outcomes.length) return null;
+    return (
+      <MarketSection
+        key={id}
+        label={label}
+        count={outcomes.length}
+        noun="lines"
+        defaultOpen={open}
+        picked={outcomes.filter((o) => isPicked(game, marketKey, o)).length}
+      >
+        <div className="space-y-3">
+          {sides.map((side) => {
+            const lines = outcomes
+              .filter((o) => o.name === side)
+              .sort((a, b) => (a.point ?? 0) - (b.point ?? 0));
+            if (!lines.length) return null;
+            return (
+              <div key={side}>
+                <p className="mb-1.5 truncate text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {side}
+                </p>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(4.75rem,1fr))] gap-1.5">
+                  {lines.map((o) => (
+                    <OddsButton
+                      key={`${o.name}${o.point}`}
+                      line={
+                        marketKey === 'alternate_spreads'
+                          ? signed(o.point ?? 0)
+                          : `${side === 'Over' ? 'O' : 'U'} ${o.point}`
+                      }
+                      outcome={o}
+                      picked={isPicked(game, marketKey, o)}
+                      onClick={() => toggle(game, marketKey, o)}
+                      taken={takenBy(game, marketKey, o)}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </MarketSection>
+    );
+  };
+
+  /** Alternate team totals: a section per team, Over / Under in each */
+  const teamAltSections = (marketKey: string, open: boolean) =>
+    teams.map((team) =>
+      lineSection(
+        `${marketKey}:${team}`,
+        `${team} Alt Team Total`,
+        marketKey,
+        (markets[marketKey] ?? []).filter((o) => o.player === team),
+        overUnder,
+        open
+      )
+    );
 
   if (category.game) {
-    // Alternate spreads / totals
     return (
       <div>
-        {category.markets.map((m) => {
-          const outcomes = markets[m.key] ?? [];
-          if (!outcomes.length) return null;
-          const sides =
-            m.key === 'alternate_spreads'
-              ? [game.awayTeam, game.homeTeam]
-              : ['Over', 'Under'];
-          return (
-            <MarketSection
-              key={m.key}
-              label={m.label}
-              count={outcomes.length}
-              noun="lines"
-              defaultOpen={onlySection}
-              picked={outcomes.filter((o) => isPicked(game, m.key, o)).length}
-            >
-              <div className="space-y-3">
-                {sides.map((side) => {
-                  const lines = outcomes
-                    .filter((o) => o.name === side)
-                    .sort((a, b) => (a.point ?? 0) - (b.point ?? 0));
-                  if (!lines.length) return null;
-                  return (
-                    <div key={side}>
-                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        {side}
-                      </p>
-                      <div className="grid grid-cols-[repeat(auto-fill,minmax(4.75rem,1fr))] gap-1.5">
-                        {lines.map((o) => (
-                          <OddsButton
-                            key={`${o.name}${o.point}`}
-                            line={
-                              m.key === 'alternate_spreads'
-                                ? signed(o.point ?? 0)
-                                : `${side === 'Over' ? 'O' : 'U'} ${o.point}`
-                            }
-                            outcome={o}
-                            picked={isPicked(game, m.key, o)}
-                            onClick={() => toggle(game, m.key, o)}
-                            taken={takenBy(game, m.key, o)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </MarketSection>
-          );
-        })}
+        {category.markets.map((m) =>
+          m.key === 'alternate_team_totals'
+            ? teamAltSections(m.key, onlySection)
+            : lineSection(
+                m.key,
+                m.label,
+                m.key,
+                markets[m.key] ?? [],
+                m.key === 'alternate_spreads' ? teams : overUnder,
+                onlySection
+              )
+        )}
       </div>
     );
   }
@@ -554,7 +624,7 @@ function PropsPanel({
   return (
     <div>
       {category.markets.map((m) => {
-        const outcomes = markets[m.key] ?? [];
+        const { key, outcomes } = section(m);
         const rows = groupByPlayer(outcomes);
         if (!rows.length) return null;
         return (
@@ -562,9 +632,11 @@ function PropsPanel({
             key={m.key}
             label={m.label}
             count={rows.length}
-            noun={rows.length === 1 ? 'player' : 'players'}
+            noun={`${m.label === TEAM_TOTAL_LABEL ? 'team' : 'player'}${
+              rows.length === 1 ? '' : 's'
+            }`}
             defaultOpen={onlySection}
-            picked={outcomes.filter((o) => isPicked(game, m.key, o)).length}
+            picked={outcomes.filter((o) => isPicked(game, key, o)).length}
           >
             <ul className="-mt-2 divide-y divide-gray-800">
               {rows.map((r) => {
@@ -577,7 +649,7 @@ function PropsPanel({
                         <p className="truncate text-sm font-semibold">
                           {r.player}
                         </p>
-                        {m.alt && (
+                        {m.alt && !m.altFallback && (
                           <button
                             type="button"
                             onClick={() =>
@@ -597,15 +669,13 @@ function PropsPanel({
                           <OddsButton
                             line="Yes"
                             outcome={r.yes}
-                            picked={
-                              r.yes ? isPicked(game, m.key, r.yes) : false
-                            }
+                            picked={r.yes ? isPicked(game, key, r.yes) : false}
                             onClick={
                               r.yes
-                                ? () => toggle(game, m.key, r.yes!)
+                                ? () => toggle(game, key, r.yes!)
                                 : undefined
                             }
-                            taken={r.yes ? takenBy(game, m.key, r.yes) : null}
+                            taken={r.yes ? takenBy(game, key, r.yes) : null}
                           />
                         </>
                       ) : (
@@ -616,11 +686,11 @@ function PropsPanel({
                               key={side}
                               line={`${side === 'over' ? 'O' : 'U'} ${point ?? ''}`}
                               outcome={o}
-                              picked={o ? isPicked(game, m.key, o) : false}
+                              picked={o ? isPicked(game, key, o) : false}
                               onClick={
-                                o ? () => toggle(game, m.key, o) : undefined
+                                o ? () => toggle(game, key, o) : undefined
                               }
-                              taken={o ? takenBy(game, m.key, o) : null}
+                              taken={o ? takenBy(game, key, o) : null}
                             />
                           );
                         })
@@ -645,6 +715,10 @@ function PropsPanel({
           </MarketSection>
         );
       })}
+      {/* Team totals: every alt line too, a section per team */}
+      {category.markets.map(
+        (m) => m.altFallback && m.alt && teamAltSections(m.alt, false)
+      )}
     </div>
   );
 }
@@ -683,26 +757,29 @@ function GameView({
         </button>
       )}
       <p className="font-bold leading-tight">
-        {game.awayTeam} @ {game.homeTeam}
+        {matchupLabel(game.sportKey, game.awayTeam, game.homeTeam)}
       </p>
       <p className="mt-0.5 text-xs">
         <GameTime iso={game.commenceTime} />
       </p>
 
-      <div className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1">
-        <Chip active={tab === 'lines'} onClick={() => setTab('lines')}>
-          Game Lines
-        </Chip>
-        {categories.map((c) => (
-          <Chip
-            key={c.key}
-            active={tab === c.key}
-            onClick={() => setTab(c.key)}
-          >
-            {c.label}
+      {/* Fights have only the moneyline, so no tabs */}
+      {categories.length > 0 && (
+        <div className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1">
+          <Chip active={tab === 'lines'} onClick={() => setTab('lines')}>
+            Game Lines
           </Chip>
-        ))}
-      </div>
+          {categories.map((c) => (
+            <Chip
+              key={c.key}
+              active={tab === c.key}
+              onClick={() => setTab(c.key)}
+            >
+              {c.label}
+            </Chip>
+          ))}
+        </div>
+      )}
 
       <div className="mt-4">
         {(tab === 'lines' || !category) &&

@@ -99,6 +99,23 @@ export function gradeLiveProp(
   return 'PENDING';
 }
 
+/**
+ * A team total's running stat: that team's score. The team is named as the
+ * odds listed it, so it's matched against our game's sides; null if it's
+ * neither.
+ */
+export function teamScore(
+  team: string | null,
+  sides: { homeTeam: string; awayTeam: string },
+  game: Pick<FinalScore, 'homeScore' | 'awayScore'>
+): number | null {
+  if (!team) return null;
+  const t = normName(team);
+  if (t === normName(sides.homeTeam)) return game.homeScore;
+  if (t === normName(sides.awayTeam)) return game.awayScore;
+  return null;
+}
+
 /** Mid-game game lines: only a total the score has already passed */
 export function gradeLiveGameLine(leg: GameLeg, game: FinalScore): BetResult {
   if (leg.marketKey !== 'totals') return 'PENDING';

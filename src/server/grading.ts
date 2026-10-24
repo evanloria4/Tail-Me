@@ -15,7 +15,9 @@ import {
   gradeProp,
   normPlayer,
   propStat,
+  teamScore,
 } from '../shared/grading';
+import { TEAM_TOTAL_LABEL } from '../shared/markets';
 import type { BetResult } from '../shared/posts';
 import { MAX_GAME_MS } from '../shared/live';
 
@@ -44,7 +46,15 @@ type GradableLeg = {
   playerName: string | null;
   selection: string;
   line: { toNumber(): number } | null;
+  /** Our game's sides, as the odds named them (team totals pick one) */
+  event: { homeTeam: string; awayTeam: string } | null;
 };
+
+/** A team total's running score, or null if the team can't be placed */
+const teamTotal = (leg: GradableLeg, game: EspnGame) =>
+  leg.marketLabel === TEAM_TOTAL_LABEL && leg.event
+    ? teamScore(leg.playerName, leg.event, game)
+    : null;
 
 /** What a totals leg tracks: points (or goals) scored by both sides */
 const gameTotal = (leg: GradableLeg, game: EspnGame) =>
@@ -65,6 +75,11 @@ async function gradeLegLive(
       game
     );
     return { result, actual: gameTotal(leg, game) };
+  }
+  if (leg.marketLabel === TEAM_TOTAL_LABEL) {
+    const actual = teamTotal(leg, game);
+    if (actual == null) return null;
+    return { result: gradeLiveProp(leg.selection, line, actual), actual };
   }
   const stat = propStat(leg.sportKey, leg.marketLabel);
   if (!stat || !leg.playerName) return null;
@@ -93,6 +108,13 @@ async function gradeLeg(
     return result === 'PENDING'
       ? null
       : { result, actual: gameTotal(leg, game) };
+  }
+
+  if (leg.marketLabel === TEAM_TOTAL_LABEL) {
+    const actual = teamTotal(leg, game);
+    if (actual == null) return null;
+    const result = gradeProp(leg.selection, line, actual);
+    return result === 'PENDING' ? null : { result, actual };
   }
 
   const stat = propStat(leg.sportKey, leg.marketLabel);

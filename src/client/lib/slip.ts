@@ -2,10 +2,11 @@
 // or ladder) and how they turn into a post. Kept free of React so it's testable.
 import {
   marketLabel,
+  matchupLabel,
   type OddsGame,
   type OddsOutcome,
 } from '../../shared/markets';
-import { parlayDecimal } from '../../shared/odds';
+import { americanToDecimal, parlayDecimal } from '../../shared/odds';
 import {
   MARKETS,
   type CreatePostInput,
@@ -50,7 +51,7 @@ export function toSelection(
     key: selectionKey(game.id, marketKey, o),
     sportKey: game.sportKey,
     eventId: game.id,
-    eventLabel: `${game.awayTeam} @ ${game.homeTeam}`,
+    eventLabel: matchupLabel(game.sportKey, game.awayTeam, game.homeTeam),
     marketKey,
     marketLabel: marketLabel(game.sportKey, marketKey),
     outcome: o,
@@ -226,4 +227,37 @@ export function buildPost(opts: {
       ...(s.outcome.link ? { deepLink: s.outcome.link } : {}),
     })),
   };
+}
+
+/**
+ * A main line from alternates, for markets the book only lists as alts
+ * (FanDuel's team totals, some games): per player or team, the Over and
+ * Under at the point where they're priced closest to even.
+ */
+export function mainLinesFromAlts(outcomes: OddsOutcome[]): OddsOutcome[] {
+  const byPlayer = new Map<string, OddsOutcome[]>();
+  outcomes.forEach((o) => {
+    const key = o.player ?? '';
+    byPlayer.set(key, [...(byPlayer.get(key) ?? []), o]);
+  });
+  return [...byPlayer.values()].flatMap((list) => {
+    let best: OddsOutcome[] = [];
+    let gap = Infinity;
+    list
+      .filter((o) => o.name === 'Over')
+      .forEach((over) => {
+        const under = list.find(
+          (o) => o.name === 'Under' && o.point === over.point
+        );
+        if (!under) return;
+        const g = Math.abs(
+          americanToDecimal(over.price) - americanToDecimal(under.price)
+        );
+        if (g < gap) {
+          gap = g;
+          best = [over, under];
+        }
+      });
+    return best;
+  });
 }
