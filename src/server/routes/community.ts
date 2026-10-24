@@ -2,15 +2,20 @@ import { Router } from 'express';
 import prisma from '../db';
 import { requireAuth } from '../middleware/auth';
 import { isHot } from '../../shared/badges';
-import { CommunityStats, dailyTotals } from '../../shared/community';
+import {
+  CommunityStats,
+  dailyTotals,
+  daySuperlatives,
+} from '../../shared/community';
 import { groupRow } from '../../shared/records';
-import { siteDayKey } from '../../shared/time';
+import { fromSiteInput, siteDayKey } from '../../shared/time';
 import {
   currentStreak,
   isPersonalType,
   rangeStart,
   StatBet,
   statLine,
+  POST_TYPES,
 } from '../../shared/stats';
 
 const router = Router();
@@ -29,7 +34,10 @@ router.get('/', requireAuth, async (req, res) => {
       ? req.query.month
       : siteDayKey(new Date()).slice(0, 7);
 
-  const [users, rows, groupLegs] = await Promise.all([
+  // Midnight Central: "today" for the day's superlatives
+  const today = fromSiteInput(`${siteDayKey(new Date())}T00:00`) ?? new Date();
+
+  const [users, rows, groupLegs, settledToday] = await Promise.all([
     prisma.user.findMany({
       select: {
         id: true,
@@ -59,6 +67,22 @@ router.get('/', requireAuth, async (req, res) => {
         postId: true,
         post: { select: { createdAt: true } },
         legs: { select: { addedById: true, result: true } },
+      },
+    }),
+    // Personal bets that settled today, for the day's superlatives
+    prisma.bet.findMany({
+      where: {
+        settledAt: { gte: today },
+        result: { in: ['WON', 'LOST', 'PUSH'] },
+        post: { type: { in: POST_TYPES } },
+      },
+      select: {
+        units: true,
+        americanOdds: true,
+        decimalOdds: true,
+        result: true,
+        post: { select: { authorId: true } },
+        legs: { select: { result: true } },
       },
     }),
   ]);
@@ -96,6 +120,17 @@ router.get('/', requireAuth, async (req, res) => {
   });
 
   const body: CommunityStats = {
+    today: daySuperlatives(
+      users,
+      settledToday.map((b) => ({
+        authorId: b.post.authorId,
+        units: b.units.toNumber(),
+        americanOdds: b.americanOdds,
+        decimalOdds: b.decimalOdds.toNumber(),
+        result: b.result,
+        legs: b.legs.map((l) => l.result),
+      }))
+    ),
     hot: byUser
       .filter((u) => isHot(u.streak))
       .sort((a, b) => b.streak!.count - a.streak!.count)

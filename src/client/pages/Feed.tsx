@@ -4,6 +4,7 @@ import PostList from '../components/PostList';
 import CommunitySidebar, {
   CommunityHighlights,
   CommunityTabs,
+  TodayStrip,
   useCommunityStats,
 } from '../components/CommunitySidebar';
 import { useLayout } from '../components/AppLayout';
@@ -86,6 +87,9 @@ export default function Feed() {
   const reloadKey = `${feedVersion}-${resultsVersion}`;
   const stats = useCommunityStats(reloadKey);
   const active = useActiveSlips(reloadKey);
+  // With the Today strip on top, the side columns line up with it instead
+  // of with the first slip
+  const hasToday = !!stats.data?.today.length;
   // The panels' posts, handed to the feed so its cards match them exactly
   const activePosts = useMemo(
     () => (active ? [...active.groups, ...active.live] : undefined),
@@ -130,6 +134,7 @@ export default function Feed() {
         <div className="lg:hidden">
           <CommunityTabs stats={stats} />
         </div>
+        <TodayStrip stats={stats} />
         <FilterTabs value={filter} onChange={setFilter} />
         <PostList
           status={filter}
@@ -183,7 +188,7 @@ export default function Feed() {
       <aside
         ref={left.ref}
         style={{ top: left.top }}
-        className="side-column hidden xl:col-start-1 xl:row-start-1 xl:mt-12 xl:block xl:w-72 xl:justify-self-end"
+        className={`side-column hidden xl:col-start-1 xl:row-start-1 xl:block xl:w-72 xl:justify-self-end ${hasToday ? '' : 'xl:mt-12'}`}
       >
         <div className="space-y-3">
           <GroupParlaysPanel posts={active?.groups ?? []} onOpen={setFocusId} />
@@ -193,7 +198,7 @@ export default function Feed() {
       <aside
         ref={side.ref}
         style={{ top: side.top }}
-        className={`${SIDE_COLUMN} hidden lg:mt-12 lg:block`}
+        className={`${SIDE_COLUMN} hidden lg:block ${hasToday ? '' : 'lg:mt-12'}`}
       >
         <div className="space-y-3">
           <CommunityHighlights stats={stats} stacked />

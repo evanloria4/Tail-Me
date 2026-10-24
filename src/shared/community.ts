@@ -1,3 +1,4 @@
+import type { BetResult } from './posts';
 import type { PersonRef } from './social';
 import { betNet, StatBet, StatLine, Streak } from './stats';
 import { siteDayKey } from './time';
@@ -32,10 +33,124 @@ export function dailyTotals(
     .sort((a, b) => a.day.localeCompare(b.day));
 }
 
+/** A settled personal bet, for the day's superlatives */
+export type TodayBet = {
+  authorId: string;
+  units: number;
+  americanOdds: number;
+  decimalOdds: number;
+  result: BetResult;
+  /** Every leg's result (one entry for straights and ladder rungs) */
+  legs: BetResult[];
+};
+
+/** One "Today" card on the feed */
+export type DaySuperlative = {
+  key: 'biggest' | 'topEarner' | 'worstBeat' | 'roughDay';
+  icon: string;
+  title: string;
+  person: PersonRef;
+  value: string;
+  detail: string;
+};
+
+const signedOdds = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+const signed = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(2)}u`;
+
+/**
+ * The day's standouts from bets that settled today: the longest price that
+ * cashed, who won and lost the most units, and a parlay (3+ legs) that lost
+ * on one leg. Each appears only when someone qualifies, in this order.
+ */
+export function daySuperlatives(
+  people: PersonRef[],
+  bets: TodayBet[]
+): DaySuperlative[] {
+  const who = new Map(people.map((p) => [p.id, p]));
+  const out: DaySuperlative[] = [];
+  const add = (card: Omit<DaySuperlative, 'person'>, personId: string) => {
+    const person = who.get(personId);
+    if (person) out.push({ ...card, person });
+  };
+
+  const biggest = bets
+    .filter((b) => b.result === 'WON')
+    .sort((a, b) => b.americanOdds - a.americanOdds)[0];
+  if (biggest) {
+    add(
+      {
+        key: 'biggest',
+        icon: '💰',
+        title: 'Biggest hit',
+        value: signedOdds(biggest.americanOdds),
+        detail: `$10 paid $${Math.round(10 * biggest.decimalOdds)}`,
+      },
+      biggest.authorId
+    );
+  }
+
+  const nets = new Map<string, number>();
+  bets.forEach((b) =>
+    nets.set(b.authorId, (nets.get(b.authorId) ?? 0) + betNet(b))
+  );
+  const byNet = [...nets].sort((a, b) => b[1] - a[1]);
+  const [topId, topNet] = byNet[0] ?? [];
+  if (topId && topNet > 0) {
+    add(
+      {
+        key: 'topEarner',
+        icon: '📈',
+        title: 'Top earner',
+        value: signed(topNet),
+        detail: 'won today',
+      },
+      topId
+    );
+  }
+
+  const beat = bets
+    .filter(
+      (b) =>
+        b.result === 'LOST' &&
+        b.legs.length >= 3 &&
+        b.legs.filter((l) => l === 'LOST').length === 1
+    )
+    .sort((a, b) => b.americanOdds - a.americanOdds)[0];
+  if (beat) {
+    add(
+      {
+        key: 'worstBeat',
+        icon: '💔',
+        title: 'Worst beat',
+        value: signedOdds(beat.americanOdds),
+        detail: `${beat.legs.length - 1}/${beat.legs.length} legs hit`,
+      },
+      beat.authorId
+    );
+  }
+
+  const [lowId, lowNet] = byNet[byNet.length - 1] ?? [];
+  if (lowId && lowNet < 0) {
+    add(
+      {
+        key: 'roughDay',
+        icon: '📉',
+        title: 'Rough day',
+        value: signed(lowNet),
+        detail: 'lost today',
+      },
+      lowId
+    );
+  }
+  return out;
+}
+
 export type HotUser = PersonRef & { streak: Streak };
 export type LeaderRow = PersonRef & { line: StatLine };
 
 export type CommunityStats = {
+  /** Today's standouts (bets settled today, Central), best first */
+  today: DaySuperlative[];
   /** Posters on a hot win streak, longest first */
   hot: HotUser[];
   /** Top earners over the last 7 days (only people up units), best first */

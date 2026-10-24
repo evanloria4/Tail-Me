@@ -4,7 +4,8 @@ import api, { apiErrorMessage } from '../lib/api';
 import useAutoRefresh from '../lib/useAutoRefresh';
 import { netColor, record, signedUnits } from '../lib/statFormat';
 import { CommunityStats, DayTotal } from '../../shared/community';
-import { siteDayKey } from '../../shared/time';
+import type { DaySuperlative } from '../../shared/community';
+import { inSiteZone, siteDayKey } from '../../shared/time';
 import { GhostRows, PlaceholderNote } from './Placeholders';
 import UserAvatar from './UserAvatar';
 
@@ -216,9 +217,40 @@ function Calendar({
 }
 
 /** The group parlays' own record, plus whose legs carry and whose bust */
+/** Most people shown before "See all" */
+const PICKERS_SHOWN = 5;
+
+/**
+ * Each view shows its half of the group (up to PICKERS_SHOWN), so with a
+ * small group nobody's in both Top and Bottom
+ */
+const pickersShown = (count: number) =>
+  Math.min(PICKERS_SHOWN, Math.ceil(count / 2));
+
+type PickerRow = CommunityStats['group']['legs'][number];
+const hitRate = (u: PickerRow) => u.hit / Math.max(1, u.hit + u.busted);
+
+/**
+ * Top: best hit rate first (more hits breaks ties). Bottom: worst hit rate
+ * first (more busts breaks ties).
+ */
+function rankPickers(legs: PickerRow[], view: 'top' | 'bottom') {
+  return [...legs].sort((a, b) =>
+    view === 'top'
+      ? hitRate(b) - hitRate(a) || b.hit - a.hit || a.busted - b.busted
+      : hitRate(a) - hitRate(b) || b.busted - a.busted || a.hit - b.hit
+  );
+}
+
 function GroupRecord({ group }: { group: CommunityStats['group'] }) {
+  const [view, setView] = useState<'top' | 'bottom'>('top');
+  const [showAll, setShowAll] = useState(false);
   const settled = group.wins + group.losses + group.pushes;
   if (!settled && !group.open) return null;
+  const ranked = rankPickers(group.legs, view);
+  const shown = showAll
+    ? ranked
+    : ranked.slice(0, pickersShown(group.legs.length));
   return (
     <Panel
       title="Group parlays"
@@ -244,9 +276,38 @@ function GroupRecord({ group }: { group: CommunityStats['group'] }) {
           </span>
         )}
       </p>
+      {group.legs.length > 1 && (
+        <div
+          role="tablist"
+          aria-label="Pickers"
+          className="mb-1 mt-1 flex rounded-lg border border-gray-800 p-0.5 text-xs"
+        >
+          {(
+            [
+              ['top', 'Top pickers'],
+              ['bottom', 'Bottom pickers'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={view === key}
+              onClick={() => setView(key)}
+              className={`flex-1 rounded-md px-2 py-1 font-medium transition ${
+                view === key
+                  ? 'bg-gray-800 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       {group.legs.length > 0 && (
         <ul className="divide-y divide-gray-800">
-          {group.legs.map((u) => (
+          {shown.map((u) => (
             <li key={u.id}>
               <Link
                 to={`/u/${u.username}`}
@@ -283,7 +344,85 @@ function GroupRecord({ group }: { group: CommunityStats['group'] }) {
           ))}
         </ul>
       )}
+      {group.legs.length > pickersShown(group.legs.length) && (
+        <button
+          type="button"
+          onClick={() => setShowAll(!showAll)}
+          aria-expanded={showAll}
+          className="mt-1 w-full rounded-lg py-1.5 text-xs font-semibold text-emerald-400 transition hover:bg-gray-800"
+        >
+          {showAll ? 'Show less' : `See all ${group.legs.length}`}
+        </button>
+      )}
     </Panel>
+  );
+}
+
+/** Column count per card count, so a short day doesn't leave gaps */
+const TODAY_COLUMNS: Record<number, string> = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-2',
+  3: 'grid-cols-2 sm:grid-cols-3',
+  4: 'grid-cols-2 sm:grid-cols-4',
+};
+
+const TODAY_TONES: Partial<Record<DaySuperlative['key'], string>> = {
+  topEarner: 'text-win',
+  roughDay: 'text-red-400',
+};
+
+/**
+ * Top of the feed on every screen: the day's standouts (bets settled today,
+ * Central). Hidden until someone qualifies for at least one.
+ */
+export function TodayStrip({ stats }: { stats: Stats }) {
+  const cards = stats.data?.today ?? [];
+  if (!cards.length) return null;
+  const date = new Date().toLocaleDateString(
+    'en-US',
+    inSiteZone({ weekday: 'short', month: 'short', day: 'numeric' })
+  );
+  return (
+    <section className="rounded-2xl border border-gray-800 bg-gray-900 px-4 pb-3 pt-3">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h2 className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+          Today
+        </h2>
+        <span className="text-xs text-gray-500">{date}</span>
+      </div>
+      <ul className={`grid gap-2 ${TODAY_COLUMNS[cards.length]}`}>
+        {cards.map((c) => (
+          <li key={c.key}>
+            <Link
+              to={`/u/${c.person.username}`}
+              className="flex h-full flex-col rounded-xl bg-gray-800/50 px-3 py-2.5 transition hover:bg-gray-800"
+            >
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                <span aria-hidden="true">{c.icon} </span>
+                {c.title}
+              </span>
+              <span
+                className={`mt-1 text-lg font-extrabold leading-tight tabular-nums ${TODAY_TONES[c.key] ?? ''}`}
+              >
+                {c.value}
+              </span>
+              <span className="text-[11px] text-gray-500">{c.detail}</span>
+              <span className="mt-2 flex items-center gap-1.5 text-sm font-medium">
+                <UserAvatar
+                  name={c.person.fullName}
+                  url={c.person.avatarUrl}
+                  color={c.person.avatarColor}
+                  className="h-5 w-5 flex-none text-[10px]"
+                />
+                <span className="min-w-0 break-words">
+                  {c.person.fullName.trim().split(/\s+/)[0]}
+                </span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
