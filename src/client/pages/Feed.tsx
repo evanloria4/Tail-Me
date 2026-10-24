@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import PostList from '../components/PostList';
 import CommunitySidebar, {
@@ -86,6 +86,11 @@ export default function Feed() {
   const reloadKey = `${feedVersion}-${resultsVersion}`;
   const stats = useCommunityStats(reloadKey);
   const active = useActiveSlips(reloadKey);
+  // The panels' posts, handed to the feed so its cards match them exactly
+  const activePosts = useMemo(
+    () => (active ? [...active.groups, ...active.live] : undefined),
+    [active]
+  );
   const toast = useToast();
 
   // Open slips first; the chips switch to live, settled or everything
@@ -128,6 +133,7 @@ export default function Feed() {
         <FilterTabs value={filter} onChange={setFilter} />
         <PostList
           status={filter}
+          updates={activePosts}
           reloadKey={feedVersion}
           onChange={() => setResultsVersion((v) => v + 1)}
           focusId={focusId}

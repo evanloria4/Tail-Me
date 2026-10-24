@@ -12,7 +12,7 @@ import {
   winPct,
 } from '../lib/statFormat';
 import { useLayout } from '../components/AppLayout';
-import { FormDots, RangeTabs } from '../components/RecordParts';
+import { RangeTabs } from '../components/RecordParts';
 import UserAvatar from '../components/UserAvatar';
 import { MIN_RANKED } from '../../shared/records';
 import type {
@@ -24,7 +24,12 @@ import type {
   SeriesRow,
   Superlative,
 } from '../../shared/records';
-import type { StatLine, StatRange, Streak } from '../../shared/stats';
+import type {
+  SettledResult,
+  StatLine,
+  StatRange,
+  Streak,
+} from '../../shared/stats';
 import { SeriesBadge } from '../components/SeriesCover';
 
 // Everyone's records side by side: superlatives up top, then the personal
@@ -51,6 +56,9 @@ type Rankable = {
   bestStreak: number;
   nearMisses?: NearMisses;
 };
+
+/** Tables show first names to stay narrow; the full name is on the profile */
+const firstName = (fullName: string) => fullName.trim().split(/s+/)[0];
 
 /** W3 sorts above W1 above L1 above L3 */
 const streakValue = (s: Streak | null) => {
@@ -82,6 +90,22 @@ const miniRecord = (m: MiniRecord) =>
     ? `${m.wins}-${m.losses}${m.pushes ? `-${m.pushes}` : ''}`
     : '–';
 
+/** The last 5 results as a record, e.g. "3-2" or "3-1-1" with a push */
+function LastFive({ results }: { results: SettledResult[] }) {
+  if (!results.length) return <span className="text-gray-500">–</span>;
+  const count = (r: SettledResult) => results.filter((x) => x === r).length;
+  const [w, l, p] = [count('WON'), count('LOST'), count('PUSH')];
+  let tone = '';
+  if (w > l) tone = 'text-win';
+  if (l > w) tone = 'text-red-400';
+  return (
+    <span className={`font-semibold ${tone}`}>
+      {w}-{l}
+      {p ? `-${p}` : ''}
+    </span>
+  );
+}
+
 function StreakText({ streak }: { streak: Streak | null }) {
   if (!streak) return <span className="text-gray-500">–</span>;
   return (
@@ -109,7 +133,7 @@ function Person({
   return (
     <Link
       to={`/u/${person.username}`}
-      className="flex min-w-0 items-center gap-2 hover:underline sm:gap-2.5"
+      className="flex items-center gap-2 hover:underline sm:gap-2.5"
     >
       <UserAvatar
         name={person.fullName}
@@ -117,10 +141,11 @@ function Person({
         color={person.avatarColor}
         className="h-7 w-7 flex-none text-xs sm:h-8 sm:w-8 sm:text-sm"
       />
-      {/* Narrow on phones so the stats get the room; long names wrap */}
-      <span className="min-w-0 max-w-[7.5rem] sm:max-w-none">
-        <span className="block break-words font-semibold leading-tight">
-          {person.fullName}
+      {/* One line: the column is never narrower than the first name, so
+          the browser can't break it mid-word */}
+      <span>
+        <span className="block whitespace-nowrap font-semibold leading-tight">
+          {firstName(person.fullName)}
           {me && (
             <span className="ml-1.5 text-xs font-medium text-emerald-400">
               You
@@ -207,7 +232,7 @@ function SortHeader({
     <th
       scope="col"
       aria-sort={active ? 'descending' : undefined}
-      className={`px-2 py-2 text-center font-semibold ${className}`}
+      className={`whitespace-nowrap px-2 py-2 text-center font-semibold ${className}`}
     >
       <button
         type="button"
@@ -236,7 +261,7 @@ function PlainHeader({
   return (
     <th
       scope="col"
-      className={`px-2 py-2 text-center font-semibold uppercase tracking-wider ${className}`}
+      className={`whitespace-nowrap px-2 py-2 text-center font-semibold uppercase tracking-wider ${className}`}
     >
       {label}
     </th>
@@ -261,7 +286,7 @@ function LeaderTable({
           <tr>
             <th
               scope="col"
-              className={`${stickyCell} py-2 pl-3 pr-2 font-semibold uppercase tracking-wider sm:pl-4`}
+              className={`${stickyCell} whitespace-nowrap py-2 pl-3 pr-2 font-semibold uppercase tracking-wider sm:pl-4`}
             >
               Person
             </th>
@@ -284,7 +309,7 @@ function LeaderTable({
               onSort={onSort}
             />
             <SortHeader label="ROI" sortKey="roi" sort={sort} onSort={onSort} />
-            <PlainHeader label="L5" className="!text-left" />
+            <PlainHeader label="L5" />
             <SortHeader
               label="Streak"
               sortKey="streak"
@@ -348,12 +373,8 @@ function LeaderTable({
                     {pct(r.line.roi, true)}
                   </span>
                 </td>
-                <td className="px-2 py-2.5">
-                  {r.l5.length ? (
-                    <FormDots results={r.l5} size="sm" />
-                  ) : (
-                    <span className="text-gray-500">–</span>
-                  )}
+                <td className="whitespace-nowrap px-2 py-2.5 text-center tabular-nums">
+                  <LastFive results={r.l5} />
                 </td>
                 <td className="px-2 py-2.5 tabular-nums text-center">
                   <StreakText streak={r.streak} />
@@ -398,7 +419,7 @@ function GroupTable({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
           <tr>
             <th
               scope="col"
-              className={`${stickyCell} py-2 pl-3 pr-2 font-semibold uppercase tracking-wider sm:pl-4`}
+              className={`${stickyCell} whitespace-nowrap py-2 pl-3 pr-2 font-semibold uppercase tracking-wider sm:pl-4`}
             >
               Person
             </th>
@@ -408,7 +429,7 @@ function GroupTable({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
             <PlainHeader label="Hit %" />
             <PlainHeader label="💀 Only miss" />
             <PlainHeader label="Cashed" />
-            <PlainHeader label="L5 legs" className="pr-4 !text-left" />
+            <PlainHeader label="L5 legs" className="pr-4" />
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-800">
@@ -440,12 +461,8 @@ function GroupTable({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
               <td className="px-2 py-2.5 tabular-nums text-center">
                 {r.cashed}
               </td>
-              <td className="py-2.5 pl-2 pr-4">
-                {r.l5.length ? (
-                  <FormDots results={r.l5} size="sm" />
-                ) : (
-                  <span className="text-gray-500">–</span>
-                )}
+              <td className="whitespace-nowrap py-2.5 pl-2 pr-4 text-center tabular-nums">
+                <LastFive results={r.l5} />
               </td>
             </tr>
           ))}
@@ -555,7 +572,7 @@ function SeriesTable({
           <tr>
             <th
               scope="col"
-              className={`${stickyCell} py-2 pl-3 pr-2 font-semibold uppercase tracking-wider sm:pl-4`}
+              className={`${stickyCell} whitespace-nowrap py-2 pl-3 pr-2 font-semibold uppercase tracking-wider sm:pl-4`}
             >
               Series
             </th>
@@ -578,7 +595,7 @@ function SeriesTable({
               onSort={onSort}
             />
             <SortHeader label="ROI" sortKey="roi" sort={sort} onSort={onSort} />
-            <PlainHeader label="L5" className="!text-left" />
+            <PlainHeader label="L5" />
             <SortHeader
               label="Streak"
               sortKey="streak"
@@ -604,25 +621,26 @@ function SeriesTable({
                 <td
                   className={`${stickyCell} ${mine ? meTint : ''} py-2.5 pl-3 pr-2 sm:pl-4`}
                 >
-                  <span className="flex min-w-0 items-center gap-2 sm:gap-2.5">
+                  <span className="flex items-center gap-2 sm:gap-2.5">
                     <SeriesBadge
                       emoji={r.emoji}
                       color={r.color}
                       className="h-7 w-7 flex-none rounded-lg text-sm sm:h-8 sm:w-8 sm:text-base"
                     />
-                    {/* Narrow on phones so the stats get the room; names wrap */}
-                    <span className="min-w-0 max-w-[7.5rem] sm:max-w-none">
+                    {/* Narrow on phones so the stats get the room; names wrap
+                        between words, never inside one */}
+                    <span className="max-w-[8.5rem] sm:max-w-none">
                       <Link
                         to={`/u/${r.owner.username}/s/${r.id}`}
-                        className="block break-words font-semibold leading-tight hover:underline"
+                        className="block font-semibold leading-tight hover:underline"
                       >
                         {r.name}
                       </Link>
                       <Link
                         to={`/u/${r.owner.username}`}
-                        className="block break-words text-xs text-gray-500 hover:underline"
+                        className="block whitespace-nowrap text-xs text-gray-500 hover:underline"
                       >
-                        by {r.owner.fullName}
+                        by {firstName(r.owner.fullName)}
                         {mine && (
                           <span className="ml-1 font-medium text-emerald-400">
                             (you)
@@ -650,12 +668,8 @@ function SeriesTable({
                     {pct(r.line.roi, true)}
                   </span>
                 </td>
-                <td className="px-2 py-2.5">
-                  {r.l5.length ? (
-                    <FormDots results={r.l5} size="sm" />
-                  ) : (
-                    <span className="text-gray-500">–</span>
-                  )}
+                <td className="whitespace-nowrap px-2 py-2.5 text-center tabular-nums">
+                  <LastFive results={r.l5} />
                 </td>
                 <td className="px-2 py-2.5 text-center tabular-nums">
                   <StreakText streak={r.streak} />

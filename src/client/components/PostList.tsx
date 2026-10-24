@@ -71,9 +71,16 @@ export default function PostList({
   focusId,
   onFocusDone,
   status,
+  updates,
 }: {
   /** Feed filter (FEED_FILTERS); profiles and series pages show everything */
   status?: FeedFilter;
+  /**
+   * Newer copies of posts fetched elsewhere (the feed's side panels): swapped
+   * into matching cards the moment they arrive, so a panel never shows a
+   * leg or result the card below doesn't
+   */
+  updates?: FeedPost[];
   /** A slip to scroll to; pages load until it's found (or give up) */
   focusId?: string | null;
   onFocusDone?: (found: boolean) => void;
@@ -147,6 +154,16 @@ export default function PostList({
     }
   }, [focusId, loading, loadedFor, listKey, posts, cursor, load, onFocusDone]);
 
+  useEffect(() => {
+    if (!updates?.length) return;
+    const byId = new Map(updates.map((p) => [p.id, p]));
+    setPosts((prev) =>
+      prev.some((p) => byId.has(p.id))
+        ? prev.map((p) => byId.get(p.id) ?? p)
+        : prev
+    );
+  }, [updates]);
+
   // Slips with a game on (or just over and waiting on a grade) reload every
   // couple of minutes, matching the grader, so a leg that hits or busts
   // mid-game shows without a page refresh
@@ -155,8 +172,12 @@ export default function PostList({
   useAutoRefresh(async () => {
     const now = Date.now();
     const ids = postsRef.current
-      .filter((p) =>
-        p.bets.some((b) => b.legs.some((l) => watching(l, b.result, now)))
+      .filter(
+        (p) =>
+          // Friends keep adding legs to an unsettled group parlay
+          (p.type === 'GROUP_PARLAY' &&
+            p.bets.some((b) => b.result === 'PENDING')) ||
+          p.bets.some((b) => b.legs.some((l) => watching(l, b.result, now)))
       )
       .map((p) => p.id);
     if (!ids.length) return;
