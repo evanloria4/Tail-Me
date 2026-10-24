@@ -19,16 +19,19 @@ import type {
   GroupRow,
   LeaderRow,
   MiniRecord,
+  NearMisses,
   RecordsPage,
+  SeriesRow,
   Superlative,
 } from '../../shared/records';
-import type { StatRange, Streak } from '../../shared/stats';
+import type { StatLine, StatRange, Streak } from '../../shared/stats';
+import { SeriesBadge } from '../components/SeriesCover';
 
 // Everyone's records side by side: superlatives up top, then the personal
 // leaderboard or each person's group parlay legs. Tables at every width: on
 // phones the name column stays pinned while the stats scroll sideways.
 
-type Tab = 'leaders' | 'group';
+type Tab = 'leaders' | 'group' | 'series';
 type SortKey =
   | 'units'
   | 'winPct'
@@ -39,7 +42,15 @@ type SortKey =
   | 'misses';
 
 /** Win % and ROI only rank people with enough settled bets */
-const ranked = (r: LeaderRow) => settledCount(r.line) >= MIN_RANKED;
+const ranked = (r: { line: StatLine }) => settledCount(r.line) >= MIN_RANKED;
+
+/** What a sortable row has: a person's or a series' record */
+type Rankable = {
+  line: StatLine;
+  streak: Streak | null;
+  bestStreak: number;
+  nearMisses?: NearMisses;
+};
 
 /** W3 sorts above W1 above L1 above L3 */
 const streakValue = (s: Streak | null) => {
@@ -47,7 +58,7 @@ const streakValue = (s: Streak | null) => {
   return s.kind === 'W' ? s.count : -s.count;
 };
 
-function sortValue(r: LeaderRow, key: SortKey): number {
+function sortValue(r: Rankable, key: SortKey): number {
   switch (key) {
     case 'winPct':
       return ranked(r) ? (winPct(r.line) ?? -1) : -2;
@@ -60,7 +71,7 @@ function sortValue(r: LeaderRow, key: SortKey): number {
     case 'best':
       return r.bestStreak;
     case 'misses':
-      return r.nearMisses.count;
+      return r.nearMisses?.count ?? 0;
     default:
       return r.line.net;
   }
@@ -524,6 +535,146 @@ function GroupTab({
   );
 }
 
+// ---------- Series ----------
+
+function SeriesTable({
+  rows,
+  sort,
+  onSort,
+  meId,
+}: {
+  rows: SeriesRow[];
+  sort: SortKey;
+  onSort: (k: SortKey) => void;
+  meId?: string;
+}) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-gray-800 bg-gray-900">
+      <table className="w-full text-sm">
+        <thead className="border-b border-gray-800 text-left text-[10px] text-gray-500">
+          <tr>
+            <th
+              scope="col"
+              className={`${stickyCell} py-2 pl-3 pr-2 font-semibold uppercase tracking-wider sm:pl-4`}
+            >
+              Series
+            </th>
+            <SortHeader
+              label="Record"
+              sortKey="bets"
+              sort={sort}
+              onSort={onSort}
+            />
+            <SortHeader
+              label="Win %"
+              sortKey="winPct"
+              sort={sort}
+              onSort={onSort}
+            />
+            <SortHeader
+              label="Units"
+              sortKey="units"
+              sort={sort}
+              onSort={onSort}
+            />
+            <SortHeader label="ROI" sortKey="roi" sort={sort} onSort={onSort} />
+            <PlainHeader label="L5" className="!text-left" />
+            <SortHeader
+              label="Streak"
+              sortKey="streak"
+              sort={sort}
+              onSort={onSort}
+            />
+            <SortHeader
+              label="Best"
+              sortKey="best"
+              sort={sort}
+              onSort={onSort}
+            />
+            <PlainHeader label="Slips" className="pr-4" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-800">
+          {rows.map((r) => {
+            const mine = r.owner.id === meId;
+            const settled = settledCount(r.line) > 0;
+            const showRates = ranked(r);
+            return (
+              <tr key={r.id} className={mine ? 'bg-emerald-500/5' : undefined}>
+                <td
+                  className={`${stickyCell} ${mine ? meTint : ''} py-2.5 pl-3 pr-2 sm:pl-4`}
+                >
+                  <span className="flex min-w-0 items-center gap-2 sm:gap-2.5">
+                    <SeriesBadge
+                      emoji={r.emoji}
+                      color={r.color}
+                      className="h-7 w-7 flex-none rounded-lg text-sm sm:h-8 sm:w-8 sm:text-base"
+                    />
+                    {/* Narrow on phones so the stats get the room; names wrap */}
+                    <span className="min-w-0 max-w-[7.5rem] sm:max-w-none">
+                      <Link
+                        to={`/u/${r.owner.username}/s/${r.id}`}
+                        className="block break-words font-semibold leading-tight hover:underline"
+                      >
+                        {r.name}
+                      </Link>
+                      <Link
+                        to={`/u/${r.owner.username}`}
+                        className="block break-words text-xs text-gray-500 hover:underline"
+                      >
+                        by {r.owner.fullName}
+                        {mine && (
+                          <span className="ml-1 font-medium text-emerald-400">
+                            (you)
+                          </span>
+                        )}
+                      </Link>
+                    </span>
+                  </span>
+                </td>
+                <td className="whitespace-nowrap px-2 py-2.5 text-center tabular-nums">
+                  {settled ? record(r.line) : '–'}
+                </td>
+                <td className="px-2 py-2.5 text-center tabular-nums">
+                  <span className={showRates ? '' : 'text-gray-500'}>
+                    {pct(winPct(r.line))}
+                  </span>
+                </td>
+                <td
+                  className={`whitespace-nowrap px-2 py-2.5 text-center font-semibold tabular-nums ${netColor(r.line.net)}`}
+                >
+                  {settled ? signedUnits(r.line.net) : '–'}
+                </td>
+                <td className="whitespace-nowrap px-2 py-2.5 text-center tabular-nums">
+                  <span className={showRates ? '' : 'text-gray-500'}>
+                    {pct(r.line.roi, true)}
+                  </span>
+                </td>
+                <td className="px-2 py-2.5">
+                  {r.l5.length ? (
+                    <FormDots results={r.l5} size="sm" />
+                  ) : (
+                    <span className="text-gray-500">–</span>
+                  )}
+                </td>
+                <td className="px-2 py-2.5 text-center tabular-nums">
+                  <StreakText streak={r.streak} />
+                </td>
+                <td className="px-2 py-2.5 text-center tabular-nums">
+                  {r.bestStreak ? `W${r.bestStreak}` : '–'}
+                </td>
+                <td className="py-2.5 pl-2 pr-4 text-center tabular-nums">
+                  {r.slips}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ---------- Page ----------
 
 export default function Records() {
@@ -532,6 +683,7 @@ export default function Records() {
   const [range, setRange] = useState<StatRange>('all');
   const [tab, setTab] = useState<Tab>('leaders');
   const [sort, setSort] = useState<SortKey>('units');
+  const [seriesSort, setSeriesSort] = useState<SortKey>('units');
   const [data, setData] = useState<RecordsPage | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -569,6 +721,18 @@ export default function Records() {
     );
   }, [data, sort]);
 
+  const seriesRows = useMemo(() => {
+    if (!data) return [];
+    // Series with nothing in range sit at the bottom whatever the sort
+    const active = (r: SeriesRow) => settledCount(r.line) + r.line.pending > 0;
+    return [...data.series].sort(
+      (a, b) =>
+        Number(active(b)) - Number(active(a)) ||
+        sortValue(b, seriesSort) - sortValue(a, seriesSort) ||
+        a.name.localeCompare(b.name)
+    );
+  }, [data, seriesSort]);
+
   const meId = profile?.id;
 
   return (
@@ -601,6 +765,7 @@ export default function Records() {
                 [
                   ['leaders', 'Leaderboard'],
                   ['group', 'Group parlays'],
+                  ['series', 'Series'],
                 ] as const
               ).map(([key, label]) => (
                 <button
@@ -639,9 +804,28 @@ export default function Records() {
                 won. Faders: how everyone who faded them did.
               </p>
             </div>
-          ) : (
-            <GroupTab group={data.group} meId={meId} />
-          )}
+          ) : null}
+          {tab === 'group' && <GroupTab group={data.group} meId={meId} />}
+          {tab === 'series' &&
+            (seriesRows.length ? (
+              <div className="space-y-3">
+                <SeriesTable
+                  rows={seriesRows}
+                  sort={seriesSort}
+                  onSort={setSeriesSort}
+                  meId={meId}
+                />
+                <p className="text-xs text-gray-500">
+                  Every series, same counting as the leaderboard: ladder rungs
+                  count as one bet each, and L5 and streaks are all-time.
+                </p>
+              </div>
+            ) : (
+              <p className="rounded-2xl border border-gray-800 bg-gray-900 px-4 py-6 text-center text-sm text-gray-500">
+                No series yet. Start one from your profile, or while posting a
+                slip.
+              </p>
+            ))}
         </>
       )}
     </div>

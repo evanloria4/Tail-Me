@@ -21,7 +21,7 @@ router.get('/', requireAuth, async (req, res) => {
     ? req.query.range
     : 'all';
 
-  const [people, posts] = await Promise.all([
+  const [people, posts, allSeries] = await Promise.all([
     prisma.user.findMany({
       select: {
         id: true,
@@ -38,6 +38,7 @@ router.get('/', requireAuth, async (req, res) => {
         type: true,
         authorId: true,
         createdAt: true,
+        seriesId: true,
         _count: { select: { fades: true } },
         bets: {
           select: {
@@ -53,6 +54,9 @@ router.get('/', requireAuth, async (req, res) => {
           },
         },
       },
+    }),
+    prisma.series.findMany({
+      select: { id: true, name: true, emoji: true, color: true, ownerId: true },
     }),
   ]);
 
@@ -94,11 +98,14 @@ router.get('/', requireAuth, async (req, res) => {
         tails: b._count.tails,
         fades: p._count.fades,
         legs: b.legs.map((l) => l.result),
+        seriesId: p.seriesId,
       });
     });
   });
 
-  res.json(recordsPage(range, rangeStart(range), people, bets, groupParlays));
+  res.json(
+    recordsPage(range, rangeStart(range), people, bets, groupParlays, allSeries)
+  );
 });
 
 export default router;

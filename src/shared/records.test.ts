@@ -40,6 +40,7 @@ function bet(over: Partial<RecordBet> & { result: BetResult }): RecordBet {
     tails: 0,
     fades: 0,
     legs: [over.result],
+    seriesId: null,
     ...over,
   };
 }
@@ -295,5 +296,47 @@ describe('nearMisses', () => {
       ]
     );
     expect(page.group.nearMisses).toEqual({ count: 1, paid: 125 });
+  });
+});
+
+describe('series rows', () => {
+  it('scores each series from its own slips and names its owner', () => {
+    const page = recordsPage(
+      'all',
+      null,
+      [ann, bo],
+      [
+        bet({ result: 'WON', seriesId: 's1', postId: 'x1', decimalOdds: 3 }),
+        bet({ result: 'LOST', seriesId: 's1', postId: 'x2' }),
+        bet({ result: 'WON' }),
+      ],
+      [],
+      [
+        {
+          id: 's1',
+          name: 'CharLadder',
+          emoji: '🪜',
+          color: 'violet',
+          ownerId: 'a',
+        },
+        {
+          id: 's2',
+          name: 'Sunday Locks',
+          emoji: '🔒',
+          color: 'sky',
+          ownerId: 'b',
+        },
+      ]
+    );
+    expect(page.series[0]).toMatchObject({
+      id: 's1',
+      name: 'CharLadder',
+      owner: ann,
+      slips: 2,
+      line: { wins: 1, losses: 1, net: 1 },
+      l5: ['LOST', 'WON'],
+    });
+    // An empty series still lists, with nothing settled
+    expect(page.series[1]).toMatchObject({ id: 's2', slips: 0, owner: bo });
   });
 });

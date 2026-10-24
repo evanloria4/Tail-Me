@@ -62,6 +62,28 @@ export type RecordBet = StatBet & {
   fades: number;
   /** Each leg's result (parlays; one entry otherwise) */
   legs: BetResult[];
+  /** The series the slip is filed under, if any */
+  seriesId: string | null;
+};
+
+/** A series as Records lists it: its cover, owner and record */
+export type RecordSeries = {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string;
+  ownerId: string;
+};
+
+export type SeriesRow = Omit<RecordSeries, 'ownerId'> & {
+  owner: PersonRef;
+  /** Slips filed under it in range */
+  slips: number;
+  line: StatLine;
+  /** Last 5 settled bets, newest first; ignores the range like streaks */
+  l5: SettledResult[];
+  streak: Streak | null;
+  bestStreak: number;
 };
 
 /** One group parlay: its result and who added which leg */
@@ -132,6 +154,8 @@ export type RecordsPage = {
     /** Group parlays that lost on one leg, and what $10 on each would have paid */
     nearMisses: { count: number; paid: number };
   };
+  /** Every user's series, best units first */
+  series: SeriesRow[];
   superlatives: Superlative[];
 };
 
@@ -399,7 +423,8 @@ export function recordsPage(
   since: Date | null,
   people: PersonRef[],
   bets: RecordBet[],
-  groupParlays: RecordGroupParlay[]
+  groupParlays: RecordGroupParlay[],
+  allSeries: RecordSeries[] = []
 ): RecordsPage {
   const inRange = <T extends { createdAt: Date }>(xs: T[]) =>
     xs.filter((x) => !since || x.createdAt >= since);
@@ -414,7 +439,29 @@ export function recordsPage(
         a.fullName.localeCompare(b.fullName)
     );
   const results = groups.map((g) => g.result);
+  const owners = new Map(people.map((p) => [p.id, p]));
+  const series = allSeries
+    .flatMap((s): SeriesRow[] => {
+      const owner = owners.get(s.ownerId);
+      if (!owner) return [];
+      const mine = bets.filter((b) => b.seriesId === s.id);
+      const ranged = inRange(mine);
+      const { ownerId, ...cover } = s;
+      return [
+        {
+          ...cover,
+          owner,
+          slips: new Set(ranged.map((b) => b.postId)).size,
+          line: statLine(ranged),
+          l5: lastResults(mine, 5),
+          streak: currentStreak(mine),
+          bestStreak: bestWinStreak(ranged),
+        },
+      ];
+    })
+    .sort((a, b) => b.line.net - a.line.net);
   return {
+    series,
     range,
     leaderboard: people
       .map((p) =>

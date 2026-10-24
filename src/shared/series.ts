@@ -6,7 +6,7 @@ import type { StatLine, Streak } from './stats';
 // on their profile with its own record. Personal slips only, never group
 // parlays. Built to be followed later (subscribe + notifications).
 
-export const SERIES_NAME_MAX = 40;
+export const SERIES_NAME_MAX = 24;
 export const SERIES_DESCRIPTION_MAX = 160;
 
 /** Cover emojis a series can pick from, in picker order (6 per row) */
