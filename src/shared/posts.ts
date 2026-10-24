@@ -337,6 +337,43 @@ export function canBeFaded(
   );
 }
 
+// ---------- Group parlay legs ----------
+
+type SlotLeg = {
+  eventId?: string | null;
+  eventLabel: string;
+  marketKey: string;
+  marketLabel?: string | null;
+  playerName?: string | null;
+};
+
+const slotPart = (s: string | null | undefined) =>
+  (s ?? '').trim().toLowerCase();
+
+/**
+ * The market a group parlay leg takes up: a game's moneyline, spread or
+ * total (alternate lines included), or one player's prop. A group parlay
+ * holds one leg per market, since FanDuel won't parlay two picks from the
+ * same one (that covers the same pick twice, the other side and other lines).
+ */
+export function legMarketSlot(leg: SlotLeg): string {
+  const game = leg.eventId || slotPart(leg.eventLabel);
+  return leg.marketKey === 'player_prop'
+    ? [game, 'prop', slotPart(leg.marketLabel), slotPart(leg.playerName)].join(
+        '|'
+      )
+    : [game, leg.marketKey].join('|');
+}
+
+/** "Bo Nix Passing Yards", "Seahawks @ Broncos spread" */
+export function legMarketName(leg: SlotLeg): string {
+  if (leg.marketKey === 'player_prop') {
+    return `${leg.playerName ?? 'That player'} ${leg.marketLabel ?? 'prop'}`;
+  }
+  const market = MARKETS[leg.marketKey as MarketKey] ?? 'market';
+  return `${leg.eventLabel} ${market.toLowerCase()}`;
+}
+
 // ---------- Editing ----------
 
 /**

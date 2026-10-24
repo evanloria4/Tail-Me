@@ -27,6 +27,8 @@ import {
   groupResult,
   isGroupLocked,
   joinGroupSchema,
+  legMarketName,
+  legMarketSlot,
   LADDER_MAX_RUNGS,
   LegInput,
   FeedFilter,
@@ -672,6 +674,9 @@ async function repriceGroup(tx: Tx, betId: string) {
   });
 }
 
+/** Someone else's leg is already on that market */
+class LegTakenError extends Error {}
+
 /** Add your one leg to an open group parlay */
 router.post<{ postId: string }>(
   '/:postId/legs',
@@ -719,6 +724,29 @@ router.post<{ postId: string }>(
     const events = await knownEvents(eventIdsOf([leg]));
     try {
       await prisma.$transaction(async (tx) => {
+        // One leg per market: no repeats, other sides or other lines (FanDuel
+        // won't parlay them). Read in here so a join a moment ago counts.
+        const slot = legMarketSlot(leg);
+        const clash = (
+          await tx.betLeg.findMany({
+            where: { betId: bet.id },
+            select: {
+              eventId: true,
+              eventLabel: true,
+              marketKey: true,
+              marketLabel: true,
+              playerName: true,
+              addedBy: { select: { fullName: true } },
+            },
+          })
+        ).find((l) => legMarketSlot(l) === slot);
+        if (clash) {
+          throw new LegTakenError(
+            `${legMarketName(clash)} is already ${
+              clash.addedBy?.fullName ?? 'someone'
+            }'s leg. Pick something else.`
+          );
+        }
         const last = await tx.betLeg.aggregate({
           where: { betId: bet.id },
           _max: { order: true },
@@ -733,6 +761,10 @@ router.post<{ postId: string }>(
         await repriceGroup(tx, bet.id);
       });
     } catch (err) {
+      if (err instanceof LegTakenError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
       // Lost a race: same person twice, or two joins grabbed the same slot
       if (isUniqueViolation(err)) {
         res.status(409).json({ error: 'Someone just joined. Try again.' });

@@ -18,7 +18,7 @@ import type {
 } from '../../shared/posts';
 import { gameState } from '../../shared/live';
 import type { StatRange } from '../../shared/stats';
-import { REACTION_EMOJIS } from '../../shared/social';
+import { orderReactions } from '../../shared/social';
 import type { ReactionEmoji, ReactionSummary } from '../../shared/social';
 
 type FeedPage = { posts: FeedPost[]; nextCursor: string | null };
@@ -38,7 +38,7 @@ function watching(leg: FeedLeg, betResult: BetResult, now: number) {
   return state === 'live' || (state === 'final' && betResult === 'PENDING');
 }
 
-/** Optimistic flip of the viewer's reaction, kept in the fixed emoji order */
+/** Optimistic flip of the viewer's reaction, in the same order as the server */
 function toggleReaction(
   reactions: ReactionSummary[],
   emoji: ReactionEmoji
@@ -51,9 +51,11 @@ function toggleReaction(
         count: current.count + (current.mine ? -1 : 1),
       }
     : { emoji, count: 1, mine: true };
-  return REACTION_EMOJIS.map((e) =>
-    e === emoji ? next : reactions.find((r) => r.emoji === e)
-  ).filter((r): r is ReactionSummary => !!r && r.count > 0);
+  return orderReactions(
+    [...reactions.filter((r) => r.emoji !== emoji), next].filter(
+      (r) => r.count > 0
+    )
+  );
 }
 
 /**
@@ -102,6 +104,8 @@ export default function PostList({
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** The list itself didn't load: 'first' (nothing to show) or 'more' (paging) */
+  const [loadFailed, setLoadFailed] = useState<'first' | 'more' | null>(null);
   // Which filters the shown slips came from, so a quick filter switch never
   // shows (or searches) an older request's slips
   const listKey = JSON.stringify([author, range, series, status]);
@@ -121,10 +125,10 @@ export default function PostList({
         setPosts((prev) => (after ? [...prev, ...data.posts] : data.posts));
         setCursor(data.nextCursor);
         setLoadedFor(listKey);
-        setError(null);
-      } catch (err) {
+        setLoadFailed(null);
+      } catch {
         if (request !== latest.current) return;
-        setError(apiErrorMessage(err, 'Could not load slips'));
+        setLoadFailed(after ? 'more' : 'first');
       } finally {
         if (request === latest.current) setLoading(false);
       }
@@ -170,6 +174,11 @@ export default function PostList({
   const postsRef = useRef(posts);
   postsRef.current = posts;
   useAutoRefresh(async () => {
+    // The feed never loaded: quietly try again (often fixes itself)
+    if (loadFailed === 'first') {
+      load();
+      return;
+    }
     const now = Date.now();
     const ids = postsRef.current
       .filter(
@@ -434,12 +443,49 @@ export default function PostList({
     <div className="space-y-4">
       {confirmDialog}
       {error && (
-        <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
-          {error}
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-3.5 py-2.5 text-sm text-red-400"
+        >
+          <span aria-hidden="true">⚠️</span>
+          <span className="flex-1">{error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            aria-label="Dismiss"
+            className="text-red-400/70 hover:text-red-400"
+          >
+            ✕
+          </button>
         </p>
       )}
 
-      {!loading && posts.length === 0 && !error && empty}
+      {/* The feed couldn't load at all: say so kindly, offer a retry */}
+      {!loading && loadFailed === 'first' && (
+        <div
+          role="alert"
+          className="rounded-2xl border border-gray-800 bg-gray-900 px-6 py-10 text-center"
+        >
+          <p className="text-3xl" aria-hidden="true">
+            📡
+          </p>
+          <p className="mt-3 font-semibold">
+            Slips aren&apos;t loading right now
+          </p>
+          <p className="mx-auto mt-1 max-w-xs text-sm text-gray-400">
+            Check your connection, or give it a moment and try again.
+          </p>
+          <button
+            type="button"
+            onClick={() => load()}
+            className="mt-5 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-gray-950 transition hover:bg-emerald-400"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      {!loading && posts.length === 0 && !loadFailed && empty}
 
       {posts.map((post) => (
         <PostCard
@@ -475,7 +521,19 @@ export default function PostList({
 
       {loading && <p className="py-6 text-center text-gray-500">Loading…</p>}
 
-      {!loading && cursor && (
+      {!loading && cursor && loadFailed === 'more' && (
+        <p className="text-center text-sm text-gray-400">
+          More slips didn&apos;t load.{' '}
+          <button
+            type="button"
+            onClick={() => load(cursor)}
+            className="font-semibold text-emerald-400 hover:underline"
+          >
+            Try again
+          </button>
+        </p>
+      )}
+      {!loading && cursor && loadFailed !== 'more' && (
         <button
           type="button"
           onClick={() => load(cursor)}

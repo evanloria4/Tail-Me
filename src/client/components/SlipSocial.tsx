@@ -7,11 +7,8 @@ import UserAvatar from './UserAvatar';
 import { formatAmerican, payout } from '../../shared/odds';
 import { isHot, slipTier, WIN_TIERS } from '../../shared/badges';
 import type { SlipBadge, WinTier } from '../../shared/badges';
-import {
-  COMMENT_MAX,
-  REACTION_EMOJIS,
-  REACTION_LABELS,
-} from '../../shared/social';
+import { COMMENT_MAX, reactionLabel } from '../../shared/social';
+import EmojiPicker from './EmojiPicker';
 import type {
   FeedComment,
   PersonRef,
@@ -274,8 +271,8 @@ export function ReactionBar({
           type="button"
           onClick={() => onReact(r.emoji)}
           aria-pressed={r.mine}
-          aria-label={`${REACTION_LABELS[r.emoji]} ${r.count}`}
-          title={REACTION_LABELS[r.emoji]}
+          aria-label={`${reactionLabel(r.emoji)} ${r.count}`}
+          title={reactionLabel(r.emoji)}
           className={chipClass(r.mine)}
         >
           <span aria-hidden="true">{r.emoji}</span>
@@ -304,30 +301,16 @@ export function ReactionBar({
         </svg>
       </button>
       {picking && (
-        // Fixed 40px columns (w-max), or it shrinks to the narrow bar it anchors
-        // to. 5 x 40px + gaps + padding = 232px, fits the smallest phones.
-        <div className="absolute bottom-full left-0 z-10 mb-2 grid w-max grid-cols-[repeat(5,2.5rem)] gap-1 rounded-2xl border border-gray-800 bg-gray-900 p-2 shadow-xl">
-          {REACTION_EMOJIS.map((emoji) => {
-            const mine = reactions.some((r) => r.emoji === emoji && r.mine);
-            return (
-              <button
-                key={emoji}
-                type="button"
-                aria-pressed={mine}
-                aria-label={REACTION_LABELS[emoji]}
-                title={REACTION_LABELS[emoji]}
-                onClick={() => {
-                  onReact(emoji);
-                  setPicking(false);
-                }}
-                className={`flex h-10 w-10 items-center justify-center rounded-xl text-xl transition hover:scale-110 hover:bg-gray-800 ${
-                  mine ? 'bg-emerald-500/15' : ''
-                }`}
-              >
-                {emoji}
-              </button>
-            );
-          })}
+        <div className="absolute bottom-full left-0 z-10 mb-2">
+          <EmojiPicker
+            isMine={(emoji) =>
+              reactions.some((r) => r.emoji === emoji && r.mine)
+            }
+            onPick={(emoji) => {
+              onReact(emoji);
+              setPicking(false);
+            }}
+          />
         </div>
       )}
     </div>

@@ -1,11 +1,11 @@
 import { Router } from 'express';
+import isReactionEmoji from '../emoji';
 import prisma from '../db';
 import { reactionSummary } from '../feed';
 import { requireAuth } from '../middleware/auth';
 import {
   commentSchema,
   FeedComment,
-  isReactionEmoji,
   Tailer,
   Vote,
   voteSchema,

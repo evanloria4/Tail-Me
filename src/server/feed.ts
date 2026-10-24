@@ -1,7 +1,7 @@
 import { Prisma } from '../generated/prisma/client';
 import prisma from './db';
 import { FeedPost, MarketKey } from '../shared/posts';
-import { PersonRef, REACTION_EMOJIS, ReactionSummary } from '../shared/social';
+import { orderReactions, PersonRef, ReactionSummary } from '../shared/social';
 import { currentStreak, POST_TYPES, Streak } from '../shared/stats';
 
 /** Feed shape; `tails` loads who tailed, for the avatar stack and "Tailed" */
@@ -112,14 +112,18 @@ export function reactionSummary(
   reactions: { emoji: string; userId: string }[],
   viewerId: string
 ): ReactionSummary[] {
-  return REACTION_EMOJIS.map((emoji) => {
-    const mine = reactions.filter((r) => r.emoji === emoji);
-    return {
-      emoji,
-      count: mine.length,
-      mine: mine.some((r) => r.userId === viewerId),
+  const byEmoji = new Map<string, ReactionSummary>();
+  reactions.forEach((r) => {
+    const row = byEmoji.get(r.emoji) ?? {
+      emoji: r.emoji,
+      count: 0,
+      mine: false,
     };
-  }).filter((r) => r.count > 0);
+    row.count += 1;
+    if (r.userId === viewerId) row.mine = true;
+    byEmoji.set(r.emoji, row);
+  });
+  return orderReactions([...byEmoji.values()]);
 }
 
 /** Distinct tailers, most recent first (a ladder tail lands on every rung) */

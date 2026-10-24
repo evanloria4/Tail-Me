@@ -21,7 +21,12 @@ export type GroupGame = {
 };
 
 /** The group parlay a leg is being added to */
-export type JoinTarget = { postId: string; game: GroupGame | null };
+export type JoinTarget = {
+  postId: string;
+  game: GroupGame | null;
+  /** Markets other legs already hold (`legMarketSlot`) -> whose leg */
+  taken: Record<string, string>;
+};
 
 export type GroupMode = { kind: 'start' } | ({ kind: 'join' } & JoinTarget);
 

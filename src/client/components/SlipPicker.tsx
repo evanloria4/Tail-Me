@@ -1,4 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import api, { apiErrorMessage } from '../lib/api';
 import { useEventMarkets, useGames } from '../lib/odds';
 import useMeta from '../lib/useMeta';
@@ -35,6 +42,7 @@ import {
 } from '../../shared/markets';
 import {
   createPostSchema,
+  legMarketSlot,
   editPostSchema,
   type FeedPost,
 } from '../../shared/posts';
@@ -103,22 +111,53 @@ function Chip({
   );
 }
 
+/**
+ * Joining a group parlay: whose leg already holds this price's market
+ * (any side or line), or null. FanDuel won't parlay two from one market.
+ */
+type TakenBy = (
+  game: OddsGame,
+  marketKey: string,
+  o: OddsOutcome
+) => string | null;
+const TakenContext = createContext<TakenBy>(() => null);
+
 function OddsButton({
   line,
   outcome,
   picked,
   onClick,
+  taken = null,
 }: {
   line?: string;
   outcome?: OddsOutcome;
   picked?: boolean;
   onClick?: () => void;
+  /** Another leg's owner holds this market (group parlay joins) */
+  taken?: string | null;
 }) {
   if (!outcome) {
     return (
       <div className="flex h-12 items-center justify-center rounded-lg border border-dashed border-gray-800 text-gray-600">
         —
       </div>
+    );
+  }
+  if (taken) {
+    const first = taken.split(' ')[0];
+    return (
+      <button
+        type="button"
+        disabled
+        title={`Already ${taken}'s leg`}
+        aria-label={`${line ?? ''} ${formatAmerican(outcome.price)}, already ${taken}'s leg`}
+        className="flex h-12 min-w-0 cursor-not-allowed flex-col items-center justify-center rounded-lg border border-dashed border-gray-800 px-1 text-sm text-gray-600"
+      >
+        {line && <span className="truncate text-xs">{line}</span>}
+        <span className="max-w-full truncate text-xs font-semibold">
+          {first}&apos;s
+        </span>
+      </button>
     );
   }
   return (
@@ -163,6 +202,7 @@ function GameBoard({
   toggle: Toggle;
   isPicked: IsPicked;
 }) {
+  const takenBy = useContext(TakenContext);
   const markets = game.books[book]?.markets ?? {};
   const find = (key: string, name: string) =>
     markets[key]?.find((o) => o.name === name);
@@ -177,6 +217,7 @@ function GameBoard({
         outcome={o}
         picked={o ? isPicked(game, key, o) : false}
         onClick={o ? () => toggle(game, key, o) : undefined}
+        taken={o ? takenBy(game, key, o) : null}
       />
     );
     return (
@@ -301,6 +342,7 @@ function AltLadder({
   isPicked: IsPicked;
 }) {
   const { data, loading, error } = useEventMarkets(sportKey, game.id, [altKey]);
+  const takenBy = useContext(TakenContext);
   if (loading)
     return <p className="py-3 text-sm text-gray-500">Loading alt lines…</p>;
   if (error) return <p className="py-3 text-sm text-red-400">{error}</p>;
@@ -332,6 +374,7 @@ function AltLadder({
                 outcome={o}
                 picked={isPicked(game, altKey, o)}
                 onClick={() => toggle(game, altKey, o)}
+                taken={takenBy(game, altKey, o)}
               />
             ))}
           </div>
@@ -433,6 +476,7 @@ function PropsPanel({
   const keys = useMemo(() => category.markets.map((m) => m.key), [category]);
   const { data, loading, error } = useEventMarkets(sportKey, game.id, keys);
   const [openAlt, setOpenAlt] = useState<string | null>(null);
+  const takenBy = useContext(TakenContext);
 
   if (loading) return <Notice>Loading {category.label.toLowerCase()}…</Notice>;
   if (error) return <Notice>{error}</Notice>;
@@ -492,6 +536,7 @@ function PropsPanel({
                             outcome={o}
                             picked={isPicked(game, m.key, o)}
                             onClick={() => toggle(game, m.key, o)}
+                            taken={takenBy(game, m.key, o)}
                           />
                         ))}
                       </div>
@@ -560,6 +605,7 @@ function PropsPanel({
                                 ? () => toggle(game, m.key, r.yes!)
                                 : undefined
                             }
+                            taken={r.yes ? takenBy(game, m.key, r.yes) : null}
                           />
                         </>
                       ) : (
@@ -574,6 +620,7 @@ function PropsPanel({
                               onClick={
                                 o ? () => toggle(game, m.key, o) : undefined
                               }
+                              taken={o ? takenBy(game, m.key, o) : null}
                             />
                           );
                         })
@@ -827,6 +874,15 @@ export default function SlipPicker({
       return [...prev, picked];
     });
   };
+
+  // Joining a group parlay: markets other legs hold are grayed out (the
+  // server refuses them too)
+  const taken = group?.kind === 'join' ? group.taken : null;
+  const takenBy = useCallback<TakenBy>(
+    (game, marketKey, o) =>
+      taken?.[legMarketSlot(toLeg(toSelection(game, marketKey, o)))] ?? null,
+    [taken]
+  );
 
   /** Picks from a pasted link, added after any already on the slip */
   const addPicks = (picks: Selection[]) => {
@@ -1171,29 +1227,31 @@ export default function SlipPicker({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        {openGame ? (
-          <GameView
-            sportKey={sportKey}
-            game={openGame}
-            book={book}
-            bookName={bookName}
-            toggle={toggle}
-            isPicked={isPicked}
-            onBack={onlyGame ? undefined : () => setOpenGame(null)}
-          />
-        ) : (
-          <GamesList
-            sportKey={sportKey}
-            book={book}
-            bookName={bookName}
-            toggle={toggle}
-            isPicked={isPicked}
-            onOpen={setOpenGame}
-            onlyGameId={onlyGame?.eventId}
-          />
-        )}
-      </div>
+      <TakenContext.Provider value={takenBy}>
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {openGame ? (
+            <GameView
+              sportKey={sportKey}
+              game={openGame}
+              book={book}
+              bookName={bookName}
+              toggle={toggle}
+              isPicked={isPicked}
+              onBack={onlyGame ? undefined : () => setOpenGame(null)}
+            />
+          ) : (
+            <GamesList
+              sportKey={sportKey}
+              book={book}
+              bookName={bookName}
+              toggle={toggle}
+              isPicked={isPicked}
+              onOpen={setOpenGame}
+              onlyGameId={onlyGame?.eventId}
+            />
+          )}
+        </div>
+      </TakenContext.Provider>
 
       {/* The slip bar only appears once something's picked */}
       {selections.length > 0 && (

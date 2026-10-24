@@ -14,6 +14,8 @@ import {
   hasBookPrice,
   isGroupLocked,
   isSameGameLegs,
+  legMarketName,
+  legMarketSlot,
 } from './posts';
 
 const leg = {
@@ -402,5 +404,47 @@ describe('editPostSchema', () => {
     const ids = Array.from({ length: 20 }, (_, i) => `l${i}`);
     expect(edit(ids, []).success).toBe(true);
     expect(edit(ids, [leg]).success).toBe(false);
+  });
+});
+
+describe('legMarketSlot', () => {
+  const game = { eventId: 'g1', eventLabel: 'Bears @ Packers' };
+  const prop = (playerName: string, marketLabel: string) => ({
+    ...game,
+    marketKey: 'player_prop',
+    marketLabel,
+    playerName,
+  });
+
+  it('puts both sides and every line of a game market in one slot', () => {
+    const spread = legMarketSlot({ ...game, marketKey: 'spreads' });
+    expect(legMarketSlot({ ...game, marketKey: 'spreads' })).toBe(spread);
+    expect(legMarketSlot({ ...game, marketKey: 'totals' })).not.toBe(spread);
+    expect(legMarketSlot({ ...game, marketKey: 'h2h' })).not.toBe(spread);
+    expect(
+      legMarketSlot({ ...game, eventId: 'g2', marketKey: 'spreads' })
+    ).not.toBe(spread);
+  });
+
+  it('keys props by player and stat', () => {
+    const odunze = legMarketSlot(prop('Rome Odunze', 'Receiving Yards'));
+    expect(legMarketSlot(prop('rome odunze ', 'Receiving Yards'))).toBe(odunze);
+    expect(legMarketSlot(prop('Rome Odunze', 'Receptions'))).not.toBe(odunze);
+    expect(legMarketSlot(prop('DJ Moore', 'Receiving Yards'))).not.toBe(odunze);
+  });
+
+  it('falls back to the game label for legs without an event id', () => {
+    expect(
+      legMarketSlot({ eventLabel: 'Bears @ Packers', marketKey: 'h2h' })
+    ).toBe(legMarketSlot({ eventLabel: 'bears @ packers', marketKey: 'h2h' }));
+  });
+
+  it('names the market for the error', () => {
+    expect(legMarketName({ ...game, marketKey: 'spreads' })).toBe(
+      'Bears @ Packers spread'
+    );
+    expect(legMarketName(prop('Rome Odunze', 'Receiving Yards'))).toBe(
+      'Rome Odunze Receiving Yards'
+    );
   });
 });

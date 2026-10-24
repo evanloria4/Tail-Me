@@ -13,6 +13,7 @@ import {
   hasBookPrice,
   isGroupLocked,
   isSameGameLegs,
+  legMarketSlot,
 } from '../../shared/posts';
 import type { BetResult, FeedLeg, FeedPost } from '../../shared/posts';
 import { useLayout } from './AppLayout';
@@ -478,7 +479,16 @@ export function GroupActions({
       <button
         type="button"
         onClick={() =>
-          openComposer({ postId: post.id, game: post.group?.game ?? null })
+          openComposer({
+            postId: post.id,
+            game: post.group?.game ?? null,
+            taken: Object.fromEntries(
+              post.bets[0].legs.map((l) => [
+                legMarketSlot(l),
+                l.addedBy?.fullName ?? 'Someone',
+              ])
+            ),
+          })
         }
         className={`${actionClass} bg-emerald-500 text-gray-950 hover:bg-emerald-400`}
       >
