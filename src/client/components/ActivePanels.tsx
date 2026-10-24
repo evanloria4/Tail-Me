@@ -163,7 +163,7 @@ export function GroupParlaysPanel({
   const now = useNow();
   const covers = groupCovers(posts);
   return (
-    <Panel title="Today’s group parlays">
+    <Panel title="Active group parlays">
       {posts.length ? (
         <ul className="divide-y divide-gray-800">
           {posts.map((post) => {
@@ -201,7 +201,7 @@ export function GroupParlaysPanel({
         </ul>
       ) : (
         <p className="py-2 text-sm text-gray-500">
-          No group parlays today. Start one with the + button, then Group
+          No active group parlays. Start one with the + button, then Group
           parlay.
         </p>
       )}

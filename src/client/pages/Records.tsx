@@ -36,7 +36,7 @@ import { SeriesBadge } from '../components/SeriesCover';
 // leaderboard or each person's group parlay legs. Tables at every width: on
 // phones the name column stays pinned while the stats scroll sideways.
 
-type Tab = 'leaders' | 'group' | 'series';
+type Tab = 'leaders' | 'group' | 'series' | 'awards';
 type SortKey =
   | 'units'
   | 'winPct'
@@ -176,11 +176,27 @@ const SUPERLATIVE_ICONS: Record<Superlative['key'], string> = {
   bestDay: '📅',
   mostTailed: '🎯',
   bestToTail: '💸',
+  bestTailer: '🧲',
+  sharpest: '🎯',
+  longestParlay: '🎰',
+  ladderKing: '🪜',
+  mostActive: '🏃',
+  soClose: '💔',
+  coldest: '🥶',
+  worstDay: '📉',
+  fadeMaterial: '🤡',
   legs: '👑',
 };
 
+/** The Awards tab: every superlative someone qualifies for, brags first */
 function Superlatives({ cards }: { cards: Superlative[] }) {
-  if (!cards.length) return null;
+  if (!cards.length) {
+    return (
+      <p className="rounded-2xl border border-gray-800 bg-gray-900 px-4 py-6 text-center text-sm text-gray-500">
+        No awards in this range yet. They fill in as bets settle.
+      </p>
+    );
+  }
   return (
     <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
       {cards.map((c) => (
@@ -767,19 +783,18 @@ export default function Records() {
 
       {data && (
         <>
-          <Superlatives cards={data.superlatives} />
-
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div
               role="tablist"
               aria-label="Records"
-              className="inline-flex rounded-lg border border-gray-800 bg-gray-900 p-0.5"
+              className="inline-flex max-w-full rounded-lg border border-gray-800 bg-gray-900 p-0.5"
             >
               {(
                 [
-                  ['leaders', 'Leaderboard'],
+                  ['leaders', 'Leaders'],
                   ['group', 'Group parlays'],
                   ['series', 'Series'],
+                  ['awards', 'Awards'],
                 ] as const
               ).map(([key, label]) => (
                 <button
@@ -788,7 +803,7 @@ export default function Records() {
                   role="tab"
                   aria-selected={tab === key}
                   onClick={() => setTab(key)}
-                  className={`rounded-md px-3 py-1 text-sm font-medium transition ${
+                  className={`whitespace-nowrap rounded-md px-2 py-1 text-sm font-medium transition sm:px-3 ${
                     tab === key
                       ? 'bg-gray-800 text-white'
                       : 'text-gray-400 hover:text-white'
@@ -798,9 +813,11 @@ export default function Records() {
                 </button>
               ))}
             </div>
-            <span className="text-xs text-gray-500 lg:hidden">
-              Scroll the table sideways for every stat →
-            </span>
+            {tab !== 'awards' && (
+              <span className="text-xs text-gray-500 lg:hidden">
+                Scroll the table sideways for every stat →
+              </span>
+            )}
           </div>
 
           {tab === 'leaders' ? (
@@ -820,6 +837,7 @@ export default function Records() {
             </div>
           ) : null}
           {tab === 'group' && <GroupTab group={data.group} meId={meId} />}
+          {tab === 'awards' && <Superlatives cards={data.superlatives} />}
           {tab === 'series' &&
             (seriesRows.length ? (
               <div className="space-y-3">

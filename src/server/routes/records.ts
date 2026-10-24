@@ -50,7 +50,7 @@ router.get('/', requireAuth, async (req, res) => {
             legs: {
               select: { sportKey: true, result: true, addedById: true },
             },
-            _count: { select: { tails: true } },
+            tails: { select: { userId: true } },
           },
         },
       },
@@ -95,7 +95,8 @@ router.get('/', requireAuth, async (req, res) => {
         americanOdds: b.americanOdds,
         result: b.result,
         // One tail row per person per bet, so this is distinct people
-        tails: b._count.tails,
+        tails: b.tails.length,
+        tailers: b.tails.map((t) => t.userId),
         fades: p._count.fades,
         legs: b.legs.map((l) => l.result),
         seriesId: p.seriesId,

@@ -58,6 +58,8 @@ export type RecordBet = StatBet & {
   americanOdds: number;
   /** Distinct people who tailed it */
   tails: number;
+  /** Who tailed it (one entry per person) */
+  tailers: string[];
   /** People who faded the slip (straight bets only) */
   fades: number;
   /** Each leg's result (parlays; one entry otherwise) */
@@ -132,6 +134,15 @@ export type Superlative = {
     | 'bestDay'
     | 'mostTailed'
     | 'bestToTail'
+    | 'bestTailer'
+    | 'sharpest'
+    | 'longestParlay'
+    | 'ladderKing'
+    | 'mostActive'
+    | 'soClose'
+    | 'coldest'
+    | 'worstDay'
+    | 'fadeMaterial'
     | 'legs';
   title: string;
   person: PersonRef;
@@ -231,6 +242,49 @@ export function groupRow(
       .filter((r): r is 'WON' | 'LOST' => r === 'WON' || r === 'LOST')
       .slice(0, 5),
   };
+}
+
+const SUPERLATIVE_ORDER: Superlative['key'][] = [
+  'biggest',
+  'bestToTail',
+  'bestTailer',
+  'streak',
+  'bestDay',
+  'sharpest',
+  'longestParlay',
+  'ladderKing',
+  'mostTailed',
+  'legs',
+  'mostActive',
+  'worstBeat',
+  'soClose',
+  'coldest',
+  'worstDay',
+  'fadeMaterial',
+];
+
+/** "Oct 19" for a Central day key */
+const dayLabel = (day: string) => {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+};
+
+/** Longest run of losses, oldest to newest (pushes don't break it) */
+function worstLosingRun(bets: RecordBet[]): number {
+  let worst = 0;
+  let run = 0;
+  lastResults(bets, Number.MAX_SAFE_INTEGER)
+    .reverse()
+    .forEach((r) => {
+      if (r === 'PUSH') return;
+      run = r === 'LOST' ? run + 1 : 0;
+      worst = Math.max(worst, run);
+    });
+  return worst;
 }
 
 /** The headline cards; each only appears once someone qualifies */
@@ -398,6 +452,31 @@ export function superlatives(
     );
   }
 
+  // Units each person made tailing others, at the poster's stake (real
+  // stakes aren't known): every settled bet they tailed adds its net
+  const tailing = new Map<string, number>();
+  bets.forEach((b) =>
+    b.tailers.forEach((id) =>
+      tailing.set(id, (tailing.get(id) ?? 0) + betNet(b))
+    )
+  );
+  const bestTailer = top(
+    [...tailing].map(([id, n]) => ({ id, n: Math.round(n * 100) / 100 }))
+  );
+  if (bestTailer && bestTailer.n > 0) {
+    const { id, n } = bestTailer;
+    push(
+      {
+        key: 'bestTailer',
+        title: 'Best tailer',
+        value: units(n),
+        detail: 'made tailing others',
+        postId: null,
+      },
+      id
+    );
+  }
+
   const legKing = groupRows
     .filter((r) => r.hit > 0)
     .sort((a, b) => b.hit - a.hit || a.busted - b.busted)[0];
@@ -414,6 +493,185 @@ export function superlatives(
     );
   }
 
+  // ---------- Records over enough bets ----------
+  const lines = authors.map(([id, mine]) => ({ id, line: statLine(mine) }));
+  const winRate = (l: StatLine) => l.wins / Math.max(1, l.wins + l.losses);
+  const qualified = lines.filter(
+    (x) => x.line.wins + x.line.losses + x.line.pushes >= MIN_RANKED
+  );
+  const pctText = (l: StatLine) => `${Math.round(winRate(l) * 100)}%`;
+
+  const sharp = qualified.reduce<(typeof lines)[number] | null>(
+    (best, x) => (!best || winRate(x.line) > winRate(best.line) ? x : best),
+    null
+  );
+  if (sharp) {
+    push(
+      {
+        key: 'sharpest',
+        title: 'Sharpest',
+        value: pctText(sharp.line),
+        detail: `${sharp.line.wins}-${sharp.line.losses} record`,
+        postId: null,
+      },
+      sharp.id
+    );
+  }
+
+  const fade = qualified.reduce<(typeof lines)[number] | null>(
+    (lo, x) => (!lo || winRate(x.line) < winRate(lo.line) ? x : lo),
+    null
+  );
+  if (fade && winRate(fade.line) < 0.5) {
+    push(
+      {
+        key: 'fadeMaterial',
+        title: 'Fade material',
+        value: pctText(fade.line),
+        detail: `${fade.line.wins}-${fade.line.losses} record`,
+        postId: null,
+      },
+      fade.id
+    );
+  }
+
+  // ---------- Single-bet feats ----------
+  const longParlay = bets
+    .filter(
+      (b) => b.type === 'PARLAY' && b.result === 'WON' && b.legs.length >= 3
+    )
+    .sort(
+      (a, b) => b.legs.length - a.legs.length || b.americanOdds - a.americanOdds
+    )[0];
+  if (longParlay) {
+    push(
+      {
+        key: 'longestParlay',
+        title: 'Longest parlay hit',
+        value: `${longParlay.legs.length} legs`,
+        detail: `cashed at ${signedOdds(longParlay.americanOdds)}`,
+        postId: longParlay.postId,
+      },
+      longParlay.authorId
+    );
+  }
+
+  // A clean sweep: every rung of a 2+ rung ladder hit (voided rungs skipped)
+  const ladders = new Map<string, RecordBet[]>();
+  bets
+    .filter((b) => b.type === 'LADDER')
+    .forEach((b) =>
+      ladders.set(b.postId, [...(ladders.get(b.postId) ?? []), b])
+    );
+  const sweeps = new Map<string, number>();
+  ladders.forEach((rungs) => {
+    const live = rungs.filter((r) => r.result !== 'VOID');
+    if (live.length >= 2 && live.every((r) => r.result === 'WON')) {
+      const { authorId } = rungs[0];
+      sweeps.set(authorId, (sweeps.get(authorId) ?? 0) + 1);
+    }
+  });
+  const sweepKing = top([...sweeps].map(([id, n]) => ({ id, n })));
+  if (sweepKing) {
+    push(
+      {
+        key: 'ladderKing',
+        title: 'Ladder king',
+        value: `${sweepKing.n}`,
+        detail: sweepKing.n === 1 ? 'clean sweep' : 'clean sweeps',
+        postId: null,
+      },
+      sweepKing.id
+    );
+  }
+
+  // ---------- Volume and pain ----------
+  const active = top(
+    lines.map((x) => ({
+      id: x.id,
+      n: x.line.wins + x.line.losses + x.line.pushes,
+    }))
+  );
+  if (active && active.n >= 5) {
+    push(
+      {
+        key: 'mostActive',
+        title: 'Most active',
+        value: `${active.n}`,
+        detail: 'bets settled',
+        postId: null,
+      },
+      active.id
+    );
+  }
+
+  const close = top(
+    authors.map(([id, mine]) => ({ id, n: nearMisses(mine).count }))
+  );
+  if (close && close.n > 0) {
+    push(
+      {
+        key: 'soClose',
+        title: 'So close',
+        value: `${close.n}`,
+        detail:
+          close.n === 1 ? 'parlay lost by one leg' : 'parlays lost by one leg',
+        postId: null,
+      },
+      close.id
+    );
+  }
+
+  const cold = top(
+    authors.map(([id, mine]) => ({ id, n: worstLosingRun(mine) }))
+  );
+  if (cold && cold.n >= 3) {
+    push(
+      {
+        key: 'coldest',
+        title: 'Coldest streak',
+        value: `L${cold.n}`,
+        detail: 'losses in a row',
+        postId: null,
+      },
+      cold.id
+    );
+  }
+
+  const worstDay = authors
+    .flatMap(([id, mine]) => {
+      const days = new Map<string, number>();
+      mine.forEach((b) => {
+        const day = siteDayKey(b.createdAt);
+        days.set(day, (days.get(day) ?? 0) + betNet(b));
+      });
+      return [...days].map(([day, net]) => ({
+        id,
+        day,
+        n: Math.round(net * 100) / 100,
+      }));
+    })
+    .reduce<{ id: string; day: string; n: number } | null>(
+      (lo, x) => (!lo || x.n < lo.n ? x : lo),
+      null
+    );
+  if (worstDay && worstDay.n < 0) {
+    push(
+      {
+        key: 'worstDay',
+        title: 'Worst day',
+        value: units(worstDay.n),
+        detail: dayLabel(worstDay.day),
+        postId: null,
+      },
+      worstDay.id
+    );
+  }
+
+  out.sort(
+    (a, b) =>
+      SUPERLATIVE_ORDER.indexOf(a.key) - SUPERLATIVE_ORDER.indexOf(b.key)
+  );
   return out;
 }
 

@@ -38,6 +38,7 @@ function bet(over: Partial<RecordBet> & { result: BetResult }): RecordBet {
     authorId: 'a',
     postId: `p${seq}`,
     tails: 0,
+    tailers: [],
     fades: 0,
     legs: [over.result],
     seriesId: null,
@@ -210,8 +211,68 @@ describe('superlatives', () => {
     });
   });
 
+  it('names who made the most tailing others', () => {
+    const cards = superlatives(
+      [ann, bo],
+      [
+        // Bo tailed a +1u winner and a 1u loser of Ann's: net 0
+        bet({ result: 'WON', tails: 1, tailers: ['b'] }),
+        bet({ result: 'LOST', tails: 1, tailers: ['b'] }),
+        // Ann tailed Bo's +2u winner
+        bet({
+          authorId: 'b',
+          result: 'WON',
+          units: 2,
+          tails: 1,
+          tailers: ['a'],
+        }),
+      ],
+      []
+    );
+    expect(cards.find((c) => c.key === 'bestTailer')).toMatchObject({
+      person: ann,
+      value: '+2.00u',
+    });
+  });
+
+  it('finds sweeps, cold runs and win-rate extremes, brags before roasts', () => {
+    const ladder = (postId: string, results: BetResult[]) =>
+      results.map((result, order) =>
+        bet({ type: 'LADDER', postId, order, result })
+      );
+    const cards = superlatives(
+      [ann, bo],
+      [
+        // Ann: a clean sweep and 8-2 overall (10 settled)
+        ...ladder('l1', ['WON', 'WON']),
+        ...Array.from({ length: 6 }, () => bet({ result: 'WON' })),
+        bet({ result: 'LOST' }),
+        bet({ result: 'LOST' }),
+        // Bo: 3-7 with four losses in a row
+        ...Array.from({ length: 3 }, () =>
+          bet({ authorId: 'b', result: 'WON' })
+        ),
+        ...Array.from({ length: 7 }, () =>
+          bet({ authorId: 'b', result: 'LOST' })
+        ),
+      ],
+      []
+    );
+    const card = (key: string) => cards.find((c) => c.key === key);
+    expect(card('ladderKing')).toMatchObject({ person: ann, value: '1' });
+    expect(card('sharpest')).toMatchObject({ person: ann, value: '80%' });
+    expect(card('fadeMaterial')).toMatchObject({ person: bo, value: '30%' });
+    expect(card('coldest')).toMatchObject({ person: bo, value: 'L7' });
+    const keys = cards.map((c) => c.key);
+    expect(keys.indexOf('sharpest')).toBeLessThan(keys.indexOf('coldest'));
+  });
+
   it('leaves out cards nobody qualifies for', () => {
-    expect(superlatives([ann], [bet({ result: 'LOST' })], [])).toEqual([]);
+    // One 1u loss: only the worst day qualifies, nothing to brag about
+    expect(
+      superlatives([ann], [bet({ result: 'LOST' })], []).map((c) => c.key)
+    ).toEqual(['worstDay']);
+    expect(superlatives([ann], [], [])).toEqual([]);
   });
 });
 
