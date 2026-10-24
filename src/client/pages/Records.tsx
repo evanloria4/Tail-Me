@@ -58,7 +58,7 @@ type Rankable = {
 };
 
 /** Tables show first names to stay narrow; the full name is on the profile */
-const firstName = (fullName: string) => fullName.trim().split(/s+/)[0];
+const firstName = (fullName: string) => fullName.trim().split(/\s+/)[0];
 
 /** W3 sorts above W1 above L1 above L3 */
 const streakValue = (s: Streak | null) => {

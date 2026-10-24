@@ -93,6 +93,14 @@ function dayClass(total: DayTotal | undefined) {
   return 'bg-gray-700 text-gray-300';
 }
 
+/** Units short enough for a day square: "+3.5", "-1", "+12" (whole from 10) */
+function dayUnits(net: number) {
+  const size = Math.abs(net);
+  const n = size >= 10 ? Math.round(size) : Math.round(size * 10) / 10;
+  if (n === 0) return '0';
+  return `${net > 0 ? '+' : '-'}${n}`;
+}
+
 function Calendar({
   month,
   days,
@@ -171,11 +179,21 @@ function Calendar({
                 month: 'short',
                 day: 'numeric',
               })}: ${label}`}
-              className={`flex aspect-square items-center justify-center rounded text-[11px] tabular-nums ${dayClass(
+              // Date small at the top, the day's units centered beneath it
+              className={`relative flex aspect-square items-center justify-center rounded tabular-nums ${dayClass(
                 total
               )} ${key === today ? 'ring-2 ring-white/70' : ''} ${key > today ? 'opacity-40' : ''}`}
             >
-              {i + 1}
+              <span className="absolute inset-x-0 top-[3px] text-center text-[8px] font-medium leading-none opacity-75">
+                {i + 1}
+              </span>
+              {/* Dead center on phones (big squares). The lg sidebar's squares
+                  are ~33px, so there the units drop a hair to clear the date. */}
+              {total && (
+                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold leading-none lg:pt-1.5 lg:text-[11px]">
+                  {dayUnits(total.net)}
+                </span>
+              )}
             </li>
           );
         })}
