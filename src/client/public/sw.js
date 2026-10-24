@@ -1,6 +1,6 @@
 /* TailMe service worker: shows push notifications and opens the right page
    when one is tapped. It caches nothing, so odds, scores and slips always come
-   fresh from the network. Payloads are { title, body, url, tag } from
+   fresh from the network. Payloads are { title, body, url } from
    server/push.ts. */
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -20,9 +20,6 @@ self.addEventListener('push', (event) => {
       body: data.body || '',
       icon: '/icons/icon-192.png',
       badge: '/icons/badge-96.png',
-      tag: data.tag,
-      // A newer one with the same tag still buzzes
-      renotify: !!data.tag,
       data: { url: data.url || '/' },
     })
   );

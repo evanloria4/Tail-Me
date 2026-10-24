@@ -3,6 +3,7 @@ import api from '../lib/api';
 import {
   currentSubscription,
   enablePush,
+  isIOS,
   isStandalone,
   PushDenied,
   pushSupport,
@@ -41,9 +42,12 @@ export default function NotificationPrompt({ ready }: { ready: boolean }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    // iPhones only expose push to home-screen apps, so push there already
+    // means installed, even from an icon saved before the manifest existed
+    // (those don't report display-mode standalone)
     if (
       !ready ||
-      !isStandalone() ||
+      !(isStandalone() || isIOS()) ||
       pushSupport() !== 'supported' ||
       Notification.permission !== 'default' ||
       alreadyAsked()

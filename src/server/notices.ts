@@ -88,7 +88,6 @@ export const noticeNewPost = safely('new post', async (postId: string) => {
       title: `${name} started a group parlay${game}`,
       body: `Add your leg before ${lockTime(post.lockAt!)}`,
       url: slipUrl(post.id),
-      tag: `group-${post.id}`,
     });
     return;
   }
@@ -100,7 +99,6 @@ export const noticeNewPost = safely('new post', async (postId: string) => {
     title: newSlipTitle(name, post.type, post.series?.name),
     body: post.caption ? `${line}\n“${post.caption}”` : line,
     url: slipUrl(post.id),
-    tag: `post-${post.id}`,
   });
 });
 
@@ -149,7 +147,6 @@ export const noticeComment = safely(
       title: `${by.fullName} commented on ${yourSlip(post.type)}`,
       body,
       url: slipUrl(post.id),
-      tag: `comments-${post.id}`,
     });
   }
 );
@@ -204,7 +201,6 @@ export const noticeGroupJoin = safely(
       title: `${by.fullName} joined your group parlay`,
       body: `${describeLeg(toNoticeLeg(leg))} · ${bet.legs.length} legs, ${formatAmerican(bet.americanOdds)}`,
       url: slipUrl(post.id),
-      tag: `group-${post.id}`,
     });
   }
 );
@@ -247,7 +243,6 @@ export const noticeSettled = safely(
         const skip = (ids: Iterable<string>) =>
           [...ids].filter((id) => id !== actorId);
         const url = slipUrl(post.id);
-        const tag = `result-${post.id}`;
         const line = slipLine(
           post.type,
           post.bets.map((b) => ({ ...b, legs: b.legs.map(toNoticeLeg) }))
@@ -263,7 +258,6 @@ export const noticeSettled = safely(
             title: groupResultTitle(bet.result, bet.americanOdds),
             body: line,
             url,
-            tag,
           });
           return;
         }
@@ -282,7 +276,6 @@ export const noticeSettled = safely(
           title: resultTitle(post.type, post.bets, net),
           body: line,
           url,
-          tag,
         });
         const tailers = new Set(
           post.bets.flatMap((b) => b.tails.map((t) => t.userId))
@@ -296,7 +289,6 @@ export const noticeSettled = safely(
           ),
           body: post.type === 'LADDER' ? `${line} · ${unitsLabel(net)}` : line,
           url,
-          tag,
         });
       })
     );
@@ -360,7 +352,6 @@ export const sendGroupReminders = safely(
           title: `⏰ ${firstNameOf(group.author.fullName)}'s group parlay locks in ${minutes} min`,
           body: `${bet.legs.length} legs at ${formatAmerican(bet.americanOdds)} so far. Add yours.`,
           url: slipUrl(group.id),
-          tag: `group-${group.id}`,
         }
       );
     }

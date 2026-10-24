@@ -190,7 +190,6 @@ router.post('/push/test', requireAuth, async (req, res) => {
     title: 'TailMe notifications are on 🔔',
     body: `Nice, ${firstName}. This is what they'll look like.`,
     url: '/settings',
-    tag: 'test',
   });
   res.status(204).end();
 });

@@ -78,12 +78,14 @@ export const pushSubscriptionSchema = z.object({
   }),
 });
 
-/** What the service worker shows; `url` opens on tap, `tag` replaces an older one */
+/**
+ * What the service worker shows; `url` opens on tap. No tags: iPhones swap a
+ * same-tag notification in silently, so a second comment would never buzz.
+ */
 export type PushPayload = {
   title: string;
   body: string;
   url: string;
-  tag?: string;
 };
 
 /** Minutes before a group parlay locks that people without a leg get nudged */
