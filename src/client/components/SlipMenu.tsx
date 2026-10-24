@@ -1,7 +1,14 @@
 import React, { useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import api from '../lib/api';
-import { canAddRung, canEditSlip, nextRung } from '../../shared/posts';
+import { nextRung } from '../../shared/posts';
+import useNow from '../lib/useNow';
+import {
+  deleteState,
+  editState,
+  rungState,
+  type ActionState,
+} from '../lib/slipActions';
 import { formatAmerican, isValidAmerican } from '../../shared/odds';
 import type { BetResult, FeedPost } from '../../shared/posts';
 import type { SeriesSummary } from '../../shared/series';
@@ -16,6 +23,59 @@ import { RESULT_OPTIONS, RESULT_STYLES } from './SlipParts';
 
 const itemClass =
   'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-gray-800';
+
+/**
+ * A menu action with a hint under it ("12 min left"), or greyed out with
+ * why it's locked ("Locked at kickoff")
+ */
+function ActionItem({
+  icon,
+  label,
+  state,
+  onClick,
+  more = false,
+  danger = false,
+}: {
+  icon: string;
+  label: string;
+  state: ActionState;
+  onClick: () => void;
+  /** Opens a sub-view (shows ›) */
+  more?: boolean;
+  danger?: boolean;
+}) {
+  const { allowed, note } = state;
+  let tone = '';
+  if (!allowed) tone = 'cursor-not-allowed text-gray-500 hover:bg-transparent';
+  else if (danger) tone = 'text-red-400';
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      disabled={!allowed}
+      aria-disabled={!allowed}
+      className={`${itemClass} ${tone}`}
+    >
+      <span aria-hidden="true" className={allowed ? '' : 'opacity-50'}>
+        {allowed ? icon : '🔒'}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block">{label}</span>
+        {note && (
+          <span className="block text-xs font-normal text-gray-500">
+            {note}
+          </span>
+        )}
+      </span>
+      {more && allowed && (
+        <span aria-hidden="true" className="text-gray-500">
+          ›
+        </span>
+      )}
+    </button>
+  );
+}
 
 /** What a row edits: the book's price, or the stake (0 allowed) */
 const FIELDS = {
@@ -319,6 +379,11 @@ export default function SlipMenu({
   const isAuthor = post.author.id === profile?.id;
   const personal = post.type !== 'GROUP_PARLAY';
   const canFile = personal && isAuthor;
+  // Hints count down while the menu is open
+  const now = new Date(useNow());
+  const edit = editState(post, now, isAdmin);
+  const addRung = rungState(post, now, isAdmin);
+  const del = deleteState(post, now, isAdmin);
 
   const close = () => {
     setOpen(false);
@@ -391,34 +456,27 @@ export default function SlipMenu({
                   Admin · {post.author.fullName}’s slip
                 </p>
               )}
-              {/* Checked when the menu opens; the server checks again */}
-              {canEditSlip(post, new Date(), isAdmin) && (
-                <button
-                  type="button"
-                  role="menuitem"
+              {/* Checked when the menu opens; the server checks again.
+                  Locked actions stay listed, greyed, so the rules show */}
+              {edit && (
+                <ActionItem
+                  icon="📝"
+                  label="Edit slip"
+                  state={edit}
                   onClick={() => {
                     close();
                     onEdit();
                   }}
-                  className={itemClass}
-                >
-                  <span aria-hidden="true">📝</span>
-                  <span className="flex-1">Edit slip</span>
-                </button>
+                />
               )}
-              {canAddRung(post, new Date(), isAdmin) && (
-                <button
-                  type="button"
-                  role="menuitem"
+              {addRung && (
+                <ActionItem
+                  icon="🪜"
+                  label="Add rung"
+                  state={addRung}
+                  more
                   onClick={() => setView('rung')}
-                  className={itemClass}
-                >
-                  <span aria-hidden="true">🪜</span>
-                  <span className="flex-1">Add rung</span>
-                  <span aria-hidden="true" className="text-gray-500">
-                    ›
-                  </span>
-                </button>
+                />
               )}
               <button
                 type="button"
@@ -474,18 +532,16 @@ export default function SlipMenu({
                   </span>
                 </button>
               )}
-              <button
-                type="button"
-                role="menuitem"
+              <ActionItem
+                icon="🗑"
+                label="Delete slip"
+                state={del}
+                danger
                 onClick={() => {
                   close();
                   onDelete();
                 }}
-                className={`${itemClass} text-red-400`}
-              >
-                <span aria-hidden="true">🗑</span>
-                Delete slip
-              </button>
+              />
             </>
           )}
           {view === 'odds' && (

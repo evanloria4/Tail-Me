@@ -39,7 +39,12 @@ export async function requireAuth(
     return;
   }
 
-  req.user = user;
+  // Development only: an admin previewing the regular-user view sends
+  // `X-View-As: user` (client lib/viewAs). Never honored in production.
+  const viewAsUser =
+    process.env.NODE_ENV === 'development' &&
+    req.headers['x-view-as'] === 'user';
+  req.user = viewAsUser ? { ...user, isAdmin: false } : user;
   next();
 }
 

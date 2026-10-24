@@ -11,12 +11,15 @@ import React, {
 // Brief confirmation messages at the bottom of the screen.
 //   const toast = useToast();
 //   toast('Slip posted');
+//   toast('Slip posted', 'A smaller second line'); // stays up a bit longer
 
 const SHOW_MS = 3000;
+const SHOW_DETAIL_MS = 6000;
 
-type Toast = { id: number; message: string };
+type Toast = { id: number; message: string; detail?: string };
+type ShowToast = (message: string, detail?: string) => void;
 
-const ToastContext = createContext<((message: string) => void) | null>(null);
+const ToastContext = createContext<ShowToast | null>(null);
 
 function CheckIcon() {
   return (
@@ -39,10 +42,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<Toast | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const show = useCallback((message: string) => {
+  const show = useCallback((message: string, detail?: string) => {
     clearTimeout(timer.current);
-    setToast({ id: Date.now(), message });
-    timer.current = setTimeout(() => setToast(null), SHOW_MS);
+    setToast({ id: Date.now(), message, detail });
+    timer.current = setTimeout(
+      () => setToast(null),
+      detail ? SHOW_DETAIL_MS : SHOW_MS
+    );
   }, []);
 
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -63,7 +69,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             className="pointer-events-auto flex animate-toast-in motion-reduce:animate-none items-center gap-2.5 rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 text-sm font-semibold shadow-2xl"
           >
             <CheckIcon />
-            {toast.message}
+            <span>
+              {toast.message}
+              {toast.detail && (
+                <span className="mt-0.5 block text-xs font-normal text-gray-400">
+                  {toast.detail}
+                </span>
+              )}
+            </span>
           </div>
         )}
       </div>

@@ -17,6 +17,12 @@ import { useToast } from './Toast';
 import Tutorial from './Tutorial';
 import UserSearch from './UserSearch';
 import api from '../lib/api';
+import {
+  setViewingAsUser,
+  VIEW_AS_AVAILABLE,
+  viewingAsUser,
+} from '../lib/viewAs';
+import { DELETE_GRACE_MINUTES } from '../../shared/posts';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Feed', end: true },
@@ -119,6 +125,37 @@ export function DarkModeSwitch({ className = '' }: { className?: string }) {
   );
 }
 
+/**
+ * Dev only (lib/viewAs): an admin flips to the regular-user view and back.
+ * Shown to admins, and while viewing as a user (when isAdmin reads false).
+ */
+function ViewAsSwitch({ className = '' }: { className?: string }) {
+  const on = viewingAsUser();
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={() => setViewingAsUser(!on)}
+      className={`flex w-full items-center justify-between text-left text-sm text-amber-400 transition hover:bg-gray-800 ${className}`}
+    >
+      View as regular user
+      <span
+        aria-hidden="true"
+        className={`relative h-5 w-9 rounded-full transition ${
+          on ? 'bg-amber-500' : 'bg-gray-700'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-[#fff] shadow transition-all ${
+            on ? 'left-[18px]' : 'left-0.5'
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
 type OpenMenu = 'mobile' | 'user' | 'search' | null;
 
 export type LayoutContext = {
@@ -138,6 +175,8 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const toast = useToast();
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
+  const showViewAs =
+    VIEW_AS_AVAILABLE && (!!profile?.isAdmin || viewingAsUser());
 
   // First-visit tour: opens on its own until they finish or skip it, and
   // again from Settings → Help → Take the tour
@@ -194,7 +233,18 @@ export default function AppLayout() {
       return;
     }
     navigate('/');
-    toast(kind === 'group' ? 'Group parlay started' : 'Slip posted');
+    // Says what can still be changed, so nobody finds out by missing it
+    if (kind === 'group') {
+      toast(
+        'Group parlay started',
+        'You can delete it from its ⋯ menu until it locks.'
+      );
+    } else {
+      toast(
+        'Slip posted',
+        `Use its ⋯ menu to change it before kickoff, or delete it within ${DELETE_GRACE_MINUTES} min.`
+      );
+    }
     // After the popup releases its scroll lock, jump to the new post at the top
     requestAnimationFrame(() =>
       window.scrollTo({
@@ -283,6 +333,7 @@ export default function AppLayout() {
                     </Link>
                   )}
                   <DarkModeSwitch className="px-4 py-2.5" />
+                  {showViewAs && <ViewAsSwitch className="px-4 py-2.5" />}
                   <button
                     type="button"
                     role="menuitem"
@@ -365,6 +416,9 @@ export default function AppLayout() {
               )}
             </nav>
             <DarkModeSwitch className="mt-1 rounded-lg px-3 py-2.5 !text-base font-medium" />
+            {showViewAs && (
+              <ViewAsSwitch className="rounded-lg px-3 py-2.5 !text-base font-medium" />
+            )}
             <div className="mt-3 flex items-center gap-3 border-t border-gray-800 pt-3 text-sm">
               {/* The account row doubles as the profile link */}
               <Link
@@ -393,6 +447,18 @@ export default function AppLayout() {
           </div>
         )}
       </header>
+      {viewingAsUser() && (
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-amber-500/15 px-4 py-2 text-center text-sm text-amber-400">
+          <span>Viewing as a regular user (dev only)</span>
+          <button
+            type="button"
+            onClick={() => setViewingAsUser(false)}
+            className="font-semibold underline hover:text-amber-300"
+          >
+            Back to admin
+          </button>
+        </div>
+      )}
       {/* Pages set their own column widths (see lib/layout). Bottom
           padding keeps the floating button off the last card */}
       <main className="mx-auto max-w-screen-2xl px-4 pb-24 pt-6">

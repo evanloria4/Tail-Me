@@ -1,6 +1,7 @@
 import axios, { isAxiosError } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import supabase from './supabase';
+import { viewingAsUser } from './viewAs';
 
 /** Axios instance for our Express API; attaches the Supabase access token. */
 const api = axios.create({ baseURL: '/api' });
@@ -9,6 +10,8 @@ api.interceptors.request.use(async (config) => {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (token) config.headers.set('Authorization', `Bearer ${token}`);
+  // Dev only: an admin previewing the regular-user view (lib/viewAs)
+  if (viewingAsUser()) config.headers.set('X-View-As', 'user');
   return config;
 });
 
