@@ -2,6 +2,7 @@
 // so game lines are cached per league, and event markets are cached per market
 // so a category only pays for what isn't cached yet. Odds come from one book
 // (LIVE_ODDS_BOOK) for now.
+import { AsyncLocalStorage } from 'async_hooks';
 import axios, { isAxiosError } from 'axios';
 import fs from 'fs';
 import path from 'path';
@@ -13,6 +14,7 @@ import type {
   OddsOutcome,
 } from '../shared/markets';
 import { gameMarkets, LIVE_ODDS_BOOK } from '../shared/markets';
+import { siteDayKey } from '../shared/time';
 
 const BASE_URL = 'https://api.the-odds-api.com/v4';
 
@@ -108,6 +110,27 @@ function cached<T>(key: string, ttl: number, load: () => Promise<T>) {
 let creditsRemaining: number | null = null;
 export const oddsCreditsRemaining = () => creditsRemaining;
 
+/**
+ * Whose request is running, so a fresh call's credits land on them (the
+ * admin page's usage). Set per request by the odds routes; cache hits never
+ * reach `request`, so they cost nobody anything.
+ */
+const oddsCaller = new AsyncLocalStorage<string>();
+export const runAsOddsCaller = (userId: string, fn: () => void) =>
+  oddsCaller.run(userId, fn);
+
+/** Adds a call's cost to the caller's day (best effort, never blocks odds) */
+function recordUsage(userId: string, credits: number) {
+  const day = siteDayKey(new Date());
+  prisma.oddsUsage
+    .upsert({
+      where: { userId_day: { userId, day } },
+      create: { userId, day, credits, calls: 1 },
+      update: { credits: { increment: credits }, calls: { increment: 1 } },
+    })
+    .catch((err) => console.error('Could not record odds usage', err));
+}
+
 async function request<T>(endpoint: string, params: Record<string, string>) {
   const apiKey = process.env.ODDS_API_KEY;
   if (!apiKey) throw new OddsUnavailableError('Live odds are not configured');
@@ -124,6 +147,10 @@ async function request<T>(endpoint: string, params: Record<string, string>) {
     });
     const remaining = Number(res.headers['x-requests-remaining']);
     if (!Number.isNaN(remaining)) creditsRemaining = remaining;
+    // What this call cost, per The Odds API
+    const cost = Number(res.headers['x-requests-last']);
+    const userId = oddsCaller.getStore();
+    if (userId && Number.isFinite(cost)) recordUsage(userId, cost);
     return res.data;
   } catch (err) {
     const status = isAxiosError(err) ? err.response?.status : undefined;
@@ -134,6 +161,33 @@ async function request<T>(endpoint: string, params: Record<string, string>) {
         : 'Could not load live odds'
     );
   }
+}
+
+export type CreditBalance = { used: number; remaining: number };
+
+/**
+ * The shared key's credits this billing month, from the free `/sports`
+ * call (cached a minute). Includes the other project on the same key.
+ */
+export function getCreditBalance(): Promise<CreditBalance | null> {
+  return cached('balance', 60_000, async () => {
+    const apiKey = process.env.ODDS_API_KEY;
+    if (!apiKey) return null;
+    try {
+      const res = await axios.get(`${BASE_URL}/sports`, {
+        params: { apiKey },
+        timeout: 10_000,
+      });
+      const used = Number(res.headers['x-requests-used']);
+      const remaining = Number(res.headers['x-requests-remaining']);
+      if (Number.isNaN(used) || Number.isNaN(remaining)) return null;
+      creditsRemaining = remaining;
+      return { used, remaining };
+    } catch (err) {
+      console.error('Odds API balance check failed', err);
+      return null;
+    }
+  });
 }
 
 /** Books live odds come from (`bookmakers` param). Adding up to 10 costs nothing extra. */

@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import prisma from '../db';
 import { requireAuth, requireSubscription } from '../middleware/auth';
-import { getEventMarkets, getGames, OddsUnavailableError } from '../odds';
+import {
+  getEventMarkets,
+  getGames,
+  OddsUnavailableError,
+  runAsOddsCaller,
+} from '../odds';
 import {
   LIVE_ODDS_BOOK,
   OddsGame,
@@ -25,6 +30,8 @@ import { decodeShareCode, ShareLinkError } from '../fanduelShare';
 // subscribers only and only whitelisted markets.
 const router = Router();
 router.use(requireAuth, requireSubscription);
+// Fresh calls made while handling this request are charged to this person
+router.use((req, _res, next) => runAsOddsCaller(req.user!.id, next));
 
 async function isActiveSport(sportKey: string) {
   const sport = await prisma.sport.findFirst({

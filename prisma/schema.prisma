@@ -56,6 +56,7 @@ model User {
   commentVotes      CommentVote[]
   groupLegs         BetLeg[]
   series            Series[]
+  oddsUsage         OddsUsage[]
 }
 
 // ---------- Reference data (mirrors The Odds API) ----------
@@ -342,6 +343,21 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// Odds API credits a person's requests spent, per site (CT) day. Only fresh
+/// calls count (cache hits are free), charged to whoever triggered them.
+model OddsUsage {
+  userId  String @db.Uuid
+  /// "YYYY-MM-DD" in Central time (siteDayKey)
+  day     String
+  credits Int    @default(0)
+  /// Paid calls made, cache misses only
+  calls   Int    @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
 }
 
 // ---------- Billing ----------
