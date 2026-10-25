@@ -21,11 +21,14 @@ import { siteDayKey } from './time';
 
 /**
  * A parlay that lost on exactly one leg (pushed or voided legs don't count
- * against it): the "so close" tally on profiles and Records.
+ * against it): the "so close" tally on profiles and Records, and worst
+ * beats. Only once every leg is in: a parlay is lost the moment one leg
+ * misses, but a leg still being played could miss too.
  */
 export const isOneLegMiss = (result: BetResult, legs: BetResult[]) =>
   result === 'LOST' &&
   legs.length >= 2 &&
+  !legs.includes('PENDING') &&
   legs.filter((l) => l === 'LOST').length === 1;
 
 export type NearMisses = {
@@ -320,10 +323,7 @@ export function superlatives(
 
   // A parlay of 3+ legs that lost on exactly one; longest price wins
   const beats = bets.filter(
-    (b) =>
-      b.result === 'LOST' &&
-      b.legs.length >= 3 &&
-      b.legs.filter((l) => l === 'LOST').length === 1
+    (b) => b.legs.length >= 3 && isOneLegMiss(b.result, b.legs)
   );
   const worst = beats.reduce<RecordBet | null>(
     (best, b) => (!best || b.americanOdds > best.americanOdds ? b : best),

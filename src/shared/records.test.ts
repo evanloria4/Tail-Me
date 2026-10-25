@@ -327,6 +327,20 @@ describe('nearMisses', () => {
     ).toEqual({ count: 1, units: 10 });
   });
 
+  it('waits for every leg before calling it a one-leg miss', () => {
+    // Lost the moment one leg missed, but the last leg is still being played
+    expect(
+      nearMisses([
+        {
+          result: 'LOST',
+          legs: ['LOST', 'WON', 'PENDING'],
+          units: 3,
+          decimalOdds: 29.53,
+        },
+      ])
+    ).toEqual({ count: 0, units: 0 });
+  });
+
   it('tallies group parlays that missed by one and what $10 would have paid', () => {
     const page = recordsPage(
       'all',

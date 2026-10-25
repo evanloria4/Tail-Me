@@ -74,18 +74,16 @@ describe('slipLine', () => {
     );
   });
 
-  it('lists a parlay', () => {
+  it('sums up a parlay without its legs', () => {
     expect(
       slipLine('PARLAY', [{ americanOdds: 596, legs: [spread, prop] }])
-    ).toBe(
-      '2-leg parlay +596: Chiefs -3.5, Patrick Mahomes Over 1.5 Passing TDs'
-    );
+    ).toBe('2-leg parlay +596');
   });
 
   it('counts ladder rungs', () => {
     const rung = { americanOdds: 200, legs: [prop] };
     expect(slipLine('LADDER', [rung, rung, rung])).toBe(
-      'Patrick Mahomes Over 1.5 Passing TDs ladder, 3 rungs'
+      'Patrick Mahomes Passing TDs · 3-rung ladder'
     );
   });
 });

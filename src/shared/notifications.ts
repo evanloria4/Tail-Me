@@ -120,21 +120,38 @@ export type NoticeLeg = Pick<
   'marketKey' | 'selection' | 'line' | 'playerName' | 'marketLabel'
 >;
 
-/** One line for a slip's picks: "Chiefs -3.5 (-110)", "3-leg parlay +596" */
+/** What a ladder climbs, without a line (every rung has its own) */
+function ladderPick(leg: NoticeLeg): string {
+  switch (leg.marketKey) {
+    case 'player_prop':
+      return `${leg.playerName} ${leg.marketLabel}`;
+    case 'spreads':
+      return `${leg.selection} spread`;
+    case 'totals':
+      return `${leg.selection} total`;
+    default:
+      return `${leg.selection} ML`;
+  }
+}
+
+/**
+ * One line for a slip: a straight names its pick ("Chiefs -3.5 (-110)"), a
+ * ladder its player and stat ("Patrick Mahomes Passing TDs · 4-rung ladder"),
+ * a parlay just its size and price ("3-leg parlay +596") so banners stay short.
+ */
 export function slipLine(
   type: SlipKind,
   bets: { americanOdds: number; legs: NoticeLeg[] }[]
 ): string {
   const first = bets[0];
   if (!first?.legs.length) return '';
-  const pick = describeLeg(first.legs[0]);
-  if (type === 'LADDER') return `${pick} ladder, ${bets.length} rungs`;
-  if (first.legs.length === 1) {
-    return `${pick} (${formatAmerican(first.americanOdds)})`;
+  if (type === 'LADDER') {
+    return `${ladderPick(first.legs[0])} · ${bets.length}-rung ladder`;
   }
-  return `${first.legs.length}-leg parlay ${formatAmerican(first.americanOdds)}: ${first.legs
-    .map(describeLeg)
-    .join(', ')}`;
+  if (first.legs.length === 1) {
+    return `${describeLeg(first.legs[0])} (${formatAmerican(first.americanOdds)})`;
+  }
+  return `${first.legs.length}-leg parlay ${formatAmerican(first.americanOdds)}`;
 }
 
 /** "+2.4u" / "-1u" */

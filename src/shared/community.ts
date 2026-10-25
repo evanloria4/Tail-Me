@@ -1,4 +1,5 @@
 import type { BetResult } from './posts';
+import { isOneLegMiss } from './records';
 import type { PersonRef } from './social';
 import { betNet, StatBet, StatLine, Streak } from './stats';
 import { siteDayKey } from './time';
@@ -121,12 +122,7 @@ export function daySuperlatives(
   }
 
   const beat = bets
-    .filter(
-      (b) =>
-        b.result === 'LOST' &&
-        b.legs.length >= 3 &&
-        b.legs.filter((l) => l === 'LOST').length === 1
-    )
+    .filter((b) => b.legs.length >= 3 && isOneLegMiss(b.result, b.legs))
     .sort((a, b) => b.americanOdds - a.americanOdds)[0];
   if (beat) {
     add(
