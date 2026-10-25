@@ -9,8 +9,9 @@ import { inputClass } from './ComposerParts';
 import { LiveBadge } from './SlipParts';
 
 // "Paste a FanDuel link": builds the slip from a bet slip someone shared out
-// of the FanDuel app. Game lines match straight away; props need their game,
-// so the poster taps which game the rest are from (that loads its props).
+// of the FanDuel app. Most picks are found on their own; anything the server
+// couldn't place, the poster finds by tapping the game it's from (that loads
+// the game's markets). The tap-a-game step has to be unmissable.
 
 function GameRow({
   game,
@@ -30,7 +31,7 @@ function GameRow({
         type="button"
         onClick={onPick}
         disabled={disabled}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-gray-800 disabled:opacity-50"
+        className="group flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-emerald-500/10 disabled:opacity-50"
       >
         <span className="min-w-0 flex-1 truncate font-semibold">
           {matchupLabel(game.sportKey, game.awayTeam, game.homeTeam)}
@@ -50,6 +51,9 @@ function GameRow({
             {SITE_ZONE_LABEL}
           </span>
         )}
+        <span className="shrink-0 rounded-md border border-emerald-500/40 px-2 py-0.5 text-xs font-semibold text-emerald-400 transition group-hover:bg-emerald-500 group-hover:text-gray-950">
+          Add it ›
+        </span>
       </button>
     </li>
   );
@@ -75,6 +79,10 @@ export default function SlipImport({
   const [query, setQuery] = useState('');
   /** The game just tried that had none of the missing picks */
   const [missedGame, setMissedGame] = useState<string | null>(null);
+  /** The game being checked right now */
+  const [looking, setLooking] = useState<string | null>(null);
+  /** The last tapped game held a missing pick (and some are still missing) */
+  const [justFound, setJustFound] = useState(false);
   const now = useNow();
 
   const reset = () => {
@@ -85,6 +93,8 @@ export default function SlipImport({
     setError(null);
     setQuery('');
     setMissedGame(null);
+    setLooking(null);
+    setJustFound(false);
   };
 
   const run = async (ids: string[]) => {
@@ -103,6 +113,7 @@ export default function SlipImport({
           : null
       );
       if (gained) setQuery('');
+      setJustFound(!!tried && gained);
       setEventIds(data.searched);
       onPicks(
         data.picks.map((p) => toSelection(p.game, p.marketKey, p.outcome))
@@ -117,6 +128,7 @@ export default function SlipImport({
       setError(apiErrorMessage(err, 'Could not read that link'));
     } finally {
       setLoading(false);
+      setLooking(null);
     }
   };
 
@@ -195,28 +207,51 @@ export default function SlipImport({
       ) : (
         <div>
           <p className="text-sm font-semibold">
-            Found {result.picks.length} of {result.total} picks
+            Found {result.picks.length} of {result.total} legs
+            <span className="font-normal text-gray-500">
+              {' '}
+              · {missing} to add
+            </span>
           </p>
           {result.games.length > 0 ? (
             <>
-              <p className="mt-0.5 text-xs text-gray-500">
-                {result.picks.length === 0 && `They look like props. `}
-                {result.picks.length > 0 &&
-                  (missing === 1
-                    ? 'The last one looks like a prop. '
-                    : `The other ${missing} look like props. `)}
-                Which game {missing === 1 ? 'is it' : 'are they'} from?
-              </p>
-              {missedGame && (
-                <p className="mt-1 text-xs text-yellow-300">
-                  Not in {missedGame}. Try another game.
+              <div className="mt-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5">
+                <p className="font-semibold text-emerald-400">
+                  <span aria-hidden="true">👆 </span>
+                  One tap: pick the game, we add the bet
                 </p>
-              )}
+                <p className="mt-0.5 text-sm text-gray-300">
+                  No need to find the bet yourself. Tap the game{' '}
+                  {missing === 1
+                    ? 'the missing leg is'
+                    : 'the missing legs are'}{' '}
+                  from and {missing === 1 ? 'it lands' : 'they land'} on your
+                  slip.
+                  {missing > 1 &&
+                    ' Legs from different games? One tap on each.'}
+                </p>
+              </div>
+              <div aria-live="polite" className="mt-2 text-sm">
+                {looking && (
+                  <p className="text-gray-400">Looking in {looking}…</p>
+                )}
+                {!looking && justFound && (
+                  <p className="font-semibold text-emerald-400">
+                    ✓ Added! {missing} more: one tap on{' '}
+                    {missing === 1 ? 'its' : 'their'} game.
+                  </p>
+                )}
+                {!looking && missedGame && (
+                  <p className="text-yellow-300">
+                    Not in {missedGame}. Try another game.
+                  </p>
+                )}
+              </div>
               <input
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search teams"
+                placeholder="Search a team, e.g. Lions"
                 aria-label="Search games by team"
                 className={`${inputClass} mt-2`}
               />
@@ -233,7 +268,12 @@ export default function SlipImport({
                           game={g}
                           now={now}
                           disabled={loading}
-                          onPick={() => run([...eventIds, g.id])}
+                          onPick={() => {
+                            setLooking(
+                              matchupLabel(g.sportKey, g.awayTeam, g.homeTeam)
+                            );
+                            run([...eventIds, g.id]);
+                          }}
                         />
                       ))}
                     </ul>
@@ -245,9 +285,6 @@ export default function SlipImport({
                   </p>
                 )}
               </div>
-              {loading && (
-                <p className="mt-2 text-xs text-gray-500">Looking…</p>
-              )}
             </>
           ) : (
             <p className="mt-0.5 text-xs text-gray-500">
