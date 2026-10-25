@@ -16,6 +16,7 @@ import {
   isSameGameLegs,
   legMarketName,
   legMarketSlot,
+  isGooseEgg,
 } from './posts';
 
 const leg = {
@@ -446,5 +447,21 @@ describe('legMarketSlot', () => {
     expect(legMarketName(prop('Rome Odunze', 'Receiving Yards'))).toBe(
       'Rome Odunze Receiving Yards'
     );
+  });
+});
+
+describe('isGooseEgg', () => {
+  it('needs every counted leg missed, 2+ legs, all graded', () => {
+    expect(isGooseEgg(['LOST', 'LOST', 'LOST'])).toBe(true);
+    // A voided leg drops out; the rest still all missed
+    expect(isGooseEgg(['LOST', 'VOID', 'LOST'])).toBe(true);
+    // A hit or a push isn't a miss
+    expect(isGooseEgg(['LOST', 'WON', 'LOST'])).toBe(false);
+    expect(isGooseEgg(['LOST', 'PUSH'])).toBe(false);
+    // Waits for every leg
+    expect(isGooseEgg(['LOST', 'PENDING'])).toBe(false);
+    // One leg isn't a parlay
+    expect(isGooseEgg(['LOST'])).toBe(false);
+    expect(isGooseEgg(['LOST', 'VOID'])).toBe(false);
   });
 });

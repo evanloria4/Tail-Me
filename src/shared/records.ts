@@ -1,3 +1,4 @@
+import { isGooseEgg } from './posts';
 import type { BetResult } from './posts';
 import type { PersonRef } from './social';
 import {
@@ -50,6 +51,10 @@ export function nearMisses(
   const units = missed.reduce((s, b) => s + b.units * (b.decimalOdds - 1), 0);
   return { count: missed.length, units: Math.round(units * 100) / 100 };
 }
+
+/** Personal parlays where every leg missed (isGooseEgg) */
+export const gooseEggs = (bets: { type: string; legs: BetResult[] }[]) =>
+  bets.filter((b) => b.type === 'PARLAY' && isGooseEgg(b.legs)).length;
 
 /** Settled bets before someone ranks on win % / ROI */
 export const MIN_RANKED = 10;
@@ -146,6 +151,7 @@ export type Superlative = {
     | 'coldest'
     | 'worstDay'
     | 'fadeMaterial'
+    | 'gooseEgg'
     | 'legs';
   title: string;
   person: PersonRef;
@@ -263,6 +269,7 @@ const SUPERLATIVE_ORDER: Superlative['key'][] = [
   'soClose',
   'coldest',
   'worstDay',
+  'gooseEgg',
   'fadeMaterial',
 ];
 
@@ -602,6 +609,23 @@ export function superlatives(
         postId: null,
       },
       active.id
+    );
+  }
+
+  const eggs = top(authors.map(([id, mine]) => ({ id, n: gooseEggs(mine) })));
+  if (eggs && eggs.n > 0) {
+    push(
+      {
+        key: 'gooseEgg',
+        title: 'Goose egg',
+        value: `${eggs.n}`,
+        detail:
+          eggs.n === 1
+            ? 'parlay with every leg missed'
+            : 'parlays with every leg missed',
+        postId: null,
+      },
+      eggs.id
     );
   }
 

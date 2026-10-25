@@ -161,6 +161,15 @@ export function isGroupLocked(
 }
 
 /**
+ * A goose egg: a parlay where every leg missed (0 for N, 2+ legs). Voided
+ * legs drop out; a push or a hit isn't a miss; it waits for every leg.
+ */
+export function isGooseEgg(legs: BetResult[]): boolean {
+  const counted = legs.filter((l) => l !== 'VOID');
+  return counted.length >= 2 && counted.every((l) => l === 'LOST');
+}
+
+/**
  * A group parlay's result from its legs: any loss sinks it, it stays pending
  * while a leg is open, voided legs drop out, and all pushes is a push.
  */

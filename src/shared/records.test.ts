@@ -267,6 +267,33 @@ describe('superlatives', () => {
     expect(keys.indexOf('sharpest')).toBeLessThan(keys.indexOf('coldest'));
   });
 
+  it('roasts the most goose eggs (parlays with every leg missed)', () => {
+    const cards = superlatives(
+      [ann, bo],
+      [
+        bet({
+          authorId: 'b',
+          type: 'PARLAY',
+          result: 'LOST',
+          legs: ['LOST', 'LOST'],
+        }),
+        bet({
+          authorId: 'b',
+          type: 'PARLAY',
+          result: 'LOST',
+          legs: ['LOST', 'LOST', 'LOST'],
+        }),
+        // Lost, but one leg hit: not a goose egg
+        bet({ type: 'PARLAY', result: 'LOST', legs: ['WON', 'LOST'] }),
+      ],
+      []
+    );
+    expect(cards.find((c) => c.key === 'gooseEgg')).toMatchObject({
+      person: bo,
+      value: '2',
+    });
+  });
+
   it('leaves out cards nobody qualifies for', () => {
     // One 1u loss: only the worst day qualifies, nothing to brag about
     expect(

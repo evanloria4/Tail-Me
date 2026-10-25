@@ -207,11 +207,15 @@ async function statusWhere(
     case 'open':
       return { bets: { some: { result: 'PENDING' } } };
     case 'live':
-      // Same rule as the LIVE tags: started, not final, within a game's length
+      // Same rule as the LIVE tags (started, not final, within a game's
+      // length), on a bet that's still alive: a parlay is lost the moment a
+      // leg misses, though its other games play on, so it isn't "live"
       return {
         bets: {
           some: {
+            result: 'PENDING',
             legs: {
+              none: { result: 'LOST' },
               some: {
                 event: {
                   completed: false,

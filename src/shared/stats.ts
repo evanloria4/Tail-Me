@@ -221,4 +221,6 @@ export type UserProfile = {
   };
   /** Parlays in range that lost on one leg, and what they would have won */
   nearMisses: NearMisses;
+  /** Parlays in range where every leg missed */
+  gooseEggs: number;
 };

@@ -185,6 +185,7 @@ const SUPERLATIVE_ICONS: Record<Superlative['key'], string> = {
   coldest: '🥶',
   worstDay: '📉',
   fadeMaterial: '🤡',
+  gooseEgg: '🥚',
   legs: '👑',
 };
 

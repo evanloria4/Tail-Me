@@ -12,7 +12,7 @@ import {
   StatRange,
   UserProfile,
 } from '../../shared/stats';
-import { nearMisses } from '../../shared/records';
+import { gooseEggs, nearMisses } from '../../shared/records';
 import type { BetResult } from '../../shared/posts';
 
 const router = Router();
@@ -145,6 +145,7 @@ router.get<{ username: string }>(
       range,
       stats: profileStats(all, since),
       nearMisses: nearMisses(bets),
+      gooseEggs: gooseEggs(bets),
       tails: {
         received: slipTails.size,
         tailers: new Set(bets.flatMap((b) => b.tailers)).size,

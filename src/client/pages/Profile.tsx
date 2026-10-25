@@ -182,7 +182,7 @@ export default function Profile() {
   }
   if (!data) return <p className="py-6 text-center text-gray-500">Loading…</p>;
 
-  const { user, stats, tails, nearMisses } = data;
+  const { user, stats, tails, nearMisses, gooseEggs } = data;
   const isMe = me?.id === user.id;
   const { overall, streak } = stats;
   const sportTitle = (key: string) =>
@@ -330,6 +330,17 @@ export default function Profile() {
                   {signedUnits(nearMisses.units)}
                 </span>{' '}
                 left on the table
+              </span>
+            </p>
+          )}
+          {gooseEggs > 0 && (
+            <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-xl border border-gray-800 bg-gray-900 px-4 py-2.5 text-sm">
+              <span className="font-semibold">
+                <span aria-hidden="true">🥚 </span>Goose eggs
+              </span>
+              <span className="text-gray-400">
+                {gooseEggs} {gooseEggs === 1 ? 'parlay' : 'parlays'} with every
+                leg missed
               </span>
             </p>
           )}

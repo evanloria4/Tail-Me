@@ -6,6 +6,7 @@ import {
   canBeFaded,
   FeedPost,
   isSameGameLegs,
+  isGooseEgg,
 } from '../../shared/posts';
 import timeAgo from '../lib/time';
 import combinedSlipLink from '../../shared/betslip';
@@ -24,6 +25,7 @@ import {
   StreakChip,
   TailersButton,
   WinBanner,
+  GooseEggBanner,
 } from './SlipSocial';
 import {
   LegRow,
@@ -369,6 +371,11 @@ export default function PostCard({
   const badges = slipBadges(post);
   const tier = slipTier(badges);
   const tierStyle = tier ? TIER_STYLES[tier] : null;
+  // Every leg missed (0 for N): a red card and the goose egg banner
+  const goose =
+    (post.type === 'PARLAY' || post.type === 'GROUP_PARLAY') &&
+    isGooseEgg(post.bets[0].legs.map((l) => l.result));
+  const gooseLegs = post.bets[0].legs.filter((l) => l.result !== 'VOID').length;
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentCount, setCommentCount] = useState(post.commentCount);
   // Ticks each minute so LIVE tags come and go on their own
@@ -453,7 +460,7 @@ export default function PostCard({
       // Scroll target for the side panels (slipAnchor in lib/scrollToSlip)
       id={`slip-${post.id}`}
       className={`rounded-2xl border bg-gray-900 ${
-        tierStyle?.card ?? 'border-gray-800'
+        tierStyle?.card ?? (goose ? 'border-red-400/40' : 'border-gray-800')
       }`}
     >
       <header className="flex items-center gap-3 px-4 pt-4">
@@ -523,10 +530,11 @@ export default function PostCard({
 
       <div
         className={`m-4 overflow-hidden rounded-xl border ${
-          tierStyle?.slip ?? 'border-gray-800'
+          tierStyle?.slip ?? (goose ? 'border-red-400/40' : 'border-gray-800')
         }`}
       >
         <WinBanner badges={badges} ladder={post.type === 'LADDER'} />
+        {goose && <GooseEggBanner legs={gooseLegs} />}
         {isGroup ? (
           <GroupSlip post={post} handlers={groupHandlers} />
         ) : (
