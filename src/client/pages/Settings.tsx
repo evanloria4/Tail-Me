@@ -4,7 +4,8 @@ import { isAxiosError } from 'axios';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import supabase from '../lib/supabase';
-import { DarkModeSwitch, useLayout } from '../components/AppLayout';
+import { useLayout } from '../components/AppLayout';
+import useTheme from '../lib/theme';
 import { useToast } from '../components/Toast';
 import AvatarPicker from '../components/AvatarPicker';
 import { removeAvatar, uploadAvatar } from '../lib/avatar';
@@ -403,6 +404,36 @@ function SwitchRow({
   );
 }
 
+/**
+ * Dark mode, and whether to follow the phone (the default). One useTheme for
+ * both so they stay in step. Following the phone is what keeps the top of
+ * the screen right in the home-screen app: iOS colors its status bar by the
+ * phone's own setting and the page can't change it.
+ */
+function AppearanceRows() {
+  const { theme, choice, setChoice, toggleTheme } = useTheme();
+  return (
+    <div className="max-w-md">
+      <SwitchRow
+        label="Dark mode"
+        hint={
+          choice === 'system'
+            ? 'Following your phone right now'
+            : 'Set for this device'
+        }
+        on={theme === 'dark'}
+        onChange={toggleTheme}
+      />
+      <SwitchRow
+        label="Match my phone"
+        hint="Light or dark with your phone's setting, so the very top of the screen always matches"
+        on={choice === 'system'}
+        onChange={(on) => setChoice(on ? 'system' : theme)}
+      />
+    </div>
+  );
+}
+
 /** iPhone: Share → Add to Home Screen; push only works from there */
 function IosInstallSteps() {
   return (
@@ -688,9 +719,7 @@ export default function Settings() {
         <AppSection />
 
         <Section title="Appearance">
-          <div className="max-w-xs">
-            <DarkModeSwitch className="-mx-2 rounded-lg px-2 py-2" />
-          </div>
+          <AppearanceRows />
         </Section>
 
         <ActionRow
