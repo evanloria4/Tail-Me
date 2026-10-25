@@ -176,18 +176,26 @@ export function StatBar({
   );
 }
 
-/** A leg's progress bar once its game has a stat, or nothing */
+/**
+ * A leg's progress bar once its game starts, or nothing. Props show from
+ * kickoff: ESPN leaves a player out of a stat until they record one, so no
+ * stat yet during the game reads as 0. Once it's over, a missing stat (a
+ * player who sat) shows no bar and waits for a person.
+ */
 export function legStatBar(
   leg: FeedLeg,
   now: number,
   lines: number[] = leg.line == null ? [] : [leg.line]
 ): React.ReactNode {
-  if (leg.actual == null) return null;
   const state = gameState(leg.startsAt, leg.gameFinal, now);
   if (state === 'upcoming') return null;
+  const actual =
+    leg.actual ??
+    (state === 'live' && leg.marketKey === 'player_prop' ? 0 : null);
+  if (actual == null) return null;
   return (
     <StatBar
-      actual={leg.actual}
+      actual={actual}
       lines={lines}
       selection={leg.selection}
       live={state === 'live'}
