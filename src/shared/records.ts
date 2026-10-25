@@ -468,7 +468,7 @@ export function superlatives(
     push(
       {
         key: 'bestTailer',
-        title: 'Best tailer',
+        title: 'Coat tailer',
         value: units(n),
         detail: 'made tailing others',
         postId: null,

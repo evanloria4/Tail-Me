@@ -176,7 +176,7 @@ const SUPERLATIVE_ICONS: Record<Superlative['key'], string> = {
   bestDay: '📅',
   mostTailed: '🎯',
   bestToTail: '💸',
-  bestTailer: '🧲',
+  bestTailer: '🧥',
   sharpest: '🎯',
   longestParlay: '🎰',
   ladderKing: '🪜',
