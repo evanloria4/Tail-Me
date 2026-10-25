@@ -35,7 +35,7 @@ export const NOTIFY_LABELS: Record<
   reactions: { label: 'Reactions', hint: 'Someone reacts to your slip' },
   results: {
     label: 'Results',
-    hint: 'Your slips, slips you tailed and your group parlays settle',
+    hint: 'Your slips, slips you tailed, and your group parlays settle',
   },
 };
 

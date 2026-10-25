@@ -12,7 +12,11 @@ export default function Login() {
   const { session, signIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: Location })?.from?.pathname ?? '/';
+  // Back where they were headed, query included (a shared /?slip=<id> link)
+  const fromLocation = (location.state as { from?: Location })?.from;
+  const from = fromLocation
+    ? `${fromLocation.pathname}${fromLocation.search ?? ''}`
+    : '/';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
