@@ -14,6 +14,7 @@ import UserAvatar from './UserAvatar';
 import PostComposer from './PostComposer';
 import type { JoinTarget, PostedKind } from './GroupReview';
 import { useToast } from './Toast';
+import ScrollTopButton from './ScrollTopButton';
 import Tutorial from './Tutorial';
 import NotificationPrompt from './NotificationPrompt';
 import UserSearch from './UserSearch';
@@ -469,6 +470,8 @@ export default function AppLayout() {
           }
         />
       </main>
+      {/* Back to top, bottom left; hidden behind the composer */}
+      {!composerOpen && <ScrollTopButton />}
       {/* Floating new-bet button, bottom right on every screen size */}
       {!composerOpen && (
         <button
