@@ -348,22 +348,20 @@ export function GroupSlip({
           >
             🔒 {when}
           </p>
+          {/* An SGP names its game once here, score beside it, like a
+              personal SGP; the legs don't repeat it */}
+          {(group.game || sgp) && (
+            <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-emerald-400">
+              🎯 {group.game?.eventLabel ?? bet.legs[0].eventLabel} SGP
+              <GameScore leg={bet.legs[0]} now={now} />
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <BookChip
               bookKey={post.sportsbook.key}
               name={post.sportsbook.name}
             />
             {status}
-            {(group.game || sgp) && (
-              <span className={`${statusClass} bg-gray-800 text-gray-300`}>
-                🎯 {group.game?.eventLabel ?? bet.legs[0].eventLabel} SGP
-              </span>
-            )}
-            {singleGame && locked && (
-              <span className="text-xs">
-                <GameScore leg={bet.legs[0]} now={now} />
-              </span>
-            )}
           </div>
         </div>
         <GroupOdds
