@@ -12,11 +12,13 @@ import {
 } from '../notices';
 import {
   americanToDecimal,
+  betPrice,
   decimalToAmerican,
   parlayDecimal,
 } from '../../shared/odds';
 import {
   addRungSchema,
+  betBoostSchema,
   BetResult,
   betUnitsSchema,
   canAddRung,
@@ -31,6 +33,7 @@ import {
   GROUP_MAX_LOCK_DAYS,
   groupPriceSchema,
   groupResult,
+  isBoostable,
   isGroupLocked,
   joinGroupSchema,
   legMarketName,
@@ -98,8 +101,13 @@ function betsData(
         {
           order: 0,
           units: input.units,
-          americanOdds: input.leg.americanOdds,
-          decimalOdds: americanToDecimal(input.leg.americanOdds),
+          ...betPrice(
+            {
+              americanOdds: input.leg.americanOdds,
+              decimalOdds: americanToDecimal(input.leg.americanOdds),
+            },
+            input.boostPct
+          ),
           deepLink: input.leg.deepLink ?? null,
           legs: { create: [legData(input.leg, 0, events)] },
         },
@@ -112,8 +120,13 @@ function betsData(
         {
           order: 0,
           units: input.units,
-          americanOdds: input.slipOdds ?? decimalToAmerican(decimal),
-          decimalOdds: decimal,
+          ...betPrice(
+            {
+              americanOdds: input.slipOdds ?? decimalToAmerican(decimal),
+              decimalOdds: decimal,
+            },
+            input.boostPct
+          ),
           legs: { create: input.legs.map((l, i) => legData(l, i, events)) },
         },
       ];
@@ -924,6 +937,7 @@ router.put<{ betId: string }>(
       where: { id: req.params.betId, post: { deletedAt: null } },
       select: {
         id: true,
+        boostPct: true,
         legs: { select: { id: true } },
         post: { select: { id: true, authorId: true, type: true } },
       },
@@ -937,11 +951,15 @@ router.put<{ betId: string }>(
       res.status(403).json({ error: 'Only the poster can change the odds' });
       return;
     }
+    // The book's regular odds; a boost on the bet is applied on top
     const { americanOdds } = parsed.data;
     await prisma.$transaction([
       prisma.bet.update({
         where: { id: bet.id },
-        data: { americanOdds, decimalOdds: americanToDecimal(americanOdds) },
+        data: betPrice(
+          { americanOdds, decimalOdds: americanToDecimal(americanOdds) },
+          bet.boostPct
+        ),
       }),
       // One-leg bets show the leg's price, so keep them in step
       ...(bet.legs.length === 1 && post.type !== 'GROUP_PARLAY'
@@ -954,6 +972,68 @@ router.put<{ betId: string }>(
         : []),
     ]);
     res.json(await loadFeedPost(post.id, userId));
+  }
+);
+
+/**
+ * The author sets (or with 0 removes) a straight's or parlay's profit boost,
+ * any time (see isBoostable). The boosted price is stored as the bet's odds,
+ * so payouts and stats count it, and it's always worked out from the
+ * regular odds.
+ */
+router.put<{ betId: string }>(
+  '/bets/:betId/boost',
+  requireAuth,
+  async (req, res) => {
+    const parsed = betBoostSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: parsed.error.issues[0]?.message ?? 'Invalid boost' });
+      return;
+    }
+    const userId = req.user!.id;
+    const bet = await prisma.bet.findFirst({
+      where: { id: req.params.betId, post: { deletedAt: null } },
+      select: {
+        id: true,
+        americanOdds: true,
+        decimalOdds: true,
+        regularOdds: true,
+        post: { select: { id: true, authorId: true, type: true } },
+      },
+    });
+    if (!bet) {
+      res.status(404).json({ error: 'Bet not found' });
+      return;
+    }
+    if (!isBoostable(bet.post.type)) {
+      res
+        .status(400)
+        .json({ error: 'Only straights and parlays can be boosted' });
+      return;
+    }
+    if (bet.post.authorId !== userId && !req.user!.isAdmin) {
+      res.status(403).json({ error: 'Only the poster can boost a slip' });
+      return;
+    }
+    // Unboosted, the stored price is the regular one (keeping a parlay's
+    // exact multiplied decimal); boosted, start back from the regular odds
+    const regular =
+      bet.regularOdds == null
+        ? {
+            americanOdds: bet.americanOdds,
+            decimalOdds: bet.decimalOdds.toNumber(),
+          }
+        : {
+            americanOdds: bet.regularOdds,
+            decimalOdds: americanToDecimal(bet.regularOdds),
+          };
+    await prisma.bet.update({
+      where: { id: bet.id },
+      data: betPrice(regular, parsed.data.boostPct),
+    });
+    res.json(await loadFeedPost(bet.post.id, userId));
   }
 );
 
@@ -1385,7 +1465,8 @@ router.put<{ postId: string }>(
               settledAt: result === 'PENDING' ? null : new Date(),
               gradedBy: result === 'PENDING' ? null : ('MANUAL' as const),
             };
-      // A straight's price is its leg's; a parlay's is the book's or the legs multiplied
+      // A straight's price is its leg's; a parlay's is the book's or the legs
+      // multiplied. The boost (kept unless the edit changes it) goes on top.
       let { americanOdds } = legs[0];
       let decimal = americanToDecimal(americanOdds);
       if (type === 'PARLAY') {
@@ -1394,13 +1475,19 @@ router.put<{ postId: string }>(
           : parlayDecimal(legs.map((l) => l.americanOdds));
         americanOdds = input.slipOdds ?? decimalToAmerican(decimal);
       }
+      const priced = await tx.bet.findUniqueOrThrow({
+        where: { id: bet.id },
+        select: { boostPct: true },
+      });
       await tx.bet.update({
         where: { id: bet.id },
         data: {
           ...grade,
           units: input.units,
-          americanOdds,
-          decimalOdds: decimal,
+          ...betPrice(
+            { americanOdds, decimalOdds: decimal },
+            input.boostPct ?? priced.boostPct
+          ),
           deepLink: type === 'STRAIGHT' ? legs[0].deepLink : null,
         },
       });

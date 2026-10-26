@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { formatAmerican, payout } from '../../shared/odds';
-import type { BetResult, FeedLeg, FeedPost } from '../../shared/posts';
+import type { BetResult, FeedBet, FeedLeg, FeedPost } from '../../shared/posts';
 import { gameState } from '../../shared/live';
 import { isFight } from '../../shared/markets';
 
@@ -100,6 +100,39 @@ export function ResultBadge({ result }: { result: BetResult }) {
       className={`rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${RESULT_STYLES[result]}`}
     >
       {result}
+    </span>
+  );
+}
+
+/**
+ * A bet's price. Boosted, the book's regular odds are struck through beside
+ * the boosted ones, with how big the boost is underneath.
+ */
+export function BetOdds({
+  bet,
+  className = '',
+}: {
+  bet: Pick<FeedBet, 'americanOdds' | 'boostPct' | 'regularOdds'>;
+  /** Size, e.g. "text-lg" */
+  className?: string;
+}) {
+  const price = `font-mono font-bold tabular-nums ${className}`;
+  if (!bet.boostPct || bet.regularOdds == null) {
+    return <span className={price}>{formatAmerican(bet.americanOdds)}</span>;
+  }
+  return (
+    <span className="flex flex-none flex-col items-end">
+      <span className={price}>
+        <s className="mr-1.5 font-semibold text-gray-500">
+          {formatAmerican(bet.regularOdds)}
+        </s>
+        <span className="text-amber-400">
+          {formatAmerican(bet.americanOdds)}
+        </span>
+      </span>
+      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+        ⚡ {bet.boostPct}% boost
+      </span>
     </span>
   );
 }

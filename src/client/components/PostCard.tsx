@@ -45,6 +45,7 @@ import {
   units,
   withFinal,
   legStatBar,
+  BetOdds,
   BookChip,
 } from './SlipParts';
 import {
@@ -314,6 +315,7 @@ export default function PostCard({
   onEdit,
   onOdds,
   onUnits,
+  onBoost,
   onAddRung,
   groupHandlers,
 }: {
@@ -332,6 +334,8 @@ export default function PostCard({
   onOdds: (betId: string, americanOdds: number) => Promise<boolean>;
   /** Author changes a bet's stake; resolves false if it didn't save */
   onUnits: (betId: string, units: number) => Promise<boolean>;
+  /** Author sets a bet's profit boost (0 removes it) */
+  onBoost: (betId: string, boostPct: number) => Promise<boolean>;
   /** Author (pregame) or admin adds a ladder rung; false if it didn't save */
   onAddRung: (postId: string, rung: RungInput) => Promise<boolean>;
   groupHandlers: GroupHandlers;
@@ -501,6 +505,7 @@ export default function PostCard({
             onEdit={() => onEdit(post)}
             onOdds={onOdds}
             onUnits={onUnits}
+            onBoost={onBoost}
             onAddRung={(rung) => onAddRung(post.id, rung)}
           />
         )}
@@ -604,11 +609,7 @@ export default function PostCard({
                   {ladderLive && !pick.score && <LiveBadge />}
                 </div>
               </div>
-              {!isLadder && (
-                <span className="font-mono text-lg font-bold tabular-nums">
-                  {formatAmerican(first.americanOdds)}
-                </span>
-              )}
+              {!isLadder && <BetOdds bet={first} className="text-lg" />}
               {isLadder && ladderSettled && (
                 <div className="text-right">
                   <p className="text-lg font-bold leading-tight tabular-nums">
@@ -643,9 +644,7 @@ export default function PostCard({
                           <p className="font-bold">
                             {leg.selection} {leg.line}
                           </p>
-                          <span className="font-mono font-bold tabular-nums">
-                            {formatAmerican(bet.americanOdds)}
-                          </span>
+                          <BetOdds bet={bet} />
                         </div>
                         {bar}
                         <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400">

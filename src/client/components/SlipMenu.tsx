@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import api from '../lib/api';
-import { nextRung } from '../../shared/posts';
+import { isBoostable, nextRung } from '../../shared/posts';
 import useNow from '../lib/useNow';
 import {
   deleteState,
@@ -9,7 +9,11 @@ import {
   rungState,
   type ActionState,
 } from '../lib/slipActions';
-import { formatAmerican, isValidAmerican } from '../../shared/odds';
+import {
+  formatAmerican,
+  isValidAmerican,
+  MAX_BOOST_PCT,
+} from '../../shared/odds';
 import type { BetResult, FeedPost } from '../../shared/posts';
 import type { SeriesSummary } from '../../shared/series';
 import { useDismiss } from './SlipSocial';
@@ -77,7 +81,13 @@ function ActionItem({
   );
 }
 
-/** What a row edits: the book's price, or the stake (0 allowed) */
+/**
+ * What a row edits: the book's price, the stake (0 allowed), or a profit
+ * boost in percent (blank or 0 takes it off)
+ */
+/** Where a new boost starts */
+const DEFAULT_BOOST_PCT = 25;
+
 const FIELDS = {
   odds: {
     format: formatAmerican,
@@ -92,6 +102,14 @@ const FIELDS = {
     valid: (n: number) => Number.isFinite(n) && n >= 0 && n <= 100,
     inputMode: 'decimal',
     saveLabel: 'Save units',
+  },
+  boost: {
+    // No boost yet starts at 25%, ready to save
+    format: (n: number) => String(n || DEFAULT_BOOST_PCT),
+    parse: (v: string) => (v === '' ? 0 : Number(v.replace(/%$/, ''))),
+    valid: (n: number) => Number.isInteger(n) && n >= 0 && n <= MAX_BOOST_PCT,
+    inputMode: 'numeric',
+    saveLabel: 'Save boost',
   },
 } as const;
 
@@ -114,7 +132,8 @@ function NumberRow({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const next = f.parse(value.trim());
-  const valid = value.trim() !== '' && f.valid(next);
+  // A blank boost means none; other fields need a number
+  const valid = (value.trim() !== '' || field === 'boost') && f.valid(next);
   const changed = valid && next !== current;
 
   const save = async (e: React.FormEvent) => {
@@ -173,6 +192,11 @@ function NumberRow({
             error ? 'border-red-400' : 'border-gray-700'
           }`}
         />
+        {field === 'boost' && (
+          <span aria-hidden="true" className="-ml-1 text-sm text-gray-400">
+            %
+          </span>
+        )}
         {stepper && (
           <button
             type="button"
@@ -213,7 +237,7 @@ function AddRungForm({
   const next = nextRung(
     post.bets.map((b) => ({
       line: b.legs[0].line,
-      americanOdds: b.americanOdds,
+      americanOdds: b.regularOdds ?? b.americanOdds,
       units: b.units,
     }))
   );
@@ -357,6 +381,7 @@ export default function SlipMenu({
   onEdit,
   onOdds,
   onUnits,
+  onBoost,
   onAddRung,
 }: {
   post: FeedPost;
@@ -366,18 +391,20 @@ export default function SlipMenu({
   onEdit: () => void;
   onOdds: (betId: string, americanOdds: number) => Promise<boolean>;
   onUnits: (betId: string, units: number) => Promise<boolean>;
+  onBoost: (betId: string, boostPct: number) => Promise<boolean>;
   onAddRung: (rung: RungInput) => Promise<boolean>;
 }) {
   const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<
-    'menu' | 'series' | 'result' | 'odds' | 'units' | 'rung'
+    'menu' | 'series' | 'result' | 'odds' | 'boost' | 'units' | 'rung'
   >('menu');
   const [series, setSeries] = useState<SeriesSummary[] | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const isAdmin = !!profile?.isAdmin;
   const isAuthor = post.author.id === profile?.id;
   const personal = post.type !== 'GROUP_PARLAY';
+  const boostable = isBoostable(post.type);
   const canFile = personal && isAuthor;
   // Hints count down while the menu is open
   const now = new Date(useNow());
@@ -490,6 +517,36 @@ export default function SlipMenu({
                   ›
                 </span>
               </button>
+              {/* Straights and parlays only; a boosted one takes it off in
+                  one tap */}
+              {boostable && post.bets[0].boostPct ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={async () => {
+                    if (await onBoost(post.bets[0].id, 0)) close();
+                  }}
+                  className={itemClass}
+                >
+                  <span aria-hidden="true">⚡</span>
+                  <span className="flex-1">Remove boost</span>
+                </button>
+              ) : (
+                // Ladders keep it listed, greyed, so the rule shows
+                personal && (
+                  <ActionItem
+                    icon="⚡"
+                    label="Boost"
+                    state={
+                      boostable
+                        ? { allowed: true, note: null }
+                        : { allowed: false, note: "Ladders can't be boosted" }
+                    }
+                    more
+                    onClick={() => setView('boost')}
+                  />
+                )
+              )}
               {personal && (
                 <button
                   type="button"
@@ -564,7 +621,8 @@ export default function SlipMenu({
                         ? `${bet.legs[0].selection} ${bet.legs[0].line}`
                         : 'Odds'
                     }
-                    current={bet.americanOdds}
+                    // The book's regular odds; a boost stays on top
+                    current={bet.regularOdds ?? bet.americanOdds}
                     onSave={async (odds) =>
                       afterSave(await onOdds(bet.id, odds))
                     }
@@ -572,6 +630,28 @@ export default function SlipMenu({
                 ))}
               </ul>
               {doneButton}
+            </>
+          )}
+          {view === 'boost' && (
+            <>
+              <button
+                type="button"
+                onClick={() => setView('menu')}
+                className="w-full px-3 pb-1.5 pt-1 text-left text-xs font-semibold text-gray-500 hover:text-white"
+              >
+                ‹ Back
+              </button>
+              <ul className="border-t border-gray-800">
+                <NumberRow
+                  field="boost"
+                  id={post.bets[0].id}
+                  label="Profit boost"
+                  current={post.bets[0].boostPct ?? 0}
+                  onSave={async (n) =>
+                    afterSave(await onBoost(post.bets[0].id, n))
+                  }
+                />
+              </ul>
             </>
           )}
           {view === 'rung' && (

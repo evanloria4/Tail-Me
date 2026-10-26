@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  betPrice,
+  boostDecimal,
   americanToDecimal,
   decimalToAmerican,
   formatAmerican,
@@ -71,5 +73,40 @@ describe('formatting', () => {
   it('formats money', () => {
     expect(formatMoney(143.18)).toBe('$143.18');
     expect(formatMoney(1234.5)).toBe('$1,234.50');
+  });
+});
+
+describe('profit boosts', () => {
+  it('boosts the winnings, not the stake', () => {
+    // +200 pays 2 on 1; 25% more winnings is 2.5
+    expect(boostDecimal(3, 25)).toBeCloseTo(3.5);
+    // -110 at 50%: winnings 0.909 -> 1.364
+    expect(boostDecimal(americanToDecimal(-110), 50)).toBeCloseTo(2.3636, 3);
+  });
+
+  it('stores the boosted price and the regular odds', () => {
+    expect(betPrice({ americanOdds: 200, decimalOdds: 3 }, 25)).toEqual({
+      americanOdds: 250,
+      decimalOdds: 3.5,
+      boostPct: 25,
+      regularOdds: 200,
+    });
+  });
+
+  it('turns a short favorite plus money once boosted enough', () => {
+    expect(
+      betPrice({ americanOdds: -110, decimalOdds: americanToDecimal(-110) }, 50)
+        .americanOdds
+    ).toBe(136);
+  });
+
+  it('no boost (or 0) keeps the regular price', () => {
+    const regular = { americanOdds: -110, decimalOdds: 1.9091 };
+    expect(betPrice(regular, 0)).toEqual({
+      ...regular,
+      boostPct: null,
+      regularOdds: null,
+    });
+    expect(betPrice(regular, null).boostPct).toBeNull();
   });
 });

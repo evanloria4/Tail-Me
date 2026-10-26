@@ -207,6 +207,10 @@ model Bet {
   americanOdds Int
   /// Used for "$10 pays $X" = 10 * decimalOdds
   decimalOdds  Decimal      @db.Decimal(12, 4)
+  /// Profit boost in percent (25 = winnings x1.25). americanOdds / decimalOdds hold the boosted price
+  boostPct     Int?
+  /// The book's regular odds while boosted (shown struck through); null when not boosted
+  regularOdds  Int?
   result       BetResult    @default(PENDING)
   settledAt    DateTime?
   gradedBy     GradeSource?

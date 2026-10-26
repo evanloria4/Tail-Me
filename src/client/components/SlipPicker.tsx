@@ -27,6 +27,8 @@ import {
   formatAmerican,
   formatMoney,
   isValidAmerican,
+  MAX_BOOST_PCT,
+  boostDecimal,
   americanToDecimal,
   decimalToAmerican,
   parlayDecimal,
@@ -891,11 +893,14 @@ export default function SlipPicker({
     return {
       selections: bet.legs.map(legToSelection),
       units: String(bet.units),
-      // A parlay priced off its legs has no book price to show
+      // A parlay priced off its legs has no book price to show (a boost
+      // sits on top of the book's regular odds)
       slipOdds:
-        edit.type === 'PARLAY' && bet.americanOdds !== multiplied
-          ? String(bet.americanOdds)
+        edit.type === 'PARLAY' &&
+        (bet.regularOdds ?? bet.americanOdds) !== multiplied
+          ? String(bet.regularOdds ?? bet.americanOdds)
           : '',
+      boost: bet.boostPct ? String(bet.boostPct) : '',
       caption: edit.caption ?? '',
     };
   });
@@ -908,6 +913,7 @@ export default function SlipPicker({
   const [units, setUnits] = useState(initial?.units ?? '1');
   const [rungUnits, setRungUnits] = useState<Record<string, string>>({});
   const [slipOdds, setSlipOdds] = useState(initial?.slipOdds ?? '');
+  const [boost, setBoost] = useState(initial?.boost ?? '');
   const [caption, setCaption] = useState(initial?.caption ?? '');
   const [seriesId, setSeriesId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -920,6 +926,7 @@ export default function SlipPicker({
         initial.selections.map((s) => s.key).join() ||
       units !== initial.units ||
       slipOdds !== initial.slipOdds ||
+      boost !== initial.boost ||
       caption !== initial.caption
     : selections.length > 0 || caption.trim() !== '';
   useEffect(() => {
@@ -993,12 +1000,26 @@ export default function SlipPicker({
       setError('The price must look like +450 or -120');
       return;
     }
+    // Blank is no boost
+    const boostPct = boost.trim() === '' ? 0 : Number(boost.replace(/%$/, ''));
+    if (
+      mode !== 'LADDER' &&
+      !(
+        Number.isInteger(boostPct) &&
+        boostPct >= 0 &&
+        boostPct <= MAX_BOOST_PCT
+      )
+    ) {
+      setError(`The boost must be a whole percent from 0 to ${MAX_BOOST_PCT}`);
+      return;
+    }
     if (edit) {
       const changes = editPostSchema.safeParse({
         units: toUnits(units),
         keepLegIds: selections.flatMap((s) => (s.legId ? [s.legId] : [])),
         legs: selections.filter((s) => !s.legId).map(toLeg),
         slipOdds: mode === 'PARLAY' ? sgp : undefined,
+        boostPct,
         caption: caption.trim(),
       });
       if (!changes.success) {
@@ -1027,6 +1048,7 @@ export default function SlipPicker({
         Object.entries(rungUnits).map(([k, v]) => [k, toUnits(v)])
       ),
       slipOdds: mode === 'PARLAY' ? sgp : undefined,
+      boostPct,
       caption: caption.trim(),
       seriesId,
     });
@@ -1066,7 +1088,17 @@ export default function SlipPicker({
       slipOdds.trim() !== ''
         ? americanToDecimal(Number(slipOdds))
         : null;
-    const decimal = sgpDecimal ?? slipDecimal(selections);
+    const regular = sgpDecimal ?? slipDecimal(selections);
+    const boostNum = Number(boost.replace(/%$/, ''));
+    const boosted =
+      mode !== 'LADDER' &&
+      boost.trim() !== '' &&
+      Number.isInteger(boostNum) &&
+      boostNum > 0 &&
+      boostNum <= MAX_BOOST_PCT;
+    // What it pays at: the boost goes on top of the regular price
+    const decimal =
+      regular && boosted ? boostDecimal(regular, boostNum) : regular;
     const straight = mode === 'STRAIGHT';
     return (
       <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
@@ -1092,9 +1124,16 @@ export default function SlipPicker({
                   </p>
                   <p className="text-xs text-gray-500">{bookName}</p>
                 </div>
-                {mode === 'PARLAY' && decimal && (
+                {mode === 'PARLAY' && regular && decimal && (
                   <span className="font-mono text-lg font-bold tabular-nums">
-                    {formatAmerican(decimalToAmerican(decimal))}
+                    {boosted && (
+                      <s className="mr-1.5 font-semibold text-gray-500">
+                        {formatAmerican(decimalToAmerican(regular))}
+                      </s>
+                    )}
+                    <span className={boosted ? 'text-amber-400' : ''}>
+                      {formatAmerican(decimalToAmerican(decimal))}
+                    </span>
                   </span>
                 )}
               </div>
@@ -1181,6 +1220,21 @@ export default function SlipPicker({
                 />
               </label>
             )}
+            {mode !== 'LADDER' && (
+              <label htmlFor="slip-boost" className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-400">
+                  Profit boost % (optional)
+                </span>
+                <input
+                  id="slip-boost"
+                  inputMode="numeric"
+                  placeholder="25"
+                  value={boost}
+                  onChange={(e) => setBoost(e.target.value)}
+                  className={inputClass}
+                />
+              </label>
+            )}
             {mode === 'PARLAY' && (
               <label htmlFor="slip-sgp" className="block">
                 <span className="mb-1 block text-xs font-medium text-gray-400">
@@ -1201,7 +1255,7 @@ export default function SlipPicker({
             <p className="-mt-3 text-xs text-gray-500">
               {sameGame
                 ? 'Books price same game parlays lower than the legs multiplied. '
-                : 'Boosted or priced differently? '}
+                : 'Priced differently at the book? '}
               Enter the price your {bookName} slip shows to post it exactly.
             </p>
           )}
@@ -1238,9 +1292,17 @@ export default function SlipPicker({
               ) : (
                 <>
                   $10 pays{' '}
-                  <span className="font-semibold">
+                  <span
+                    className={`font-semibold ${boosted ? 'text-amber-400' : ''}`}
+                  >
                     {decimal ? formatMoney(payout(10, decimal)) : '—'}
                   </span>
+                  {boosted && (
+                    <span className="text-amber-400">
+                      {' '}
+                      · ⚡ {boostNum}% boost
+                    </span>
+                  )}
                 </>
               )}
             </p>

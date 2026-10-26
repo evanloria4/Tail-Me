@@ -181,6 +181,8 @@ export function buildPost(opts: {
   /** Ladder stakes by selection key */
   rungUnits: Record<string, number>;
   slipOdds?: number;
+  /** Profit boost in percent (straights and parlays); 0 = none */
+  boostPct?: number;
   caption?: string;
   /** One of the poster's series, or null for none */
   seriesId?: string | null;
@@ -197,6 +199,7 @@ export function buildPost(opts: {
       type: 'STRAIGHT',
       units: opts.units,
       leg: toLeg(selections[0]),
+      boostPct: opts.boostPct || undefined,
     };
   }
   if (mode === 'PARLAY') {
@@ -206,6 +209,7 @@ export function buildPost(opts: {
       units: opts.units,
       legs: selections.map(toLeg),
       slipOdds: opts.slipOdds,
+      boostPct: opts.boostPct || undefined,
     };
   }
   // Ladder: one pick, rungs climbing in line

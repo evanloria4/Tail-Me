@@ -342,6 +342,20 @@ export default function PostList({
     }
   };
 
+  const setBoost = async (betId: string, boostPct: number) => {
+    try {
+      const { data } = await api.put<FeedPost>(`/posts/bets/${betId}/boost`, {
+        boostPct,
+      });
+      replacePost(data);
+      onChange?.();
+      return true;
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save the boost'));
+      return false;
+    }
+  };
+
   const addRung = async (postId: string, rung: RungInput) => {
     try {
       const { data } = await api.post<FeedPost>(`/posts/${postId}/rungs`, rung);
@@ -501,6 +515,7 @@ export default function PostList({
           onEdit={setEditing}
           onOdds={setOdds}
           onUnits={setUnits}
+          onBoost={setBoost}
           onAddRung={addRung}
           groupHandlers={groupHandlers}
         />

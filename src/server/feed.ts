@@ -177,6 +177,8 @@ function toFeedPost(
       units: bet.units.toNumber(),
       americanOdds: bet.americanOdds,
       decimalOdds: bet.decimalOdds.toNumber(),
+      boostPct: bet.boostPct,
+      regularOdds: bet.regularOdds,
       result: bet.result,
       deepLink: bet.deepLink,
       tailCount: bet.tails.length,

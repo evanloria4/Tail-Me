@@ -36,6 +36,8 @@ function post(
         decimalOdds: 2,
         result: b.result,
         deepLink: null,
+        boostPct: null,
+        regularOdds: null,
         tailCount: b.tails ?? 0,
         tailedByMe: false,
         legs: [],

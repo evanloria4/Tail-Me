@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { decimalToAmerican, isValidAmerican, parlayDecimal } from './odds';
+import {
+  decimalToAmerican,
+  isValidAmerican,
+  MAX_BOOST_PCT,
+  parlayDecimal,
+} from './odds';
 import { isOneSidedMarket } from './markets';
 import type { SeriesRef } from './series';
 import type { PersonRef, ReactionSummary } from './social';
@@ -19,6 +24,13 @@ export type MarketKey = keyof typeof MARKETS;
 const americanOdds = z
   .number()
   .refine(isValidAmerican, 'Odds must be a whole number like -110 or +150');
+
+/** Profit boost in whole percent; 0 means none */
+const boostPct = z
+  .number()
+  .int('Boosts are whole percents, like 25')
+  .min(0, "A boost can't be negative")
+  .max(MAX_BOOST_PCT, `Boosts top out at ${MAX_BOOST_PCT}%`);
 
 const units = z
   .number({ error: 'Enter units (0 is fine)' })
@@ -92,6 +104,7 @@ export const createPostSchema = z.discriminatedUnion('type', [
     type: z.literal('STRAIGHT'),
     units,
     leg: legSchema,
+    boostPct: boostPct.optional(),
   }),
   z.object({
     ...personal,
@@ -100,6 +113,7 @@ export const createPostSchema = z.discriminatedUnion('type', [
     legs: z.array(legSchema).min(2, 'A parlay needs at least 2 legs').max(20),
     /** Book's slip price; overrides the multiplied legs (e.g. same-game parlays) */
     slipOdds: americanOdds.optional(),
+    boostPct: boostPct.optional(),
   }),
   z.object({
     ...personal,
@@ -143,6 +157,16 @@ export const groupPriceSchema = z.object({ americanOdds });
 
 /** A bet's stake, changed after posting (⋯ → Change units) */
 export const betUnitsSchema = z.object({ units });
+
+/** A bet's profit boost, any time (⋯ → Boost); 0 takes it off */
+export const betBoostSchema = z.object({ boostPct });
+
+/**
+ * Straights and parlays take a profit boost. Ladders don't (each rung is
+ * its own small bet), and group parlays are placed at everyone's own book.
+ */
+export const isBoostable = (type: string) =>
+  type === 'STRAIGHT' || type === 'PARLAY';
 
 /**
  * Legs all from one game. Books price those with their own correlation
@@ -214,8 +238,12 @@ export type FeedBet = {
   id: string;
   order: number;
   units: number;
+  /** The price it pays at: boosted when there's a boost */
   americanOdds: number;
   decimalOdds: number;
+  /** Profit boost in percent, and the book's regular odds it boosted */
+  boostPct: number | null;
+  regularOdds: number | null;
   result: BetResult;
   deepLink: string | null;
   tailCount: number;
@@ -489,6 +517,8 @@ export const editPostSchema = z
     keepLegIds: z.array(z.string().min(1).max(64)).max(20),
     legs: z.array(legSchema).max(20),
     slipOdds: americanOdds.optional(),
+    /** Left out keeps the current boost; 0 takes it off */
+    boostPct: boostPct.optional(),
     caption: z.string().trim().max(500).optional(),
   })
   .refine(
