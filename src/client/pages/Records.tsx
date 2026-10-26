@@ -15,6 +15,7 @@ import { useLayout } from '../components/AppLayout';
 import { RangeTabs } from '../components/RecordParts';
 import UserAvatar from '../components/UserAvatar';
 import { MIN_RANKED } from '../../shared/records';
+import { formatAmerican } from '../../shared/odds';
 import type {
   GroupRow,
   LeaderRow,
@@ -442,8 +443,8 @@ function GroupTable({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
             </th>
             <PlainHeader label="Parlays" />
             <PlainHeader label="Legs hit" />
-            <PlainHeader label="Busted" />
             <PlainHeader label="Hit %" />
+            <PlainHeader label="Avg line" />
             <PlainHeader label="💀 Only miss" />
             <PlainHeader label="Cashed" />
             <PlainHeader label="L5 legs" className="pr-4" />
@@ -466,11 +467,11 @@ function GroupTable({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
               <td className="px-2 py-2.5 font-semibold tabular-nums text-emerald-400 text-center">
                 {r.hit}
               </td>
-              <td className="px-2 py-2.5 tabular-nums text-red-400 text-center">
-                {r.busted}
-              </td>
               <td className="px-2 py-2.5 tabular-nums text-center">
                 {pct(hitPct(r))}
+              </td>
+              <td className="px-2 py-2.5 font-mono tabular-nums text-center">
+                {r.avgOdds == null ? '—' : formatAmerican(r.avgOdds)}
               </td>
               <td className="px-2 py-2.5 tabular-nums text-center">
                 {r.onlyMiss}

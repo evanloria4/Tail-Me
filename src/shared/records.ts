@@ -14,6 +14,7 @@ import {
   Streak,
 } from './stats';
 import { siteDayKey } from './time';
+import { americanToDecimal, decimalToAmerican } from './odds';
 
 // The Records page: everyone's personal record side by side, each person's
 // legs in group parlays, and a few superlatives. Same counting as profiles
@@ -102,7 +103,11 @@ export type RecordGroupParlay = {
   createdAt: Date;
   result: BetResult;
   decimalOdds: number;
-  legs: { addedById: string | null; result: BetResult }[];
+  legs: {
+    addedById: string | null;
+    result: BetResult;
+    americanOdds: number;
+  }[];
 };
 
 /** W-L-P with no units, for tail and fade records */
@@ -130,6 +135,8 @@ export type GroupRow = PersonRef & {
   onlyMiss: number;
   /** Parlays they were in that cashed */
   cashed: number;
+  /** Average price of their legs (American), null with no legs */
+  avgOdds: number | null;
   /** Their last 5 graded legs, newest first */
   l5: ('WON' | 'LOST')[];
 };
@@ -246,6 +253,13 @@ export function groupRow(
       );
     }).length,
     cashed: mine.filter((p) => p.result === 'WON').length,
+    // Averaged as decimal odds, since American odds jump from -100 to +100
+    avgOdds: legs.length
+      ? decimalToAmerican(
+          legs.reduce((sum, l) => sum + americanToDecimal(l.americanOdds), 0) /
+            legs.length
+        )
+      : null,
     l5: legs
       .map((l) => l.result)
       .filter((r): r is 'WON' | 'LOST' => r === 'WON' || r === 'LOST')

@@ -72,7 +72,7 @@ router.get('/', requireAuth, async (req, res) => {
         decimalOdds: true,
         postId: true,
         post: { select: { createdAt: true } },
-        legs: { select: { addedById: true, result: true } },
+        legs: { select: { addedById: true, result: true, americanOdds: true } },
       },
     }),
     // Recently settled personal bets; the ones on today's games feed the

@@ -103,7 +103,11 @@ describe('groupRow', () => {
     createdAt: new Date(Date.UTC(2026, 9, day)),
     result,
     decimalOdds: 4,
-    legs: legs.map(([addedById, r]) => ({ addedById, result: r })),
+    legs: legs.map(([addedById, r]) => ({
+      addedById,
+      result: r,
+      americanOdds: 100,
+    })),
   });
 
   it('counts legs, only misses and cashes', () => {
@@ -156,6 +160,7 @@ describe('groupRow', () => {
       pending: 1,
       onlyMiss: 1,
       cashed: 1,
+      avgOdds: 100,
       l5: ['WON', 'LOST', 'LOST'],
     });
   });
@@ -319,7 +324,7 @@ describe('recordsPage', () => {
           createdAt: new Date(),
           result: 'WON',
           decimalOdds: 4,
-          legs: [{ addedById: 'a', result: 'WON' }],
+          legs: [{ addedById: 'a', result: 'WON', americanOdds: 200 }],
         },
       ]
     );
@@ -381,8 +386,8 @@ describe('nearMisses', () => {
           result: 'LOST',
           decimalOdds: 12.5,
           legs: [
-            { addedById: 'a', result: 'LOST' },
-            { addedById: 'b', result: 'WON' },
+            { addedById: 'a', result: 'LOST', americanOdds: 150 },
+            { addedById: 'b', result: 'WON', americanOdds: 150 },
           ],
         },
         {
@@ -391,8 +396,8 @@ describe('nearMisses', () => {
           result: 'LOST',
           decimalOdds: 20,
           legs: [
-            { addedById: 'a', result: 'LOST' },
-            { addedById: 'b', result: 'LOST' },
+            { addedById: 'a', result: 'LOST', americanOdds: 150 },
+            { addedById: 'b', result: 'LOST', americanOdds: 150 },
           ],
         },
       ]

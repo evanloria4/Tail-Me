@@ -48,7 +48,12 @@ router.get('/', requireAuth, async (req, res) => {
             americanOdds: true,
             result: true,
             legs: {
-              select: { sportKey: true, result: true, addedById: true },
+              select: {
+                sportKey: true,
+                result: true,
+                addedById: true,
+                americanOdds: true,
+              },
             },
             tails: { select: { userId: true } },
           },
@@ -75,6 +80,7 @@ router.get('/', requireAuth, async (req, res) => {
         legs: bet.legs.map((l) => ({
           addedById: l.addedById,
           result: l.result,
+          americanOdds: l.americanOdds,
         })),
       });
       return;
