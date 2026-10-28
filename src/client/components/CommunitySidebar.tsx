@@ -5,7 +5,7 @@ import useAutoRefresh from '../lib/useAutoRefresh';
 import { netColor, record, signedUnits } from '../lib/statFormat';
 import { CommunityStats, DayTotal } from '../../shared/community';
 import type { DaySuperlative } from '../../shared/community';
-import { inSiteZone, siteDayKey } from '../../shared/time';
+import { inSiteZone, shiftMonth, siteDayKey } from '../../shared/time';
 import { GhostRows, PlaceholderNote } from './Placeholders';
 import UserAvatar from './UserAvatar';
 
@@ -69,13 +69,6 @@ function Initial({
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <p className="py-2 text-sm text-gray-500">{children}</p>;
-}
-
-/** "2026-10" -> next / previous month */
-function shiftMonth(month: string, by: number): string {
-  const [y, m] = month.split('-').map(Number);
-  const d = new Date(y, m - 1 + by, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function dayClass(total: DayTotal | undefined) {
@@ -354,6 +347,12 @@ function GroupRecord({ group }: { group: CommunityStats['group'] }) {
           {showAll ? 'Show less' : `See all ${group.legs.length}`}
         </button>
       )}
+      <Link
+        to="/records?tab=group"
+        className="mt-1 block rounded-lg py-1.5 text-center text-xs font-semibold text-emerald-400 transition hover:bg-gray-800"
+      >
+        See past parlays ›
+      </Link>
     </Panel>
   );
 }

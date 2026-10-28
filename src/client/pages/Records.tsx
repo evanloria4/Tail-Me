@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import useAutoRefresh from '../lib/useAutoRefresh';
@@ -32,12 +32,18 @@ import type {
   Streak,
 } from '../../shared/stats';
 import { SeriesBadge } from '../components/SeriesCover';
+import PostList from '../components/PostList';
+import { GroupStatus, groupCovers } from '../components/ActivePanels';
+import useNow from '../lib/useNow';
+import { inSiteZone, shiftMonth, siteDayKey } from '../../shared/time';
+import type { FeedPost } from '../../shared/posts';
 
 // Everyone's records side by side: superlatives up top, then the personal
 // leaderboard or each person's group parlay legs. Tables at every width: on
 // phones the name column stays pinned while the stats scroll sideways.
 
-type Tab = 'leaders' | 'group' | 'series' | 'awards';
+const TABS = ['leaders', 'group', 'series', 'awards'] as const;
+type Tab = (typeof TABS)[number];
 type SortKey =
   | 'units'
   | 'winPct'
@@ -490,6 +496,112 @@ function GroupTable({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
   );
 }
 
+/** One past group parlay, folded: cover, size, who started it, how it went */
+function PastGroupRow({
+  post,
+  all,
+  now,
+}: {
+  post: FeedPost;
+  all: FeedPost[];
+  now: number;
+}) {
+  const bet = post.bets[0];
+  const cover = groupCovers(all).get(post.id)!;
+  const day = new Date(post.createdAt).toLocaleDateString(
+    'en-US',
+    inSiteZone({ weekday: 'short', month: 'short', day: 'numeric' })
+  );
+  return (
+    <span className="flex items-center gap-3">
+      <SeriesBadge
+        emoji={cover.emoji}
+        color={cover.color}
+        className="h-10 w-10 flex-none rounded-xl text-lg"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold">
+          {bet.legs.length}-leg group parlay
+          <span className="font-normal text-gray-500">
+            {' · '}
+            {day} · by {firstName(post.author.fullName)}
+          </span>
+        </span>
+        <GroupStatus post={post} now={now} />
+      </span>
+      <span className="font-mono font-bold tabular-nums">
+        {formatAmerican(bet.americanOdds)}
+      </span>
+    </span>
+  );
+}
+
+/** Every group parlay in the range, newest first, each opening in place */
+/** Past group parlays shown per month before "Load more" */
+const PAST_GROUPS_SHOWN = 6;
+
+const monthArrow =
+  'flex h-7 w-7 items-center justify-center rounded text-gray-400 transition hover:bg-gray-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent';
+
+/**
+ * Group parlays one Central month at a time, newest first, each opening in
+ * place, so the list stays short however many there are
+ */
+function PastGroupParlays() {
+  const now = useNow();
+  const thisMonth = siteDayKey(new Date()).slice(0, 7);
+  const [month, setMonth] = useState(thisMonth);
+  const [y, m] = month.split('-').map(Number);
+  const title = new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString(
+    'en-US',
+    inSiteZone({ month: 'long', year: 'numeric' })
+  );
+  return (
+    <section className="space-y-3 pt-2">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+          Past group parlays
+        </h2>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label="Previous month"
+            onClick={() => setMonth(shiftMonth(month, -1))}
+            className={monthArrow}
+          >
+            ‹
+          </button>
+          <span className="min-w-[7.5rem] text-center text-sm font-semibold text-gray-300">
+            {title}
+          </span>
+          <button
+            type="button"
+            aria-label="Next month"
+            disabled={month >= thisMonth}
+            onClick={() => setMonth(shiftMonth(month, 1))}
+            className={monthArrow}
+          >
+            ›
+          </button>
+        </div>
+      </div>
+      <PostList
+        type="group"
+        month={month}
+        pageSize={PAST_GROUPS_SHOWN}
+        renderRow={(post, all) => (
+          <PastGroupRow post={post} all={all} now={now} />
+        )}
+        empty={
+          <p className="rounded-2xl border border-gray-800 bg-gray-900 px-4 py-6 text-center text-sm text-gray-500">
+            No group parlays in {title}.
+          </p>
+        }
+      />
+    </section>
+  );
+}
+
 function GroupTab({
   group,
   meId,
@@ -566,6 +678,7 @@ function GroupTab({
           No group parlay legs in this range yet.
         </p>
       )}
+      <PastGroupParlays />
     </div>
   );
 }
@@ -713,7 +826,11 @@ export default function Records() {
   const { profile } = useAuth();
   const { feedVersion } = useLayout();
   const [range, setRange] = useState<StatRange>('all');
-  const [tab, setTab] = useState<Tab>('leaders');
+  // The tab lives in the URL so links can open one (/records?tab=group)
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = TABS.find((t) => t === params.get('tab')) ?? 'leaders';
+  const setTab = (next: Tab) =>
+    setParams(next === 'leaders' ? {} : { tab: next }, { replace: true });
   const [sort, setSort] = useState<SortKey>('units');
   const [seriesSort, setSeriesSort] = useState<SortKey>('units');
   const [data, setData] = useState<RecordsPage | null>(null);

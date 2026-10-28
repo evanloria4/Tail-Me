@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import scrollToSlip from '../lib/scrollToSlip';
 import useAutoRefresh from '../lib/useAutoRefresh';
+import useMediaQuery from '../lib/useMediaQuery';
 import PostCard, { BackAction } from './PostCard';
 import type { GroupHandlers } from './GroupParlay';
 import type { RungInput } from './SlipMenu';
@@ -73,8 +74,23 @@ export default function PostList({
   focusId,
   onFocusDone,
   status,
+  type,
+  month,
+  pageSize,
+  renderRow,
   updates,
 }: {
+  /** 'group' for group parlays only */
+  type?: 'group';
+  /** One Central month, "YYYY-MM" (instead of a range) */
+  month?: string;
+  /** Slips per page, when fewer than the server's usual */
+  pageSize?: number;
+  /**
+   * Show each slip as this compact row instead, opening its full card in
+   * place on a click (Records' past group parlays). Gets the whole list too.
+   */
+  renderRow?: (post: FeedPost, all: FeedPost[]) => React.ReactNode;
   /** Feed filter (FEED_FILTERS); profiles and series pages show everything */
   status?: FeedFilter;
   /**
@@ -108,7 +124,18 @@ export default function PostList({
   const [loadFailed, setLoadFailed] = useState<'first' | 'more' | null>(null);
   // Which filters the shown slips came from, so a quick filter switch never
   // shows (or searches) an older request's slips
-  const listKey = JSON.stringify([author, range, series, status]);
+  const listKey = JSON.stringify([
+    author,
+    range,
+    series,
+    status,
+    type,
+    month,
+    pageSize,
+  ]);
+  /** Row mode: the slips opened into full cards */
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const wide = useMediaQuery('(min-width: 1024px)');
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const latest = useRef(0);
 
@@ -119,7 +146,16 @@ export default function PostList({
       setLoading(true);
       try {
         const { data } = await api.get<FeedPage>('/posts', {
-          params: { cursor: after, author, range, series, status },
+          params: {
+            cursor: after,
+            author,
+            range,
+            series,
+            status,
+            type,
+            month,
+            limit: pageSize,
+          },
         });
         if (request !== latest.current) return;
         setPosts((prev) => (after ? [...prev, ...data.posts] : data.posts));
@@ -133,7 +169,7 @@ export default function PostList({
         if (request === latest.current) setLoading(false);
       }
     },
-    [author, range, series, status, listKey]
+    [author, range, series, status, type, month, pageSize, listKey]
   );
 
   useEffect(() => {
@@ -453,6 +489,23 @@ export default function PostList({
     },
   };
 
+  // Rows sit two across on wide screens, as two separate columns (1, 3, 5 |
+  // 2, 4, 6) so an opened slip only pushes down its own column instead of
+  // leaving a gap beside it
+  const wrapRows = (items: React.ReactNode[]) => {
+    if (!renderRow) return items;
+    if (!wide) return <div className="space-y-3">{items}</div>;
+    return (
+      <div className="grid grid-cols-2 items-start gap-3">
+        {[0, 1].map((side) => (
+          <div key={side} className="space-y-3">
+            {items.filter((_, i) => i % 2 === side)}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {confirmDialog}
@@ -501,25 +554,88 @@ export default function PostList({
 
       {!loading && posts.length === 0 && !loadFailed && empty}
 
-      {posts.map((post) => (
-        <PostCard
-          key={post.id}
-          post={post}
-          currentUserId={profile?.id}
-          isAdmin={!!profile?.isAdmin}
-          onSettle={settle}
-          onDelete={remove}
-          onBack={back}
-          onReact={react}
-          onMoveSeries={moveSeries}
-          onEdit={setEditing}
-          onOdds={setOdds}
-          onUnits={setUnits}
-          onBoost={setBoost}
-          onAddRung={addRung}
-          groupHandlers={groupHandlers}
-        />
-      ))}
+      {wrapRows(
+        posts.map((post) => {
+          const card = (
+            <PostCard
+              post={post}
+              currentUserId={profile?.id}
+              isAdmin={!!profile?.isAdmin}
+              onSettle={settle}
+              onDelete={remove}
+              onBack={back}
+              onReact={react}
+              onMoveSeries={moveSeries}
+              onEdit={setEditing}
+              onOdds={setOdds}
+              onUnits={setUnits}
+              onBoost={setBoost}
+              onAddRung={addRung}
+              groupHandlers={groupHandlers}
+            />
+          );
+          if (!renderRow)
+            return <React.Fragment key={post.id}>{card}</React.Fragment>;
+          const open = opened.has(post.id);
+          const toggle = () =>
+            setOpened((prev) => {
+              const next = new Set(prev);
+              if (open) next.delete(post.id);
+              else next.add(post.id);
+              return next;
+            });
+          // Open, the row heads one outlined box that holds its slip, so the
+          // card plainly belongs to it
+          return (
+            <div
+              key={post.id}
+              className={`overflow-hidden rounded-2xl border bg-gray-900 ${
+                open ? 'border-emerald-500/50' : 'border-gray-800'
+              }`}
+            >
+              <button
+                id={`row-${post.id}`}
+                type="button"
+                aria-expanded={open}
+                onClick={toggle}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-gray-800/60"
+              >
+                <span className="min-w-0 flex-1">{renderRow(post, posts)}</span>
+                {open ? (
+                  <span className="whitespace-nowrap text-xs font-semibold text-emerald-400">
+                    Close ▴
+                  </span>
+                ) : (
+                  <span aria-hidden="true" className="text-gray-500">
+                    ▾
+                  </span>
+                )}
+              </button>
+              {open && (
+                <div className="border-t border-gray-800 bg-gray-950/40 px-2 pt-2">
+                  {card}
+                  {/* Long slips: close from the bottom too */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggle();
+                      // The card folds away above; keep its row on screen
+                      requestAnimationFrame(() =>
+                        document
+                          .getElementById(`row-${post.id}`)
+                          ?.scrollIntoView({ block: 'nearest' })
+                      );
+                    }}
+                    className="my-1 w-full rounded-lg py-2 text-sm font-semibold text-emerald-400 transition hover:bg-gray-800/60"
+                  >
+                    Close ▴
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
 
       <PostComposer
         open={!!editing}

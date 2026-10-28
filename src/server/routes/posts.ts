@@ -47,7 +47,12 @@ import { betResultFromLegs } from '../../shared/grading';
 import { postSeriesSchema } from '../../shared/series';
 import { isStatRange, rangeStart } from '../../shared/stats';
 import { MAX_GAME_MS } from '../../shared/live';
-import { fromSiteInput, siteDayKey } from '../../shared/time';
+import {
+  fromSiteInput,
+  monthStart,
+  shiftMonth,
+  siteDayKey,
+} from '../../shared/time';
 
 const router = Router();
 const PAGE_SIZE = 20;
@@ -277,10 +282,19 @@ const isUniqueViolation = (err: unknown) =>
  * Feed: everyone's posts, newest first. `?cursor=<last post id>` for the next
  * page, `?author=<username>` for one user's slips, `?series=<id>` for one
  * series, `?range=7d|30d|all`, `?status=open|live|won|lost|all` (see
- * FEED_FILTERS; default all).
+ * FEED_FILTERS; default all), `?type=group` for group parlays only,
+ * `?month=YYYY-MM` for one Central month (instead of a range), `?limit=` for
+ * a smaller page (at most PAGE_SIZE).
  */
 router.get('/', requireAuth, async (req, res) => {
-  const { cursor, author, range, series, status } = req.query;
+  const { cursor, author, range, series, status, type, month } = req.query;
+  const asked = Number(req.query.limit);
+  const size =
+    Number.isInteger(asked) && asked > 0
+      ? Math.min(asked, PAGE_SIZE)
+      : PAGE_SIZE;
+  const from = typeof month === 'string' ? monthStart(month) : null;
+  const until = from && monthStart(shiftMonth(month as string, 1));
   const since = isStatRange(range) ? rangeStart(range) : null;
   const now = new Date();
   const posts = await prisma.post.findMany({
@@ -290,16 +304,18 @@ router.get('/', requireAuth, async (req, res) => {
         author: { username: { equals: author, mode: 'insensitive' } },
       }),
       ...(since && { createdAt: { gte: since } }),
+      ...(from && until && { createdAt: { gte: from, lt: until } }),
       ...(typeof series === 'string' && { seriesId: series }),
+      ...(type === 'group' && { type: 'GROUP_PARLAY' as const }),
       ...(isFeedFilter(status) ? await statusWhere(status, now) : {}),
     },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: PAGE_SIZE + 1,
+    take: size + 1,
     ...(typeof cursor === 'string' && { cursor: { id: cursor }, skip: 1 }),
     include: feedInclude,
   });
-  const hasMore = posts.length > PAGE_SIZE;
-  const page = posts.slice(0, PAGE_SIZE);
+  const hasMore = posts.length > size;
+  const page = posts.slice(0, size);
   res.json({
     posts: await toFeedPosts(page, req.user!.id),
     nextCursor: hasMore ? page[page.length - 1].id : null,

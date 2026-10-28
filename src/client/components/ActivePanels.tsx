@@ -78,7 +78,7 @@ const hash = (id: string) =>
   [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 1_000_003, 7);
 
 /** Each post's emoji + color, stable per post, unique within the list */
-function groupCovers(posts: FeedPost[]) {
+export function groupCovers(posts: FeedPost[]) {
   const taken = new Set<number>();
   return new Map(
     posts.map((post) => {
@@ -105,7 +105,7 @@ const firstStart = (legs: FeedPost['bets'][number]['legs']) =>
  * until it locks, then locked, live, waiting on a grade, hit or busted.
  * A leg that busts mid-game shows here as soon as the grader catches it.
  */
-function GroupStatus({ post, now }: { post: FeedPost; now: number }) {
+export function GroupStatus({ post, now }: { post: FeedPost; now: number }) {
   const { group } = post;
   const bet = post.bets[0];
   const { legs } = bet;

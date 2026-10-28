@@ -83,3 +83,14 @@ export function fromSiteInput(value: string): Date | null {
 export const inSiteZone = (
   options: Intl.DateTimeFormatOptions
 ): Intl.DateTimeFormatOptions => ({ ...options, timeZone: SITE_TIME_ZONE });
+
+/** "2026-10" -> next / previous month */
+export function shiftMonth(month: string, by: number): string {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + by, 1));
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`;
+}
+
+/** When a Central month ("2026-10") starts, or null if it doesn't parse */
+export const monthStart = (month: string): Date | null =>
+  /^\d{4}-\d{2}$/.test(month) ? fromSiteInput(`${month}-01T00:00`) : null;
