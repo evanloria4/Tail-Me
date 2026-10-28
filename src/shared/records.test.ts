@@ -332,6 +332,30 @@ describe('recordsPage', () => {
     expect(page.group).toMatchObject({ wins: 1, losses: 0 });
     expect(page.group.people.map((r) => r.id)).toEqual(['a']);
   });
+
+  it('breaks group record ties by the longer average odds', () => {
+    // Same 1-0 record; Bo's leg was the longer price, so Bo ranks first
+    // even though Ann comes first by name
+    const page = recordsPage(
+      'all',
+      null,
+      [ann, bo],
+      [],
+      [
+        {
+          postId: 'g',
+          createdAt: new Date(),
+          result: 'WON',
+          decimalOdds: 4,
+          legs: [
+            { addedById: 'a', result: 'WON', americanOdds: -150 },
+            { addedById: 'b', result: 'WON', americanOdds: 180 },
+          ],
+        },
+      ]
+    );
+    expect(page.group.people.map((r) => r.id)).toEqual(['b', 'a']);
+  });
 });
 
 describe('nearMisses', () => {

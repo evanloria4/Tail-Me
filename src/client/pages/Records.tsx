@@ -450,7 +450,7 @@ function GroupTable({ rows, meId }: { rows: GroupRow[]; meId?: string }) {
             <PlainHeader label="Parlays" />
             <PlainHeader label="Legs hit" />
             <PlainHeader label="Hit %" />
-            <PlainHeader label="Avg line" />
+            <PlainHeader label="Avg odds" />
             <PlainHeader label="💀 Only miss" />
             <PlainHeader label="Cashed" />
             <PlainHeader label="L5 legs" className="pr-4" />

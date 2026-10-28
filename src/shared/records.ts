@@ -728,10 +728,12 @@ export function recordsPage(
   const groupRows = people
     .map((p) => groupRow(p, groups))
     .filter((r) => r.parlays > 0)
+    // Same record: the longer average odds rank higher (no legs last)
     .sort(
       (a, b) =>
         b.hit - a.hit ||
         a.busted - b.busted ||
+        (b.avgOdds ?? -Infinity) - (a.avgOdds ?? -Infinity) ||
         a.fullName.localeCompare(b.fullName)
     );
   const results = groups.map((g) => g.result);
