@@ -303,6 +303,13 @@ function TailSection({
   );
 }
 
+/** A settled ladder's bottom line: what it made, lost, or broke even */
+const ladderNetLabel = (net: number) => {
+  if (net > 0) return 'Profit';
+  if (net < 0) return 'Loss';
+  return 'Even';
+};
+
 export default function PostCard({
   post,
   currentUserId,
@@ -405,12 +412,20 @@ export default function PostCard({
   const ladderSettled = post.bets.some((b) => b.result !== 'PENDING');
   // Every rung grades on the same stat, so a rung missing it borrows it
   const ladderStat = post.bets.find((b) => b.legs[0].actual != null)?.legs[0];
+  // The rung in play: the lowest line still open that the stat hasn't
+  // passed. Cleared rungs and the ones above it don't get a bar.
+  const nextRungId = [...post.bets]
+    .filter((b) => b.result === 'PENDING')
+    .filter((b) => (b.legs[0].line ?? 0) > (ladderStat?.actual ?? 0))
+    .sort((a, b) => (a.legs[0].line ?? 0) - (b.legs[0].line ?? 0))[0]?.id;
   const allSettled = post.bets.every((b) => b.result !== 'PENDING');
   const ladderRisked = post.bets.reduce((s, b) => s + b.units, 0);
   const ladderReturn = post.bets.reduce(
     (s, b) => s + returned(b.units, b.decimalOdds, b.result),
     0
   );
+  // Rounded so float dust doesn't read as a tiny profit or loss
+  const ladderNet = Math.round((ladderReturn - ladderRisked) * 100) / 100;
 
   // A parlay's legs share the bet's result only once it has won; a lost
   // parlay doesn't say which leg missed, so those dots stay neutral.
@@ -627,13 +642,17 @@ export default function PostCard({
                 <ol>
                   {rungList.visible.map((bet, i) => {
                     const leg = bet.legs[0];
-                    const bar = legStatBar(
-                      {
-                        ...leg,
-                        actual: leg.actual ?? ladderStat?.actual ?? null,
-                      },
-                      now
-                    );
+                    // Only the rung in play gets a bar; the rest just show
+                    // their result
+                    const bar =
+                      bet.id === nextRungId &&
+                      legStatBar(
+                        {
+                          ...leg,
+                          actual: leg.actual ?? ladderStat?.actual ?? null,
+                        },
+                        now
+                      );
                     return (
                       <TimelineRow
                         key={bet.id}
@@ -698,25 +717,25 @@ export default function PostCard({
               {isLadder ? (
                 <>
                   <Total label="Units risked" value={units(ladderRisked)} />
-                  <Total
-                    align="right"
+                  {allSettled ? (
+                    // Settled: what the ladder made or lost, not the return
+                    <Total
+                      align="right"
+                      label={ladderNetLabel(ladderNet)}
+                      value={
+                        <span className={netColor(ladderNet)}>
+                          {signedUnits(ladderNet)}
+                        </span>
+                      }
+                    />
+                  ) : (
                     // Until every rung settles, assume the open ones hit
-                    label={allSettled ? 'Payout' : 'Max payout'}
-                    value={
-                      <span
-                        className={
-                          // eslint-disable-next-line no-nested-ternary
-                          !allSettled
-                            ? ''
-                            : rungsHit > 0
-                              ? 'text-win'
-                              : 'text-gray-400'
-                        }
-                      >
-                        {units(ladderReturn)}
-                      </span>
-                    }
-                  />
+                    <Total
+                      align="right"
+                      label="Max payout"
+                      value={units(ladderReturn)}
+                    />
+                  )}
                 </>
               ) : (
                 <>
