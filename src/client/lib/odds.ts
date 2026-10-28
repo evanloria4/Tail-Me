@@ -53,8 +53,9 @@ function useCachedGet<T>(url: string | null): Loadable<T> {
   return state;
 }
 
+/** A league's games; an empty sport key loads nothing */
 export const useGames = (sportKey: string) =>
-  useCachedGet<OddsGame[]>(`/odds/${sportKey}/games`);
+  useCachedGet<OddsGame[]>(sportKey ? `/odds/${sportKey}/games` : null);
 
 /** Props / alt lines for a game; pass null markets to skip loading */
 export const useEventMarkets = (

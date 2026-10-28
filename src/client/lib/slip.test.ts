@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { OddsOutcome } from '../../shared/markets';
 import { createPostSchema } from '../../shared/posts';
+import { gradeGameLine, propStat } from '../../shared/grading';
 import {
   baseMarket,
   buildPost,
@@ -12,6 +13,8 @@ import {
   Selection,
   selectionKey,
   selectionTitle,
+  toLeg,
+  toSelection,
 } from './slip';
 
 const NFL = 'americanfootball_nfl';
@@ -274,5 +277,59 @@ describe('mainLinesFromAlts', () => {
 
   it('skips points without both sides', () => {
     expect(mainLinesFromAlts([alt('Saints', 'Over', 20.5, -110)])).toEqual([]);
+  });
+});
+
+describe('custom lines', () => {
+  const game = {
+    id: 'ev1',
+    sportKey: 'americanfootball_nfl',
+    awayTeam: 'Denver Broncos',
+    homeTeam: 'Kansas City Chiefs',
+    commenceTime: '2026-10-25T17:00:00Z',
+  };
+
+  it('a typed prop line is stored like a picked one, so it grades', () => {
+    const leg = toLeg(
+      toSelection(game, 'player_pass_yds', {
+        name: 'Over',
+        player: 'Bo Nix',
+        point: 287.5,
+        price: 150,
+      })
+    );
+    expect(leg).toMatchObject({
+      eventId: 'ev1',
+      marketKey: 'player_prop',
+      marketLabel: 'Passing Yards',
+      playerName: 'Bo Nix',
+      selection: 'Over',
+      line: 287.5,
+      americanOdds: 150,
+    });
+    expect(leg.deepLink).toBeUndefined();
+    // The grader finds the stat to check from the market label
+    expect(propStat(leg.sportKey, leg.marketLabel ?? null)).toBeDefined();
+  });
+
+  it('a typed alt spread grades from the final score', () => {
+    const leg = toLeg(
+      toSelection(game, 'alternate_spreads', {
+        name: 'Kansas City Chiefs',
+        point: -10.5,
+        price: 220,
+      })
+    );
+    expect(leg.marketKey).toBe('spreads');
+    expect(
+      gradeGameLine(
+        {
+          marketKey: leg.marketKey,
+          selection: leg.selection,
+          line: leg.line ?? null,
+        },
+        { ...game, homeScore: 31, awayScore: 17 }
+      )
+    ).toBe('WON');
   });
 });

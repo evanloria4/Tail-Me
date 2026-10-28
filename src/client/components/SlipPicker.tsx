@@ -56,6 +56,7 @@ import { inputClass } from './ComposerParts';
 import { inSiteZone, SITE_ZONE_LABEL } from '../../shared/time';
 import GroupReview, { GroupMode, PostedKind } from './GroupReview';
 import SeriesPicker from './SeriesPicker';
+import CustomLeg from './CustomLeg';
 import SlipImport from './SlipImport';
 import { BookChip, LiveBadge } from './SlipParts';
 import useNow from '../lib/useNow';
@@ -915,6 +916,7 @@ export default function SlipPicker({
   const [slipOdds, setSlipOdds] = useState(initial?.slipOdds ?? '');
   const [boost, setBoost] = useState(initial?.boost ?? '');
   const [caption, setCaption] = useState(initial?.caption ?? '');
+  const [customOpen, setCustomOpen] = useState(false);
   const [seriesId, setSeriesId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -1204,6 +1206,28 @@ export default function SlipPicker({
               </p>
             )}
           </div>
+
+          {/* A line the book has that live odds don't list */}
+          {customOpen ? (
+            <CustomLeg
+              selections={selections}
+              onAdd={(sel) => {
+                setSelections((prev) =>
+                  prev.some((s) => s.key === sel.key) ? prev : [...prev, sel]
+                );
+                setCustomOpen(false);
+              }}
+              onClose={() => setCustomOpen(false)}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setCustomOpen(true)}
+              className="-mt-2 text-sm font-medium text-emerald-400 hover:underline"
+            >
+              + Add custom leg
+            </button>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             {mode !== 'LADDER' && (
