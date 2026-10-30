@@ -518,6 +518,9 @@ export default function PostCard({
           <SlipMenu
             post={post}
             onSettle={onSettle}
+            onSettleLeg={(legId, result) =>
+              groupHandlers.settleLeg(post.id, legId, result)
+            }
             onMove={(seriesId) => onMoveSeries(post.id, seriesId)}
             onDelete={() => onDelete(post.id)}
             onEdit={() => onEdit(post)}

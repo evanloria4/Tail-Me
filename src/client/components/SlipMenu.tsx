@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import api from '../lib/api';
 import {
+  describeLeg,
   isBoostable,
   isGroupLocked,
   lockAtError,
@@ -20,7 +21,7 @@ import {
   isValidAmerican,
   MAX_BOOST_PCT,
 } from '../../shared/odds';
-import type { BetResult, FeedPost } from '../../shared/posts';
+import type { BetResult, FeedBet, FeedPost } from '../../shared/posts';
 import type { SeriesSummary } from '../../shared/series';
 import { useDismiss } from './SlipSocial';
 import { RESULT_OPTIONS, RESULT_STYLES } from './SlipParts';
@@ -487,9 +488,69 @@ function AddRungForm({
   );
 }
 
+function ResultSelect({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: BetResult;
+  onChange: (result: BetResult) => void;
+}) {
+  return (
+    <select
+      aria-label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value as BetResult)}
+      className={`shrink-0 cursor-pointer rounded-md border-none px-2 py-0.5 text-[11px] font-bold tracking-wide outline-none ${RESULT_STYLES[value]}`}
+    >
+      {RESULT_OPTIONS.map((r) => (
+        <option key={r} value={r}>
+          {r}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** A parlay is set leg by leg; its own result follows (one miss loses it) */
+function ParlayResults({
+  bet,
+  onSettleLeg,
+}: {
+  bet: FeedBet;
+  onSettleLeg: (legId: string, result: BetResult) => void;
+}) {
+  return (
+    <>
+      {bet.legs.map((leg) => (
+        <li key={leg.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+          <span className="min-w-0 flex-1 truncate" title={describeLeg(leg)}>
+            {describeLeg(leg)}
+          </span>
+          <ResultSelect
+            label={`Result for ${describeLeg(leg)}`}
+            value={leg.result}
+            onChange={(r) => onSettleLeg(leg.id, r)}
+          />
+        </li>
+      ))}
+      <li className="flex items-center gap-2 border-t border-gray-800 px-3 py-2 text-sm font-semibold">
+        <span className="flex-1">Parlay</span>
+        <span
+          className={`rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${RESULT_STYLES[bet.result]}`}
+        >
+          {bet.result}
+        </span>
+      </li>
+    </>
+  );
+}
+
 export default function SlipMenu({
   post,
   onSettle,
+  onSettleLeg,
   onMove,
   onDelete,
   onEdit,
@@ -501,6 +562,8 @@ export default function SlipMenu({
 }: {
   post: FeedPost;
   onSettle: (betId: string, result: BetResult) => void;
+  /** Sets one parlay leg; the parlay's result follows from its legs */
+  onSettleLeg: (legId: string, result: BetResult) => void;
   onMove: (seriesId: string | null) => void;
   onDelete: () => void;
   onEdit: () => void;
@@ -864,33 +927,34 @@ export default function SlipMenu({
                 ‹ Back
               </button>
               <ul className="border-t border-gray-800">
-                {post.bets.map((bet) => (
-                  <li
-                    key={bet.id}
-                    className="flex items-center gap-2 px-3 py-2 text-sm"
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {post.type === 'LADDER'
-                        ? `${bet.legs[0].selection} ${bet.legs[0].line}`
-                        : 'Result'}
-                    </span>
-                    <select
-                      aria-label="Result"
-                      value={bet.result}
-                      onChange={(e) => {
-                        onSettle(bet.id, e.target.value as BetResult);
-                        if (oneBet) close();
-                      }}
-                      className={`cursor-pointer rounded-md border-none px-2 py-0.5 text-[11px] font-bold tracking-wide outline-none ${RESULT_STYLES[bet.result]}`}
+                {post.bets.map((bet) =>
+                  bet.legs.length > 1 ? (
+                    <ParlayResults
+                      key={bet.id}
+                      bet={bet}
+                      onSettleLeg={onSettleLeg}
+                    />
+                  ) : (
+                    <li
+                      key={bet.id}
+                      className="flex items-center gap-2 px-3 py-2 text-sm"
                     >
-                      {RESULT_OPTIONS.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  </li>
-                ))}
+                      <span className="min-w-0 flex-1 truncate">
+                        {post.type === 'LADDER'
+                          ? `${bet.legs[0].selection} ${bet.legs[0].line}`
+                          : 'Result'}
+                      </span>
+                      <ResultSelect
+                        label="Result"
+                        value={bet.result}
+                        onChange={(r) => {
+                          onSettle(bet.id, r);
+                          if (oneBet) close();
+                        }}
+                      />
+                    </li>
+                  )
+                )}
               </ul>
               <p className="border-t border-gray-800 px-3 py-2 text-xs text-gray-500">
                 Results update on their own when games end. A result you set

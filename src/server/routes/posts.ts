@@ -1263,8 +1263,70 @@ router.post<{ postId: string }>(
 );
 
 /**
+ * The author (or an admin) sets one leg of a personal slip by hand. The bet
+ * follows its legs, so a parlay flips with the leg; it stays open to the
+ * grader, which still grades the other legs and never touches this one.
+ */
+/** Keeps the settle time when the result didn't change */
+function settledAtFor(next: BetResult, prev: BetResult, at: Date | null) {
+  if (next === 'PENDING') return null;
+  return next === prev ? at : new Date();
+}
+
+async function settlePersonalLeg(
+  req: Request<{ legId: string }>,
+  res: Response,
+  result: BetResult
+) {
+  const userId = req.user!.id;
+  const leg = await prisma.betLeg.findUnique({
+    where: { id: req.params.legId },
+    include: {
+      bet: {
+        include: {
+          legs: { select: { id: true, result: true } },
+          post: { select: { id: true, authorId: true, deletedAt: true } },
+        },
+      },
+    },
+  });
+  if (!leg || leg.bet.post.deletedAt) {
+    res.status(404).json({ error: 'Leg not found' });
+    return;
+  }
+  const { bet } = leg;
+  if (bet.post.authorId !== userId && !req.user!.isAdmin) {
+    res.status(403).json({ error: 'Only the poster can settle this leg' });
+    return;
+  }
+  const overall = betResultFromLegs(
+    bet.legs.map((l) => (l.id === leg.id ? result : l.result))
+  );
+  await prisma.$transaction([
+    prisma.betLeg.update({
+      where: { id: leg.id },
+      data: { result, gradedBy: result === 'PENDING' ? null : 'MANUAL' },
+    }),
+    prisma.bet.update({
+      where: { id: bet.id },
+      data: {
+        result: overall,
+        settledAt: settledAtFor(overall, bet.result, bet.settledAt),
+        // Derived from the legs, so the grader keeps rolling them up
+        gradedBy: overall === 'PENDING' ? null : 'AUTO',
+      },
+    }),
+  ]);
+  res.json(await loadFeedPost(bet.post.id, userId));
+  if (bet.result === 'PENDING' && overall !== 'PENDING') {
+    noticeSettled([bet.post.id], userId);
+  }
+}
+
+/**
  * Grade one group parlay leg (its owner or the creator, once locked). The
- * parlay's result follows from its legs.
+ * parlay's result follows from its legs. Personal slips' legs go to
+ * settlePersonalLeg.
  */
 router.patch<{ legId: string }>(
   '/legs/:legId',
@@ -1280,8 +1342,14 @@ router.patch<{ legId: string }>(
     const userId = req.user!.id;
     const found = await prisma.betLeg.findUnique({
       where: { id: req.params.legId },
-      select: { bet: { select: { postId: true } } },
+      select: {
+        bet: { select: { postId: true, post: { select: { type: true } } } },
+      },
     });
+    if (found && found.bet.post.type !== 'GROUP_PARLAY') {
+      await settlePersonalLeg(req, res, parsed.data.result);
+      return;
+    }
     const group = found && (await findGroup(found.bet.postId));
     if (!group) {
       res.status(404).json({ error: 'Leg not found' });
