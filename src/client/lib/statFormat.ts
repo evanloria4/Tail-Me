@@ -10,6 +10,22 @@ export const record = (l: StatLine) =>
 export const signedUnits = (n: number) =>
   `${n > 0 ? '+' : ''}${(Math.round(n * 100) / 100).toFixed(2)}u`;
 
+/**
+ * Units in at most 4 digits, for tight spots: "+3.48u", "+12.34u",
+ * "+123.4u", "+1234u" (drops decimals as the number grows)
+ */
+export function shortUnits(n: number) {
+  const size = Math.abs(n);
+  const digits = [2, 1, 0]
+    .map((d) => size.toFixed(d))
+    .find((s) => s.replace('.', '').replace(/^0+(?=\d)/, '').length <= 4);
+  const text = digits ?? size.toFixed(0);
+  // No sign on a value that rounds to zero
+  let sign = '';
+  if (Number(text)) sign = n > 0 ? '+' : '-';
+  return `${sign}${text}u`;
+}
+
 export const pct = (n: number | null, signed = false) => {
   if (n == null) return '–';
   const v = Math.round(n * 1000) / 10;

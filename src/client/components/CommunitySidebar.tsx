@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api, { apiErrorMessage } from '../lib/api';
 import useAutoRefresh from '../lib/useAutoRefresh';
-import { netColor, record, signedUnits } from '../lib/statFormat';
+import { netColor, record, shortUnits, signedUnits } from '../lib/statFormat';
 import { CommunityStats, DayTotal } from '../../shared/community';
 import type { DaySuperlative } from '../../shared/community';
 import { inSiteZone, shiftMonth, siteDayKey } from '../../shared/time';
@@ -480,7 +480,7 @@ function EarnersPanel({ data }: { data: CommunityStats }) {
                 <span
                   className={`w-14 text-right font-semibold tabular-nums ${netColor(u.line.net)}`}
                 >
-                  {signedUnits(u.line.net)}
+                  {shortUnits(u.line.net)}
                 </span>
               </Link>
             </li>

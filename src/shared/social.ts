@@ -11,11 +11,11 @@ import { z } from 'zod';
 // prettier-ignore
 export const REACTION_EMOJIS = [
   // Hype
-  '🔥', '🔒', '💰', '🐐', '💯', '🚀', '👑',
+  '🔥', '👀', '🔒', '💰', '🐐', '💯', '🚀',
   // Cashing
   '❤️', '🙌', '👏', '🏆', '🤑', '💸', '💎',
   // Sweating it
-  '🙏', '🤞', '🍀', '😬', '👀', '🫣', '🥵',
+  '🙏', '🤞', '🍀', '😬', '👑', '🫣', '🥵',
   // Ice cold, trends
   '🧊', '🥶', '🎯', '📈', '📉', '🚨', '🍿',
   // Meltdown
@@ -41,7 +41,7 @@ export const REACTION_LABELS: Record<string, string> = {
   '🐐': 'GOAT',
   '💯': '100',
   '🚀': 'To the moon',
-  '👑': 'King',
+  '👀': 'Watching',
   '❤️': 'Love it',
   '🙌': 'Yes!',
   '👏': 'Applause',
@@ -53,7 +53,7 @@ export const REACTION_LABELS: Record<string, string> = {
   '🤞': 'Fingers crossed',
   '🍀': 'Lucky',
   '😬': 'Sweating',
-  '👀': 'Watching',
+  '👑': 'King',
   '🫣': "Can't look",
   '🥵': 'Heater',
   '🧊': 'Ice cold',
