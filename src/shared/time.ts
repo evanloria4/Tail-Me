@@ -94,3 +94,16 @@ export function shiftMonth(month: string, by: number): string {
 /** When a Central month ("2026-10") starts, or null if it doesn't parse */
 export const monthStart = (month: string): Date | null =>
   /^\d{4}-\d{2}$/.test(month) ? fromSiteInput(`${month}-01T00:00`) : null;
+
+/**
+ * Moves a time by whole days on the Central clock, so 7:00 PM stays 7:00 PM
+ * across a daylight saving change (a flat 24 hours would land on 6:00 PM)
+ */
+export function shiftSiteDays(time: number, days: number): number {
+  const [date, clock] = toSiteInput(new Date(time)).split('T');
+  const [y, m, d] = date.split('-').map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+  return (
+    fromSiteInput(`${day}T${clock}`)?.getTime() ?? time + days * 86_400_000
+  );
+}

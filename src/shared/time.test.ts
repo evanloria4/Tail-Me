@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { fromSiteInput, siteDayDiff, siteDayKey, toSiteInput } from './time';
+import {
+  fromSiteInput,
+  siteDayDiff,
+  siteDayKey,
+  toSiteInput,
+  shiftSiteDays,
+} from './time';
 
 describe('Central time helpers', () => {
   it('reads instants as Central wall-clock time', () => {
@@ -35,5 +41,25 @@ describe('Central time helpers', () => {
     const now = new Date('2026-10-17T03:00:00Z'); // Oct 16, 10pm CT
     expect(siteDayDiff(new Date('2026-10-17T06:00:00Z'), now)).toBe(1);
     expect(siteDayDiff(new Date('2026-10-17T04:30:00Z'), now)).toBe(0);
+  });
+});
+
+describe('shiftSiteDays', () => {
+  const ct = (date: Date) => toSiteInput(date);
+
+  it('keeps the Central clock time across the end of daylight saving', () => {
+    // Sat Oct 31 2026, 7:00 PM CDT -> Sun Nov 1 after clocks fall back
+    const sat = new Date('2026-11-01T00:00:00Z');
+    expect(ct(sat)).toBe('2026-10-31T19:00');
+    expect(ct(new Date(shiftSiteDays(sat.getTime(), 1)))).toBe(
+      '2026-11-01T19:00'
+    );
+  });
+
+  it('goes back a day and across months', () => {
+    const nov1 = new Date('2026-11-02T01:00:00Z'); // Nov 1, 7:00 PM CST
+    expect(ct(new Date(shiftSiteDays(nov1.getTime(), -1)))).toBe(
+      '2026-10-31T19:00'
+    );
   });
 });

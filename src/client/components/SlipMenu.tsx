@@ -2,13 +2,12 @@ import React, { useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import api from '../lib/api';
 import {
-  GROUP_MAX_LOCK_DAYS,
   isBoostable,
   isGroupLocked,
   lockAtError,
   nextRung,
 } from '../../shared/posts';
-import { fromSiteInput, toSiteInput } from '../../shared/time';
+import { inSiteZone, shiftSiteDays, SITE_ZONE_LABEL } from '../../shared/time';
 import useNow from '../lib/useNow';
 import {
   deleteState,
@@ -228,7 +227,20 @@ function NumberRow({
   );
 }
 
-/** A new deadline for an open group parlay, in Central time */
+const HOUR_MS = 3600_000;
+
+const STEPS = [
+  { label: 'Day', by: (t: number, dir: 1 | -1) => shiftSiteDays(t, dir) },
+  { label: 'Hour', by: (t: number, dir: 1 | -1) => t + dir * HOUR_MS },
+  { label: '15 min', by: (t: number, dir: 1 | -1) => t + (dir * HOUR_MS) / 4 },
+];
+
+/**
+ * A new deadline for an open group parlay: − / + by a day, an hour or 15
+ * minutes, shown in Central time. Steps that would break the rule (in the
+ * past, or past the 7-day limit) are greyed out, so there's nothing to type
+ * and nothing to get wrong.
+ */
 function LockTimeForm({
   lockAt,
   onSave,
@@ -236,53 +248,85 @@ function LockTimeForm({
   lockAt: string;
   onSave: (iso: string) => Promise<boolean>;
 }) {
-  const [value, setValue] = useState(toSiteInput(new Date(lockAt)));
+  const start = new Date(lockAt).getTime();
+  const [time, setTime] = useState(start);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const now = new Date();
-  const latest = new Date(now.getTime() + GROUP_MAX_LOCK_DAYS * 86400 * 1000);
+  const valid = (t: number) => !lockAtError(new Date(t));
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    const deadline = fromSiteInput(value);
-    const problem = deadline ? lockAtError(deadline) : 'Set a deadline';
-    if (problem || !deadline) {
+    const problem = lockAtError(new Date(time));
+    if (problem) {
       setError(problem);
       return;
     }
     setSaving(true);
-    const ok = await onSave(deadline.toISOString());
+    const ok = await onSave(new Date(time).toISOString());
     setSaving(false);
     if (!ok) setError('Could not change the lock time');
   };
 
+  const shown = new Date(time);
+  const stepClass =
+    'h-8 w-8 flex-none rounded-md border border-gray-700 text-gray-300 transition hover:border-emerald-500 disabled:opacity-30 disabled:hover:border-gray-700';
   return (
     <form
       onSubmit={save}
       className="space-y-2 border-t border-gray-800 px-3 py-2"
     >
-      <label htmlFor="group-lock-at" className="block">
-        <span className="mb-1 block text-xs text-gray-400">
-          Lock by (Central time)
+      <p className="text-xs text-gray-400">Lock by</p>
+      <p className="font-semibold leading-tight" aria-live="polite">
+        {shown.toLocaleDateString(
+          'en-US',
+          inSiteZone({ weekday: 'short', month: 'short', day: 'numeric' })
+        )}
+        <span className="text-gray-500"> · </span>
+        {shown.toLocaleTimeString(
+          'en-US',
+          inSiteZone({ hour: 'numeric', minute: '2-digit' })
+        )}{' '}
+        <span className="text-xs font-normal text-gray-500">
+          {SITE_ZONE_LABEL}
         </span>
-        <input
-          id="group-lock-at"
-          type="datetime-local"
-          required
-          value={value}
-          min={toSiteInput(now)}
-          max={toSiteInput(latest)}
-          onChange={(e) => {
-            setValue(e.target.value);
-            setError(null);
-          }}
-          className="w-full rounded-md border border-gray-700 bg-gray-950 px-2 py-1 text-sm outline-none focus:border-emerald-500"
-        />
-      </label>
+      </p>
+      {STEPS.map((step) => {
+        const earlier = step.by(time, -1);
+        const later = step.by(time, 1);
+        return (
+          <div key={step.label} className="flex items-center gap-2">
+            <span className="flex-1 text-sm">{step.label}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setTime(earlier);
+                setError(null);
+              }}
+              disabled={!valid(earlier)}
+              aria-label={`${step.label} earlier`}
+              className={stepClass}
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTime(later);
+                setError(null);
+              }}
+              disabled={!valid(later)}
+              aria-label={`${step.label} later`}
+              className={stepClass}
+            >
+              +
+            </button>
+          </div>
+        );
+      })}
       {error && <p className="text-xs text-red-400">{error}</p>}
       <button
         type="submit"
-        disabled={saving}
+        disabled={saving || time === start}
         className="w-full rounded-md bg-emerald-500 py-1.5 text-sm font-semibold text-gray-950 transition hover:bg-emerald-400 disabled:opacity-50"
       >
         {saving ? 'Saving…' : 'Save lock time'}
