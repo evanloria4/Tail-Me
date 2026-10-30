@@ -13,6 +13,7 @@ import {
   groupResult,
   hasBookPrice,
   isGroupLocked,
+  lockAtError,
   isSameGameLegs,
   legMarketName,
   legMarketSlot,
@@ -463,5 +464,24 @@ describe('isGooseEgg', () => {
     // One leg isn't a parlay
     expect(isGooseEgg(['LOST'])).toBe(false);
     expect(isGooseEgg(['LOST', 'VOID'])).toBe(false);
+  });
+});
+
+describe('lockAtError', () => {
+  const now = new Date('2026-10-29T17:00:00Z');
+  const later = (minutes: number) => new Date(now.getTime() + minutes * 60_000);
+
+  it('takes a deadline from a minute out up to 7 days', () => {
+    expect(lockAtError(later(30), now)).toBeNull();
+    expect(lockAtError(later(7 * 24 * 60), now)).toBeNull();
+  });
+
+  it('refuses the past, right now, and past 7 days', () => {
+    expect(lockAtError(later(-5), now)).toBe('Set the deadline in the future');
+    expect(lockAtError(later(0.5), now)).toBe('Set the deadline in the future');
+    expect(lockAtError(later(7 * 24 * 60 + 1), now)).toBe(
+      'The deadline can be at most 7 days out'
+    );
+    expect(lockAtError(new Date('nope'), now)).toBe('Set a deadline');
   });
 });

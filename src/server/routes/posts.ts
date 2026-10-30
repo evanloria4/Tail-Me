@@ -30,7 +30,7 @@ import {
   deleteRule,
   editPostSchema,
   GROUP_MAX_LEGS,
-  GROUP_MAX_LOCK_DAYS,
+  groupLockAtSchema,
   groupPriceSchema,
   groupResult,
   isBoostable,
@@ -38,6 +38,7 @@ import {
   joinGroupSchema,
   legMarketName,
   legMarketSlot,
+  lockAtError,
   LADDER_MAX_RUNGS,
   LegInput,
   FeedFilter,
@@ -439,15 +440,9 @@ router.post('/', requireAuth, requireSubscription, async (req, res) => {
       };
     }
     lockAt = new Date(input.lockAt);
-    const latest = Date.now() + GROUP_MAX_LOCK_DAYS * 86400 * 1000;
-    if (lockAt.getTime() <= Date.now() + 60_000) {
-      res.status(400).json({ error: 'Set the deadline in the future' });
-      return;
-    }
-    if (lockAt.getTime() > latest) {
-      res.status(400).json({
-        error: `The deadline can be at most ${GROUP_MAX_LOCK_DAYS} days out`,
-      });
+    const deadlineError = lockAtError(lockAt);
+    if (deadlineError) {
+      res.status(400).json({ error: deadlineError });
       return;
     }
   }
@@ -888,6 +883,50 @@ router.post<{ postId: string }>(
     await prisma.post.update({
       where: { id: group.id },
       data: { lockedAt: new Date() },
+    });
+    res.json(await loadFeedPost(group.id, userId));
+  }
+);
+
+/**
+ * The creator (or an admin) moves the deadline while it's still open, under
+ * the same rules as starting one. The "locks soon" reminder is re-armed so
+ * it goes out ahead of the new time.
+ */
+router.put<{ postId: string }>(
+  '/:postId/lock-at',
+  requireAuth,
+  async (req, res) => {
+    const parsed = groupLockAtSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Set a deadline' });
+      return;
+    }
+    const userId = req.user!.id;
+    const group = await findGroup(req.params.postId);
+    if (!group) {
+      res.status(404).json({ error: 'Group parlay not found' });
+      return;
+    }
+    if (group.authorId !== userId && !req.user!.isAdmin) {
+      res
+        .status(403)
+        .json({ error: 'Only the creator can change the lock time' });
+      return;
+    }
+    if (groupIsLocked(group)) {
+      res.status(400).json({ error: 'It’s already locked' });
+      return;
+    }
+    const lockAt = new Date(parsed.data.lockAt);
+    const deadlineError = lockAtError(lockAt);
+    if (deadlineError) {
+      res.status(400).json({ error: deadlineError });
+      return;
+    }
+    await prisma.post.update({
+      where: { id: group.id },
+      data: { lockAt, lockReminderAt: null },
     });
     res.json(await loadFeedPost(group.id, userId));
   }

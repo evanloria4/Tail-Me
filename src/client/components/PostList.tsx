@@ -392,6 +392,20 @@ export default function PostList({
     }
   };
 
+  const setLockAt = async (postId: string, lockAt: string) => {
+    try {
+      const { data } = await api.put<FeedPost>(`/posts/${postId}/lock-at`, {
+        lockAt,
+      });
+      replacePost(data);
+      onChange?.();
+      return true;
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not change the lock time'));
+      return false;
+    }
+  };
+
   const addRung = async (postId: string, rung: RungInput) => {
     try {
       const { data } = await api.post<FeedPost>(`/posts/${postId}/rungs`, rung);
@@ -571,6 +585,7 @@ export default function PostList({
               onUnits={setUnits}
               onBoost={setBoost}
               onAddRung={addRung}
+              onLockAt={setLockAt}
               groupHandlers={groupHandlers}
             />
           );

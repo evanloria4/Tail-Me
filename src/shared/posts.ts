@@ -150,6 +150,27 @@ export const GROUP_MAX_LEGS = 12;
 /** Furthest out a lock deadline can be set */
 export const GROUP_MAX_LOCK_DAYS = 7;
 
+/**
+ * Why a group parlay deadline won't do, or null if it's fine: at least a
+ * minute out and no more than GROUP_MAX_LOCK_DAYS. Same rule when starting
+ * one and when moving it later.
+ */
+export function lockAtError(lockAt: Date, now = new Date()): string | null {
+  if (Number.isNaN(lockAt.getTime())) return 'Set a deadline';
+  if (lockAt.getTime() <= now.getTime() + 60_000) {
+    return 'Set the deadline in the future';
+  }
+  if (lockAt.getTime() > now.getTime() + GROUP_MAX_LOCK_DAYS * 86400 * 1000) {
+    return `The deadline can be at most ${GROUP_MAX_LOCK_DAYS} days out`;
+  }
+  return null;
+}
+
+/** Moving an open group parlay's deadline (⋯ → Change lock time) */
+export const groupLockAtSchema = z.object({
+  lockAt: z.iso.datetime({ offset: true }),
+});
+
 export const joinGroupSchema = z.object({ leg: legSchema });
 
 /** The book's own price for the locked slip (same-game parlays price below the legs multiplied) */

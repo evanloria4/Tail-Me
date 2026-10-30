@@ -1,7 +1,14 @@
 import React, { useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import api from '../lib/api';
-import { isBoostable, nextRung } from '../../shared/posts';
+import {
+  GROUP_MAX_LOCK_DAYS,
+  isBoostable,
+  isGroupLocked,
+  lockAtError,
+  nextRung,
+} from '../../shared/posts';
+import { fromSiteInput, toSiteInput } from '../../shared/time';
 import useNow from '../lib/useNow';
 import {
   deleteState,
@@ -221,6 +228,69 @@ function NumberRow({
   );
 }
 
+/** A new deadline for an open group parlay, in Central time */
+function LockTimeForm({
+  lockAt,
+  onSave,
+}: {
+  lockAt: string;
+  onSave: (iso: string) => Promise<boolean>;
+}) {
+  const [value, setValue] = useState(toSiteInput(new Date(lockAt)));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const now = new Date();
+  const latest = new Date(now.getTime() + GROUP_MAX_LOCK_DAYS * 86400 * 1000);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const deadline = fromSiteInput(value);
+    const problem = deadline ? lockAtError(deadline) : 'Set a deadline';
+    if (problem || !deadline) {
+      setError(problem);
+      return;
+    }
+    setSaving(true);
+    const ok = await onSave(deadline.toISOString());
+    setSaving(false);
+    if (!ok) setError('Could not change the lock time');
+  };
+
+  return (
+    <form
+      onSubmit={save}
+      className="space-y-2 border-t border-gray-800 px-3 py-2"
+    >
+      <label htmlFor="group-lock-at" className="block">
+        <span className="mb-1 block text-xs text-gray-400">
+          Lock by (Central time)
+        </span>
+        <input
+          id="group-lock-at"
+          type="datetime-local"
+          required
+          value={value}
+          min={toSiteInput(now)}
+          max={toSiteInput(latest)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError(null);
+          }}
+          className="w-full rounded-md border border-gray-700 bg-gray-950 px-2 py-1 text-sm outline-none focus:border-emerald-500"
+        />
+      </label>
+      {error && <p className="text-xs text-red-400">{error}</p>}
+      <button
+        type="submit"
+        disabled={saving}
+        className="w-full rounded-md bg-emerald-500 py-1.5 text-sm font-semibold text-gray-950 transition hover:bg-emerald-400 disabled:opacity-50"
+      >
+        {saving ? 'Saving…' : 'Save lock time'}
+      </button>
+    </form>
+  );
+}
+
 export type RungInput = { line: number; americanOdds: number; units: number };
 
 /**
@@ -383,6 +453,7 @@ export default function SlipMenu({
   onUnits,
   onBoost,
   onAddRung,
+  onLockAt,
 }: {
   post: FeedPost;
   onSettle: (betId: string, result: BetResult) => void;
@@ -393,11 +464,13 @@ export default function SlipMenu({
   onUnits: (betId: string, units: number) => Promise<boolean>;
   onBoost: (betId: string, boostPct: number) => Promise<boolean>;
   onAddRung: (rung: RungInput) => Promise<boolean>;
+  /** Moves an open group parlay's deadline (ISO time) */
+  onLockAt: (iso: string) => Promise<boolean>;
 }) {
   const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<
-    'menu' | 'series' | 'result' | 'odds' | 'boost' | 'units' | 'rung'
+    'menu' | 'series' | 'result' | 'odds' | 'boost' | 'units' | 'rung' | 'lock'
   >('menu');
   const [series, setSeries] = useState<SeriesSummary[] | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -406,6 +479,9 @@ export default function SlipMenu({
   const personal = post.type !== 'GROUP_PARLAY';
   const boostable = isBoostable(post.type);
   const canFile = personal && isAuthor;
+  // An open group parlay's deadline can move until it locks
+  const openGroup =
+    !personal && post.group && !isGroupLocked(post.group) ? post.group : null;
   // Hints count down while the menu is open
   const now = new Date(useNow());
   const edit = editState(post, now, isAdmin);
@@ -575,6 +651,20 @@ export default function SlipMenu({
                   </span>
                 </button>
               )}
+              {openGroup && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setView('lock')}
+                  className={itemClass}
+                >
+                  <span aria-hidden="true">⏰</span>
+                  <span className="flex-1">Change lock time</span>
+                  <span aria-hidden="true" className="text-gray-500">
+                    ›
+                  </span>
+                </button>
+              )}
               {canFile && (
                 <button
                   type="button"
@@ -652,6 +742,25 @@ export default function SlipMenu({
                   }
                 />
               </ul>
+            </>
+          )}
+          {view === 'lock' && openGroup && (
+            <>
+              <button
+                type="button"
+                onClick={() => setView('menu')}
+                className="w-full px-3 pb-1.5 pt-1 text-left text-xs font-semibold text-gray-500 hover:text-white"
+              >
+                ‹ Back
+              </button>
+              <LockTimeForm
+                lockAt={openGroup.lockAt}
+                onSave={async (iso) => {
+                  const ok = await onLockAt(iso);
+                  if (ok) close();
+                  return ok;
+                }}
+              />
             </>
           )}
           {view === 'rung' && (

@@ -324,6 +324,7 @@ export default function PostCard({
   onUnits,
   onBoost,
   onAddRung,
+  onLockAt,
   groupHandlers,
 }: {
   post: FeedPost;
@@ -345,6 +346,8 @@ export default function PostCard({
   onBoost: (betId: string, boostPct: number) => Promise<boolean>;
   /** Author (pregame) or admin adds a ladder rung; false if it didn't save */
   onAddRung: (postId: string, rung: RungInput) => Promise<boolean>;
+  /** Creator moves an open group parlay's deadline */
+  onLockAt: (postId: string, iso: string) => Promise<boolean>;
   groupHandlers: GroupHandlers;
 }) {
   const isAuthor = post.author.id === currentUserId;
@@ -522,6 +525,7 @@ export default function PostCard({
             onUnits={onUnits}
             onBoost={onBoost}
             onAddRung={(rung) => onAddRung(post.id, rung)}
+            onLockAt={(iso) => onLockAt(post.id, iso)}
           />
         )}
       </header>
