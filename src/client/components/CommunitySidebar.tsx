@@ -210,8 +210,8 @@ function Calendar({
 }
 
 /** The group parlays' own record, plus whose legs carry and whose bust */
-/** Most people shown before "See all" */
-const PICKERS_SHOWN = 5;
+/** Most people each view shows (the whole table lives on Records) */
+const PICKERS_SHOWN = 3;
 
 /**
  * Each view shows its half of the group (up to PICKERS_SHOWN), so with a
@@ -237,13 +237,12 @@ function rankPickers(legs: PickerRow[], view: 'top' | 'bottom') {
 
 function GroupRecord({ group }: { group: CommunityStats['group'] }) {
   const [view, setView] = useState<'top' | 'bottom'>('top');
-  const [showAll, setShowAll] = useState(false);
   const settled = group.wins + group.losses + group.pushes;
   if (!settled && !group.open) return null;
-  const ranked = rankPickers(group.legs, view);
-  const shown = showAll
-    ? ranked
-    : ranked.slice(0, pickersShown(group.legs.length));
+  const shown = rankPickers(group.legs, view).slice(
+    0,
+    pickersShown(group.legs.length)
+  );
   return (
     <Panel
       title="Group parlays"
@@ -336,16 +335,6 @@ function GroupRecord({ group }: { group: CommunityStats['group'] }) {
             </li>
           ))}
         </ul>
-      )}
-      {group.legs.length > pickersShown(group.legs.length) && (
-        <button
-          type="button"
-          onClick={() => setShowAll(!showAll)}
-          aria-expanded={showAll}
-          className="mt-1 w-full rounded-lg py-1.5 text-xs font-semibold text-emerald-400 transition hover:bg-gray-800"
-        >
-          {showAll ? 'Show less' : `See all ${group.legs.length}`}
-        </button>
       )}
       <Link
         to="/records?tab=group"
