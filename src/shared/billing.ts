@@ -10,8 +10,8 @@ export type SubscriptionStatus =
 
 export const PRICE_LABEL = '$5/month';
 
-/** Launch promo: everyone gets subscriber features through Oct 31 (ends midnight Nov 1 CT) */
-export const FREE_UNTIL = new Date('2026-11-01T05:00:00Z');
+/** Launch promo: everyone gets subscriber features through Nov 2 (ends midnight Nov 3 CT) */
+export const FREE_UNTIL = new Date('2026-11-03T06:00:00Z');
 
 export const isPromoActive = (now = new Date()) => now < FREE_UNTIL;
 

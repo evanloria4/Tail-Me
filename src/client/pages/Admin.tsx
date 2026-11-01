@@ -63,7 +63,8 @@ function Tile({
 
 function UserRow({ user }: { user: AdminUser }) {
   const status = STATUS[user.subscriptionStatus];
-  const date = planDate(user);
+  // Admins don't need a plan, so theirs (if any) isn't shown
+  const date = user.isAdmin ? null : planDate(user);
   return (
     <li className="flex items-center gap-3 px-4 py-3">
       <Link to={`/u/${user.username}`} tabIndex={-1} aria-hidden="true">
@@ -87,16 +88,17 @@ function UserRow({ user }: { user: AdminUser }) {
       </div>
       <div className="flex flex-none flex-col items-end gap-1">
         <div className="flex items-center gap-1.5">
-          {user.isAdmin && (
+          {user.isAdmin ? (
             <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-400">
               Admin
             </span>
+          ) : (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${status.chip}`}
+            >
+              {status.label}
+            </span>
           )}
-          <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${status.chip}`}
-          >
-            {status.label}
-          </span>
         </div>
         {date && <p className="text-xs text-gray-500">{date}</p>}
       </div>

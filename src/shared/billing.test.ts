@@ -7,7 +7,7 @@ import {
 } from './billing';
 
 const OCT_20 = new Date('2026-10-20T17:00:00Z');
-const NOV_2 = new Date('2026-11-02T17:00:00Z');
+const NOV_4 = new Date('2026-11-04T17:00:00Z');
 const free = { isAdmin: false, subscriptionStatus: 'NONE' as const };
 
 describe('hasAccess', () => {
@@ -15,23 +15,23 @@ describe('hasAccess', () => {
     expect(hasAccess(free, OCT_20)).toBe(true);
   });
 
-  it('ends the promo at midnight Nov 1 Central', () => {
-    expect(hasAccess(free, new Date('2026-11-01T04:59:00Z'))).toBe(true);
+  it('ends the promo at midnight Nov 3 Central', () => {
+    expect(hasAccess(free, new Date('2026-11-03T05:59:00Z'))).toBe(true);
     expect(hasAccess(free, FREE_UNTIL)).toBe(false);
   });
 
   it('needs a paid status or admin afterwards', () => {
-    expect(hasAccess(free, NOV_2)).toBe(false);
-    expect(hasAccess({ ...free, subscriptionStatus: 'CANCELED' }, NOV_2)).toBe(
+    expect(hasAccess(free, NOV_4)).toBe(false);
+    expect(hasAccess({ ...free, subscriptionStatus: 'CANCELED' }, NOV_4)).toBe(
       false
     );
-    expect(hasAccess({ ...free, subscriptionStatus: 'ACTIVE' }, NOV_2)).toBe(
+    expect(hasAccess({ ...free, subscriptionStatus: 'ACTIVE' }, NOV_4)).toBe(
       true
     );
-    expect(hasAccess({ ...free, subscriptionStatus: 'PAST_DUE' }, NOV_2)).toBe(
+    expect(hasAccess({ ...free, subscriptionStatus: 'PAST_DUE' }, NOV_4)).toBe(
       true
     );
-    expect(hasAccess({ ...free, isAdmin: true }, NOV_2)).toBe(true);
+    expect(hasAccess({ ...free, isAdmin: true }, NOV_4)).toBe(true);
   });
 });
 
@@ -41,8 +41,8 @@ describe('promoTrialEnd', () => {
   });
 
   it('skips the trial inside Stripe’s 48h minimum', () => {
-    expect(promoTrialEnd(new Date('2026-10-30T12:00:00Z'))).toBeUndefined();
-    expect(promoTrialEnd(NOV_2)).toBeUndefined();
+    expect(promoTrialEnd(new Date('2026-11-01T12:00:00Z'))).toBeUndefined();
+    expect(promoTrialEnd(NOV_4)).toBeUndefined();
   });
 });
 
