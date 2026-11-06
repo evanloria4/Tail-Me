@@ -14,7 +14,7 @@ import { siteDayKey } from '../../shared/time';
 const router = Router();
 router.use(requireAuth, requireAdmin);
 
-/** Every user with their plan, newest first */
+/** Every user, newest first */
 router.get('/users', async (_req, res) => {
   const users = await prisma.user.findMany({
     orderBy: { createdAt: 'desc' },
@@ -25,15 +25,11 @@ router.get('/users', async (_req, res) => {
       avatarUrl: true,
       avatarColor: true,
       isAdmin: true,
-      subscriptionStatus: true,
-      currentPeriodEnd: true,
-      cancelAtPeriodEnd: true,
       createdAt: true,
     },
   });
   const body: AdminUser[] = users.map((u) => ({
     ...u,
-    currentPeriodEnd: u.currentPeriodEnd?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
   }));
   res.json(body);

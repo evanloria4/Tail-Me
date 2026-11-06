@@ -458,7 +458,7 @@ export function GroupActions({
   post: FeedPost;
   handlers: GroupHandlers;
 }) {
-  const { profile, isSubscribed } = useAuth();
+  const { profile } = useAuth();
   const { openComposer } = useLayout();
   const { legs } = post.bets[0];
   const isCreator = post.author.id === profile?.id;
@@ -472,7 +472,7 @@ export function GroupActions({
         ✓ You&apos;re in
       </span>
     );
-  } else if (isSubscribed) {
+  } else {
     join = (
       <button
         type="button"
@@ -492,15 +492,6 @@ export function GroupActions({
       >
         + Add your leg
       </button>
-    );
-  } else {
-    join = (
-      <span className="text-xs text-gray-500">
-        <Link to="/billing" className="text-emerald-400 hover:underline">
-          Subscribers
-        </Link>{' '}
-        add legs. You can place it once it locks.
-      </span>
     );
   }
 

@@ -1,6 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
 import type { User } from '../../generated/prisma/client';
-import { hasAccess } from '../../shared/billing';
 import prisma from '../db';
 import supabaseAdmin from '../supabase';
 
@@ -52,19 +51,6 @@ export async function requireAuth(
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.user?.isAdmin) {
     res.status(403).json({ error: 'Admins only' });
-    return;
-  }
-  next();
-}
-
-/** Gate for posting + the Odds API (`hasAccess`: subscribers, admins, the promo). Use after requireAuth. */
-export function requireSubscription(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  if (!req.user || !hasAccess(req.user)) {
-    res.status(402).json({ error: 'Subscription required' });
     return;
   }
   next();

@@ -12,7 +12,7 @@ import {
   voteSchema,
 } from '../../shared/social';
 
-// Tailers, reactions and comments on a slip. Free users can do all of it.
+// Tailers, reactions and comments on a slip.
 
 const router = Router();
 

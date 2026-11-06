@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client';
 import prisma from '../db';
 import { feedInclude, loadFeedPost, toFeedPosts } from '../feed';
-import { requireAuth, requireSubscription } from '../middleware/auth';
+import { requireAuth } from '../middleware/auth';
 import {
   noticeBacking,
   noticeGroupJoin,
@@ -399,7 +399,7 @@ router.get('/active', requireAuth, async (req, res) => {
   });
 });
 
-router.post('/', requireAuth, requireSubscription, async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   const parsed = createPostSchema.safeParse(req.body);
   if (!parsed.success) {
     res
@@ -578,8 +578,8 @@ async function backable(
 
 /**
  * Tail a slip: records a tail on every bet in the post (each ladder rung is its
- * own bet) and drops the viewer's fade, since you can't do both. Free users
- * can tail. Repeat tails are no-ops, so "Bet again" never double counts.
+ * own bet) and drops the viewer's fade, since you can't do both.
+ * Repeat tails are no-ops, so "Bet again" never double counts.
  */
 router.post<{ postId: string }>(
   '/:postId/tail',
@@ -727,7 +727,6 @@ class LegTakenError extends Error {}
 router.post<{ postId: string }>(
   '/:postId/legs',
   requireAuth,
-  requireSubscription,
   async (req, res) => {
     const parsed = joinGroupSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -1141,7 +1140,6 @@ router.put<{ betId: string }>(
 router.post<{ postId: string }>(
   '/:postId/rungs',
   requireAuth,
-  requireSubscription,
   async (req, res) => {
     const parsed = addRungSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -1437,196 +1435,191 @@ router.put<{ postId: string }>(
  * a parlay. Tails, reactions and comments stay with the slip. Admins can
  * edit anyone's, any time, graded or not.
  */
-router.put<{ postId: string }>(
-  '/:postId',
-  requireAuth,
-  requireSubscription,
-  async (req, res) => {
-    const parsed = editPostSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res
-        .status(400)
-        .json({ error: parsed.error.issues[0]?.message ?? 'Invalid edit' });
-      return;
-    }
-    const input = parsed.data;
-    const post = await prisma.post.findFirst({
-      where: { id: req.params.postId, deletedAt: null },
-      select: {
-        id: true,
-        authorId: true,
-        type: true,
-        bets: {
-          select: {
-            id: true,
-            result: true,
-            gradedBy: true,
-            legs: {
-              orderBy: { order: 'asc' },
-              select: {
-                id: true,
-                result: true,
-                event: { select: { commenceTime: true } },
-              },
+router.put<{ postId: string }>('/:postId', requireAuth, async (req, res) => {
+  const parsed = editPostSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ error: parsed.error.issues[0]?.message ?? 'Invalid edit' });
+    return;
+  }
+  const input = parsed.data;
+  const post = await prisma.post.findFirst({
+    where: { id: req.params.postId, deletedAt: null },
+    select: {
+      id: true,
+      authorId: true,
+      type: true,
+      bets: {
+        select: {
+          id: true,
+          result: true,
+          gradedBy: true,
+          legs: {
+            orderBy: { order: 'asc' },
+            select: {
+              id: true,
+              result: true,
+              event: { select: { commenceTime: true } },
             },
           },
         },
       },
-    });
-    if (!post) {
-      res.status(404).json({ error: 'Post not found' });
-      return;
-    }
-    const { isAdmin } = req.user!;
-    if (post.authorId !== req.user!.id && !isAdmin) {
-      res.status(403).json({ error: 'Only the poster can edit a slip' });
-      return;
-    }
-    const editable = canEditSlip(
-      {
-        type: post.type,
-        bets: post.bets.map((b) => ({
-          result: b.result,
-          legs: b.legs.map((l) => ({
-            result: l.result,
-            startsAt: l.event?.commenceTime ?? null,
-          })),
-        })),
-      },
-      new Date(),
-      isAdmin
-    );
-    if (!editable) {
-      res.status(400).json({
-        error:
-          post.type === 'STRAIGHT' || post.type === 'PARLAY'
-            ? 'Slips lock once one of their games starts'
-            : 'Only straights and parlays can be edited',
-      });
-      return;
-    }
-    const [bet] = post.bets;
-    const current = new Set(bet.legs.map((l) => l.id));
-    const keep = [...new Set(input.keepLegIds)];
-    if (keep.some((id) => !current.has(id))) {
-      res.status(400).json({ error: 'That leg is not on this slip' });
-      return;
-    }
-
-    // New legs: real leagues, stored games, and only games that haven't started
-    if (input.legs.length) {
-      if (!(await sportsAreActive(input.legs))) {
-        res.status(400).json({ error: 'Unknown sport' });
-        return;
-      }
-      const ids = eventIdsOf(input.legs);
-      const games = await prisma.event.findMany({
-        where: { id: { in: ids } },
-        select: { id: true, commenceTime: true },
-      });
-      const starts = new Map(games.map((g) => [g.id, g.commenceTime]));
-      const unknown = input.legs.some(
-        (l) => !l.eventId || !starts.has(l.eventId)
-      );
-      if (unknown) {
-        res.status(400).json({ error: 'Add new legs from live odds' });
-        return;
-      }
-      // Admins fixing a slip can add in-game picks the poster really made
-      const startedLeg =
-        !isAdmin &&
-        input.legs.find((l) => starts.get(l.eventId!)!.getTime() <= Date.now());
-      if (startedLeg) {
-        res
-          .status(400)
-          .json({ error: `${startedLeg.eventLabel} has already started` });
-        return;
-      }
-    }
-    const events = new Set(eventIdsOf(input.legs));
-
-    const total = keep.length + input.legs.length;
-    const type = total === 1 ? 'STRAIGHT' : 'PARLAY';
-    await prisma.$transaction(async (tx) => {
-      await tx.betLeg.deleteMany({
-        where: { betId: bet.id, id: { notIn: keep } },
-      });
-      // (betId, order) is unique, so park kept legs out of the way first
-      await Promise.all(
-        keep.map((id, i) =>
-          tx.betLeg.update({ where: { id }, data: { order: -1 - i } })
-        )
-      );
-      await Promise.all(
-        keep.map((id, i) =>
-          tx.betLeg.update({ where: { id }, data: { order: i } })
-        )
-      );
-      await tx.betLeg.createMany({
-        data: input.legs.map((l, i) => ({
-          ...legData(l, keep.length + i, events),
-          betId: bet.id,
-        })),
-      });
-      const legs = await tx.betLeg.findMany({
-        where: { betId: bet.id },
-        orderBy: { order: 'asc' },
-        select: { americanOdds: true, deepLink: true, result: true },
-      });
-      // Adding or dropping legs (admins, on a graded slip) re-derives the
-      // result from what's left; a PENDING one goes back to the grader
-      const legsChanged =
-        input.legs.length > 0 || keep.length !== bet.legs.length;
-      const result = legsChanged
-        ? betResultFromLegs(legs.map((l) => l.result))
-        : bet.result;
-      const grade =
-        result === bet.result
-          ? {}
-          : {
-              result,
-              settledAt: result === 'PENDING' ? null : new Date(),
-              gradedBy: result === 'PENDING' ? null : ('MANUAL' as const),
-            };
-      // A straight's price is its leg's; a parlay's is the book's or the legs
-      // multiplied. The boost (kept unless the edit changes it) goes on top.
-      let { americanOdds } = legs[0];
-      let decimal = americanToDecimal(americanOdds);
-      if (type === 'PARLAY') {
-        decimal = input.slipOdds
-          ? americanToDecimal(input.slipOdds)
-          : parlayDecimal(legs.map((l) => l.americanOdds));
-        americanOdds = input.slipOdds ?? decimalToAmerican(decimal);
-      }
-      const priced = await tx.bet.findUniqueOrThrow({
-        where: { id: bet.id },
-        select: { boostPct: true },
-      });
-      await tx.bet.update({
-        where: { id: bet.id },
-        data: {
-          ...grade,
-          units: input.units,
-          ...betPrice(
-            { americanOdds, decimalOdds: decimal },
-            input.boostPct ?? priced.boostPct
-          ),
-          deepLink: type === 'STRAIGHT' ? legs[0].deepLink : null,
-        },
-      });
-      await tx.post.update({
-        where: { id: post.id },
-        data: {
-          type,
-          ...(input.caption !== undefined && {
-            caption: input.caption || null,
-          }),
-        },
-      });
-    });
-    res.json(await loadFeedPost(post.id, req.user!.id));
+    },
+  });
+  if (!post) {
+    res.status(404).json({ error: 'Post not found' });
+    return;
   }
-);
+  const { isAdmin } = req.user!;
+  if (post.authorId !== req.user!.id && !isAdmin) {
+    res.status(403).json({ error: 'Only the poster can edit a slip' });
+    return;
+  }
+  const editable = canEditSlip(
+    {
+      type: post.type,
+      bets: post.bets.map((b) => ({
+        result: b.result,
+        legs: b.legs.map((l) => ({
+          result: l.result,
+          startsAt: l.event?.commenceTime ?? null,
+        })),
+      })),
+    },
+    new Date(),
+    isAdmin
+  );
+  if (!editable) {
+    res.status(400).json({
+      error:
+        post.type === 'STRAIGHT' || post.type === 'PARLAY'
+          ? 'Slips lock once one of their games starts'
+          : 'Only straights and parlays can be edited',
+    });
+    return;
+  }
+  const [bet] = post.bets;
+  const current = new Set(bet.legs.map((l) => l.id));
+  const keep = [...new Set(input.keepLegIds)];
+  if (keep.some((id) => !current.has(id))) {
+    res.status(400).json({ error: 'That leg is not on this slip' });
+    return;
+  }
+
+  // New legs: real leagues, stored games, and only games that haven't started
+  if (input.legs.length) {
+    if (!(await sportsAreActive(input.legs))) {
+      res.status(400).json({ error: 'Unknown sport' });
+      return;
+    }
+    const ids = eventIdsOf(input.legs);
+    const games = await prisma.event.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, commenceTime: true },
+    });
+    const starts = new Map(games.map((g) => [g.id, g.commenceTime]));
+    const unknown = input.legs.some(
+      (l) => !l.eventId || !starts.has(l.eventId)
+    );
+    if (unknown) {
+      res.status(400).json({ error: 'Add new legs from live odds' });
+      return;
+    }
+    // Admins fixing a slip can add in-game picks the poster really made
+    const startedLeg =
+      !isAdmin &&
+      input.legs.find((l) => starts.get(l.eventId!)!.getTime() <= Date.now());
+    if (startedLeg) {
+      res
+        .status(400)
+        .json({ error: `${startedLeg.eventLabel} has already started` });
+      return;
+    }
+  }
+  const events = new Set(eventIdsOf(input.legs));
+
+  const total = keep.length + input.legs.length;
+  const type = total === 1 ? 'STRAIGHT' : 'PARLAY';
+  await prisma.$transaction(async (tx) => {
+    await tx.betLeg.deleteMany({
+      where: { betId: bet.id, id: { notIn: keep } },
+    });
+    // (betId, order) is unique, so park kept legs out of the way first
+    await Promise.all(
+      keep.map((id, i) =>
+        tx.betLeg.update({ where: { id }, data: { order: -1 - i } })
+      )
+    );
+    await Promise.all(
+      keep.map((id, i) =>
+        tx.betLeg.update({ where: { id }, data: { order: i } })
+      )
+    );
+    await tx.betLeg.createMany({
+      data: input.legs.map((l, i) => ({
+        ...legData(l, keep.length + i, events),
+        betId: bet.id,
+      })),
+    });
+    const legs = await tx.betLeg.findMany({
+      where: { betId: bet.id },
+      orderBy: { order: 'asc' },
+      select: { americanOdds: true, deepLink: true, result: true },
+    });
+    // Adding or dropping legs (admins, on a graded slip) re-derives the
+    // result from what's left; a PENDING one goes back to the grader
+    const legsChanged =
+      input.legs.length > 0 || keep.length !== bet.legs.length;
+    const result = legsChanged
+      ? betResultFromLegs(legs.map((l) => l.result))
+      : bet.result;
+    const grade =
+      result === bet.result
+        ? {}
+        : {
+            result,
+            settledAt: result === 'PENDING' ? null : new Date(),
+            gradedBy: result === 'PENDING' ? null : ('MANUAL' as const),
+          };
+    // A straight's price is its leg's; a parlay's is the book's or the legs
+    // multiplied. The boost (kept unless the edit changes it) goes on top.
+    let { americanOdds } = legs[0];
+    let decimal = americanToDecimal(americanOdds);
+    if (type === 'PARLAY') {
+      decimal = input.slipOdds
+        ? americanToDecimal(input.slipOdds)
+        : parlayDecimal(legs.map((l) => l.americanOdds));
+      americanOdds = input.slipOdds ?? decimalToAmerican(decimal);
+    }
+    const priced = await tx.bet.findUniqueOrThrow({
+      where: { id: bet.id },
+      select: { boostPct: true },
+    });
+    await tx.bet.update({
+      where: { id: bet.id },
+      data: {
+        ...grade,
+        units: input.units,
+        ...betPrice(
+          { americanOdds, decimalOdds: decimal },
+          input.boostPct ?? priced.boostPct
+        ),
+        deepLink: type === 'STRAIGHT' ? legs[0].deepLink : null,
+      },
+    });
+    await tx.post.update({
+      where: { id: post.id },
+      data: {
+        type,
+        ...(input.caption !== undefined && {
+          caption: input.caption || null,
+        }),
+      },
+    });
+  });
+  res.json(await loadFeedPost(post.id, req.user!.id));
+});
 
 /**
  * Delete your slip (see deleteRule): a settled slip is hidden but keeps

@@ -10,8 +10,6 @@ import type { Session } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
 import api from '../lib/api';
 import { disablePush } from '../lib/push';
-import { hasAccess } from '../../shared/billing';
-import type { SubscriptionStatus } from '../../shared/billing';
 
 export type Profile = {
   id: string;
@@ -21,9 +19,6 @@ export type Profile = {
   /** Monogram background when there's no photo */
   avatarColor: string;
   bio: string | null;
-  subscriptionStatus: SubscriptionStatus;
-  currentPeriodEnd: string | null;
-  cancelAtPeriodEnd: boolean;
   isAdmin: boolean;
   createdAt: string;
   /** Null until they finish or skip the first-visit tour */
@@ -34,8 +29,6 @@ type AuthContextValue = {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  /** Can post + use live odds (subscribers, admins, everyone during the promo) */
-  isSubscribed: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -98,7 +91,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       profile,
       loading,
-      isSubscribed: !!profile && hasAccess(profile),
       signIn,
       signOut,
       refreshProfile,

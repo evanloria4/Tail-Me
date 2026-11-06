@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAuth } from '../auth/AuthProvider';
 import PostList from '../components/PostList';
 import CommunitySidebar, {
   CommunityHighlights,
@@ -117,7 +116,6 @@ function PullIndicator({
 }
 
 export default function Feed() {
-  const { isSubscribed } = useAuth();
   const { openComposer, feedVersion } = useLayout();
   // Bumps when a result changes so the group stats' streaks and days catch up
   const [resultsVersion, setResultsVersion] = useState(0);
@@ -226,15 +224,13 @@ export default function Feed() {
                       Here&apos;s what a straight bet, a ladder and a group
                       parlay look like.
                     </p>
-                    {isSubscribed && (
-                      <button
-                        type="button"
-                        onClick={() => openComposer()}
-                        className="mt-4 inline-block rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-gray-950 hover:bg-emerald-400"
-                      >
-                        Post the first bet
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => openComposer()}
+                      className="mt-4 inline-block rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-gray-950 hover:bg-emerald-400"
+                    >
+                      Post the first bet
+                    </button>
                   </div>
                   <GhostSlip />
                   <GhostLadder />

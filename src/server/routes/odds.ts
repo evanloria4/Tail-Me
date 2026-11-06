@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import prisma from '../db';
-import { requireAuth, requireSubscription } from '../middleware/auth';
+import { requireAuth } from '../middleware/auth';
 import {
   getEventMarkets,
   getGames,
@@ -29,9 +29,9 @@ import { eventSelections, fanduelEventId } from '../fanduelEvents';
 import { MAX_GAME_MS } from '../../shared/live';
 
 // Live odds for the bet picker. Every call can cost Odds API credits, so it's
-// subscribers only and only whitelisted markets.
+// signed-in users only and only whitelisted markets.
 const router = Router();
-router.use(requireAuth, requireSubscription);
+router.use(requireAuth);
 // Fresh calls made while handling this request are charged to this person
 router.use((req, _res, next) => runAsOddsCaller(req.user!.id, next));
 

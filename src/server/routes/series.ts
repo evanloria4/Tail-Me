@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import prisma from '../db';
-import { requireAuth, requireSubscription } from '../middleware/auth';
+import { requireAuth } from '../middleware/auth';
 import { SeriesPage, seriesSchema, SeriesSummary } from '../../shared/series';
 import {
   currentStreak,
@@ -146,8 +146,8 @@ const nameTaken = async (ownerId: string, name: string, exceptId?: string) =>
     },
   })) > 0;
 
-/** Start a series. Posting needs a subscription, so this does too. */
-router.post('/series', requireAuth, requireSubscription, async (req, res) => {
+/** Start a series */
+router.post('/series', requireAuth, async (req, res) => {
   const parsed = seriesSchema.safeParse(req.body);
   if (!parsed.success) {
     res

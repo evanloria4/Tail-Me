@@ -1,4 +1,4 @@
-// Grant or revoke admin (bypasses the subscription paywall):
+// Grant or revoke admin:
 //   npm run admin:set -- <username> [true|false]
 import prisma from '../src/server/db';
 

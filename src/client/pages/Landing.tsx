@@ -2,19 +2,11 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { BookChip } from '../components/SlipParts';
-import { FREE_UNTIL, isPromoActive } from '../../shared/billing';
-import { inSiteZone } from '../../shared/time';
 
 // What signed-out visitors see at "/". The slips are static mockups in the
 // app's own card styles, so nothing here calls the API.
 
 const CONTACT_EMAIL = 'evan.loria4@gmail.com';
-
-/** "October 31": the promo ends at midnight, so its last day is the one before */
-const PROMO_LAST_DAY = new Date(FREE_UNTIL.getTime() - 1).toLocaleDateString(
-  'en-US',
-  inSiteZone({ month: 'long', day: 'numeric' })
-);
 
 const primaryCta =
   'inline-flex items-center justify-center rounded-xl bg-emerald-500 px-5 py-3 text-base font-semibold text-gray-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400';
@@ -350,61 +342,12 @@ function Feature({ icon, title, body }: (typeof FEATURES)[number]) {
   );
 }
 
-function Plan({
-  name,
-  price,
-  note,
-  items,
-  featured,
-}: {
-  name: string;
-  price: string;
-  note: string;
-  items: string[];
-  featured?: boolean;
-}) {
-  return (
-    <div
-      className={`flex flex-col rounded-2xl border p-6 ${
-        featured
-          ? 'border-emerald-500 bg-emerald-500/5 shadow-xl shadow-emerald-500/10'
-          : 'border-gray-800 bg-gray-900'
-      }`}
-    >
-      <p className="text-sm font-semibold uppercase tracking-wider text-gray-400">
-        {name}
-      </p>
-      <p className="mt-2 text-4xl font-extrabold">
-        {price}
-        <span className="text-base font-medium text-gray-500">{note}</span>
-      </p>
-      <ul className="mt-5 space-y-2.5">
-        {items.map((item) => (
-          <li key={item} className="flex gap-2.5 text-gray-300">
-            <span aria-hidden="true" className="font-bold text-emerald-400">
-              ✓
-            </span>
-            {item}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 export default function Landing() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-gray-950 text-white">
       <header className="mx-auto flex h-16 max-w-6xl items-center px-5 sm:px-8">
         <Logo />
         <nav className="ml-auto flex items-center gap-2 sm:gap-3">
-          <a
-            href="#pricing"
-            // Phones get the hero's price chip instead, so the header fits
-            className="hidden rounded-lg px-3 py-2 font-medium text-gray-300 transition hover:text-white sm:block"
-          >
-            Pricing
-          </a>
           <Link
             to="/login"
             className="rounded-lg px-3 py-2 font-medium text-gray-300 transition hover:text-white"
@@ -448,18 +391,6 @@ export default function Landing() {
                   Log in
                 </Link>
               </div>
-              <a
-                href="#pricing"
-                className="mt-5 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-1.5 text-sm text-gray-300 transition hover:border-emerald-500"
-              >
-                <span className="font-bold text-emerald-400">$5/month</span>
-                to post · free to follow and tail
-                {isPromoActive() && (
-                  <span className="font-semibold text-white">
-                    · Free through {PROMO_LAST_DAY}
-                  </span>
-                )}
-              </a>
             </div>
 
             <div className="relative mx-auto w-full max-w-md lg:max-w-none">
@@ -477,50 +408,6 @@ export default function Landing() {
                 </div>
               </div>
             </div>
-          </div>
-        </section>
-
-        {/* Pricing, right under the hero so nobody misses it */}
-        <section
-          id="pricing"
-          className="scroll-mt-4 border-t border-gray-800 bg-gray-900/40"
-        >
-          <div className="mx-auto max-w-4xl px-5 py-20 sm:px-8">
-            <h2 className="text-center text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Cheaper than one bad leg
-            </h2>
-            <div className="mt-10 grid gap-4 sm:grid-cols-2">
-              <Plan
-                name="Free"
-                price="$0"
-                note=""
-                items={[
-                  'See every slip in the feed',
-                  'Tail picks into your sportsbook',
-                  'React, comment and trash talk',
-                  'Place locked group parlays',
-                ]}
-              />
-              <Plan
-                featured
-                name="Member"
-                price="$5"
-                note="/month"
-                items={[
-                  'Everything in Free',
-                  'Post slips from live odds',
-                  'Add your leg to group parlays',
-                  'Start group parlays',
-                ]}
-              />
-            </div>
-            <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-gray-500">
-              {isPromoActive() &&
-                `Member features are free for everyone through ${PROMO_LAST_DAY}. `}
-              Membership renews monthly through Stripe until you cancel. Cancel
-              anytime from Billing and you keep posting through the end of the
-              month you paid for. Partial months aren’t refunded.
-            </p>
           </div>
         </section>
 

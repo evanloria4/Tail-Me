@@ -23,11 +23,9 @@ import {
 import type { NotificationSettings } from '../lib/push';
 import { NOTIFY_LABELS, NOTIFY_TYPES } from '../../shared/notifications';
 import type { NotifyPrefs, NotifyType } from '../../shared/notifications';
-import { isPromoActive, FREE_UNTIL } from '../../shared/billing';
-import { inSiteZone } from '../../shared/time';
 
 // Everything about your own account on one page: profile, sign-in, look,
-// plan, help. The account menu links here instead of listing each.
+// help. The account menu links here instead of listing each.
 
 const inputClass =
   'w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-white outline-none focus:border-emerald-500';
@@ -357,13 +355,6 @@ function AccountSection() {
   );
 }
 
-const shortDate = (iso: string | Date) =>
-  new Date(iso).toLocaleDateString(
-    'en-US',
-    inSiteZone({ month: 'short', day: 'numeric' })
-  );
-
-/** One line on where their plan stands; the Billing page has the details */
 /** An on/off row, styled like the dark mode switch */
 function SwitchRow({
   label,
@@ -674,31 +665,8 @@ function AppSection() {
   );
 }
 
-function planSummary(
-  profile: NonNullable<ReturnType<typeof useAuth>['profile']>
-): string {
-  if (profile.isAdmin) return 'Admin: full access, no subscription needed';
-  const end = profile.currentPeriodEnd;
-  switch (profile.subscriptionStatus) {
-    case 'ACTIVE':
-      if (end && profile.cancelAtPeriodEnd)
-        return `Member until ${shortDate(end)}`;
-      return end ? `Member · renews ${shortDate(end)}` : 'Member';
-    case 'TRIALING':
-      return end
-        ? `Free trial · billing starts ${shortDate(end)}`
-        : 'Free trial';
-    case 'PAST_DUE':
-      return 'Payment didn’t go through. Update your card.';
-    default:
-      return isPromoActive()
-        ? `Free through ${shortDate(new Date(FREE_UNTIL.getTime() - 1))}`
-        : 'Free plan: view and tail';
-  }
-}
-
 export default function Settings() {
-  const { profile, signOut } = useAuth();
+  const { signOut } = useAuth();
   const { openTour } = useLayout();
 
   return (
@@ -706,7 +674,7 @@ export default function Settings() {
       <header className="pb-8">
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Your profile, sign-in, notifications and plan.
+          Your profile, sign-in and notifications.
         </p>
       </header>
 
@@ -721,15 +689,6 @@ export default function Settings() {
         <Section title="Appearance">
           <AppearanceRows />
         </Section>
-
-        <ActionRow
-          title="Billing"
-          status={profile ? planSummary(profile) : '…'}
-        >
-          <Link to="/billing" className={secondaryButton}>
-            Manage billing
-          </Link>
-        </ActionRow>
 
         <ActionRow title="Help">
           <button type="button" onClick={openTour} className={secondaryButton}>
