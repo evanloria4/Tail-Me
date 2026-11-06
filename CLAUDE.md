@@ -18,7 +18,7 @@ Social sports-betting app for one friend group: users post straight / parlay / l
 - `npm run admin:set -- <username> [true|false]`
 
 ## Rules & decisions
-- No paywall: every signed-in user can post, use live odds and do everything else. The `User` Stripe columns (`stripeCustomerId`, `subscriptionStatus`, …) and the `StripeEvent` table are leftovers with no code reading them; drop them in a migration once the live Stripe subscriptions are canceled.
+- No paywall: every signed-in user can post, use live odds and do everything else. Stripe billing was built and then removed (code 2026-11-05, its `User` columns and `StripeEvent` table dropped in `20261105120000_remove_billing`).
 - Signed-out visitors at `/` see the marketing page (`pages/Landing.tsx`, rendered by `RequireAuth`); other protected routes still redirect to `/login`. Its slips are static mockups, so it makes no API calls.
 - First-visit tour (`components/Tutorial.tsx`): a 7-step card carousel (feed, Tail, posting, ladders, group parlays, series, auto-grading) that `AppLayout` opens until `User.tutorialSeenAt` is set (`POST /api/me/tutorial`, on finish or skip); Settings → Help → "Take the tour" replays it (`openTour` on the layout context). Keep its copy in step with features. Empty spots show faded, "Example"-tagged placeholders (`components/Placeholders.tsx`): a sample straight, ladder and group parlay on an empty feed, ghost leaderboard rows, a 0-0 group parlay panel.
 - Signup is server-side only (`POST /api/auth/signup`) so the shared `SIGNUP_PASSCODE` can't be skipped; Supabase public signups are meant to be disabled.
@@ -60,6 +60,7 @@ Social sports-betting app for one friend group: users post straight / parlay / l
 - npm `latest` for Prisma is an 8.x RC — stay on 7.10.0 until 8 is stable.
 - The init migration revokes `anon`/`authenticated` access to `public` tables (keeps them off Supabase's Data API). Keep it that way; all data access goes through Express.
 - Rewrite generated migrations that drop+add a column into a `RENAME` when renaming.
+- Migrations that drop columns go the other way round from adding ones: push the code that stops using them, wait for the deploy, then `db:deploy`. The live code's Prisma client selects every column, so dropping first breaks it.
 - New tables need `REVOKE ALL ON public."<Table>" FROM anon, authenticated;` at the end of their migration (see any recent one).
 - Migration SQL must be BOM-free: Windows PowerShell's `Out-File -Encoding utf8` adds one and Postgres fails on it ("syntax error at or near ﻿"). If a deploy fails that way, strip it, `prisma migrate resolve --rolled-back <name>`, deploy again.
 - ts-node uses a CommonJS override in `tsconfig.json`; client uses ESNext/bundler resolution.

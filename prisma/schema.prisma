@@ -10,14 +10,6 @@ datasource db {
 
 // ---------- Users ----------
 
-enum SubscriptionStatus {
-  NONE
-  TRIALING
-  ACTIVE
-  PAST_DUE
-  CANCELED
-}
-
 /// App profile for a Supabase Auth user. `id` is the Supabase auth.users id.
 model User {
   id          String   @id @db.Uuid
@@ -30,15 +22,7 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Stripe ($5/mo), synced by the webhook in routes/billing.ts. Access rules: shared/billing.ts
-  stripeCustomerId     String?            @unique
-  stripeSubscriptionId String?            @unique
-  subscriptionStatus   SubscriptionStatus @default(NONE)
-  currentPeriodEnd     DateTime?
-  /// Canceled in the billing portal; access runs to currentPeriodEnd
-  cancelAtPeriodEnd    Boolean            @default(false)
-
-  /// Admins bypass the subscription paywall
+  /// Admins can moderate any slip and see the admin page
   isAdmin Boolean @default(false)
 
   /// When they finished or skipped the first-visit tour (null = show it)
@@ -362,13 +346,4 @@ model OddsUsage {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, day])
-}
-
-// ---------- Billing ----------
-
-/// Processed Stripe webhook events, so retries aren't applied twice
-model StripeEvent {
-  id          String   @id
-  type        String
-  processedAt DateTime @default(now())
 }

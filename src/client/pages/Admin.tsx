@@ -15,20 +15,11 @@ const shortDate = (iso: string) =>
     inSiteZone({ month: 'short', day: 'numeric', year: 'numeric' })
   );
 
-function Tile({
-  label,
-  value,
-  note,
-}: {
-  label: string;
-  value: number;
-  note?: string;
-}) {
+function Tile({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-2xl border border-gray-800 bg-gray-900 p-4">
       <p className="text-sm text-gray-400">{label}</p>
       <p className="mt-1 text-3xl font-bold tabular-nums">{value}</p>
-      {note && <p className="mt-1 text-xs text-gray-500">{note}</p>}
     </div>
   );
 }
