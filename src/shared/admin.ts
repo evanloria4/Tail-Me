@@ -1,17 +1,5 @@
-// The admin page (/admin): everyone's account, from GET /api/admin/users
-
-export type AdminUser = {
-  id: string;
-  username: string;
-  fullName: string;
-  avatarUrl: string | null;
-  /** Monogram background when there's no photo */
-  avatarColor: string;
-  isAdmin: boolean;
-  createdAt: string;
-};
-
-// ---------- Odds API credits (GET /api/admin/credits) ----------
+// The admin page (/admin): user count and Odds API credits, from
+// GET /api/admin/credits
 
 /** Credits spent over the page's windows (CT days, today included) */
 export type CreditTotals = {
@@ -24,13 +12,19 @@ export type CreditTotals = {
 };
 
 export type UserCredits = CreditTotals & {
-  user: Pick<
-    AdminUser,
-    'id' | 'username' | 'fullName' | 'avatarUrl' | 'avatarColor'
-  >;
+  user: {
+    id: string;
+    username: string;
+    fullName: string;
+    avatarUrl: string | null;
+    /** Monogram background when there's no photo */
+    avatarColor: string;
+  };
 };
 
 export type CreditsPage = {
+  /** Everyone with an account */
+  userCount: number;
   /** The shared key's month so far (null if the check failed) */
   balance: { used: number; remaining: number } | null;
   /** First tracked day ("YYYY-MM-DD"), null before any usage */

@@ -3,17 +3,11 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import api, { apiErrorMessage } from '../lib/api';
 import UserAvatar from '../components/UserAvatar';
-import type { AdminUser, CreditsPage } from '../../shared/admin';
+import type { CreditsPage } from '../../shared/admin';
 import { inSiteZone } from '../../shared/time';
 
-// Admins only: everyone's account and Odds API credit use. Everyone else is
-// sent back to the feed (the API checks too).
-
-const shortDate = (iso: string) =>
-  new Date(iso).toLocaleDateString(
-    'en-US',
-    inSiteZone({ month: 'short', day: 'numeric', year: 'numeric' })
-  );
+// Admins only: how many people there are and their Odds API credit use.
+// Everyone else is sent back to the feed (the API checks too).
 
 function Tile({ label, value }: { label: string; value: number }) {
   return (
@@ -21,37 +15,6 @@ function Tile({ label, value }: { label: string; value: number }) {
       <p className="text-sm text-gray-400">{label}</p>
       <p className="mt-1 text-3xl font-bold tabular-nums">{value}</p>
     </div>
-  );
-}
-
-function UserRow({ user }: { user: AdminUser }) {
-  return (
-    <li className="flex items-center gap-3 px-4 py-3">
-      <Link to={`/u/${user.username}`} tabIndex={-1} aria-hidden="true">
-        <UserAvatar
-          name={user.fullName}
-          url={user.avatarUrl}
-          color={user.avatarColor}
-          className="h-9 w-9 text-sm"
-        />
-      </Link>
-      <div className="min-w-0 flex-1">
-        <Link
-          to={`/u/${user.username}`}
-          className="block truncate font-medium hover:underline"
-        >
-          {user.fullName}
-        </Link>
-        <p className="truncate text-sm text-gray-500">
-          @{user.username} · joined {shortDate(user.createdAt)}
-        </p>
-      </div>
-      {user.isAdmin && (
-        <span className="flex-none rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-400">
-          Admin
-        </span>
-      )}
-    </li>
   );
 }
 
@@ -162,23 +125,17 @@ function CreditsSection({
 
 export default function Admin() {
   const { profile } = useAuth();
-  const [users, setUsers] = useState<AdminUser[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [credits, setCredits] = useState<CreditsPage | null>(null);
-  const [creditsError, setCreditsError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const isAdmin = !!profile?.isAdmin;
 
   useEffect(() => {
     if (!isAdmin) return;
     api
-      .get<AdminUser[]>('/admin/users')
-      .then(({ data }) => setUsers(data))
-      .catch((err) => setError(apiErrorMessage(err, 'Could not load users')));
-    api
       .get<CreditsPage>('/admin/credits')
       .then(({ data }) => setCredits(data))
       .catch((err) =>
-        setCreditsError(apiErrorMessage(err, 'Could not load credit usage'))
+        setError(apiErrorMessage(err, 'Could not load the admin page'))
       );
   }, [isAdmin]);
 
@@ -188,37 +145,10 @@ export default function Admin() {
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="mb-4 text-2xl font-bold">Admin</h1>
-
-      {error && (
-        <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
-          {error}
-        </p>
-      )}
-
-      <section className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900">
-        <h2 className="border-b border-gray-800 px-4 py-3 font-semibold">
-          Users{users ? ` (${users.length})` : ''}
-        </h2>
-        {!users && !error && (
-          <p className="px-4 py-6 text-center text-sm text-gray-500">
-            Loading…
-          </p>
-        )}
-        {users && users.length === 0 && (
-          <p className="px-4 py-6 text-center text-sm text-gray-500">
-            No users.
-          </p>
-        )}
-        {users && users.length > 0 && (
-          <ul className="divide-y divide-gray-800">
-            {users.map((u) => (
-              <UserRow key={u.id} user={u} />
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <CreditsSection credits={credits} error={creditsError} />
+      <div className="grid grid-cols-3 gap-3">
+        <Tile label="Users" value={credits?.userCount ?? 0} />
+      </div>
+      <CreditsSection credits={credits} error={error} />
     </div>
   );
 }

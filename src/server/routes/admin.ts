@@ -2,38 +2,13 @@ import { Router } from 'express';
 import prisma from '../db';
 import { requireAdmin, requireAuth } from '../middleware/auth';
 import { getCreditBalance } from '../odds';
-import {
-  sumCredits,
-  type AdminUser,
-  type CreditsPage,
-} from '../../shared/admin';
+import { sumCredits, type CreditsPage } from '../../shared/admin';
 import { siteDayKey } from '../../shared/time';
 
 // Admin-only views (the /admin page)
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
-
-/** Every user, newest first */
-router.get('/users', async (_req, res) => {
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      username: true,
-      fullName: true,
-      avatarUrl: true,
-      avatarColor: true,
-      isAdmin: true,
-      createdAt: true,
-    },
-  });
-  const body: AdminUser[] = users.map((u) => ({
-    ...u,
-    createdAt: u.createdAt.toISOString(),
-  }));
-  res.json(body);
-});
 
 /** Days back from today, as a CT day key (noon keeps DST shifts off the edge) */
 function daysAgoKey(today: string, days: number) {
@@ -42,14 +17,16 @@ function daysAgoKey(today: string, days: number) {
 }
 
 /**
- * Odds API credits: the shared key's month (free /sports check) and what
- * each person's picker / import requests spent, from OddsUsage
+ * The user count, plus Odds API credits: the shared key's month (free
+ * /sports check) and what each person's picker / import requests spent,
+ * from OddsUsage
  */
 router.get('/credits', async (_req, res) => {
   const today = siteDayKey(new Date());
-  const [balance, rows] = await Promise.all([
+  const [balance, rows, userCount] = await Promise.all([
     getCreditBalance(),
     prisma.oddsUsage.findMany({ orderBy: { day: 'asc' } }),
+    prisma.user.count(),
   ]);
   const { totals, byUser } = sumCredits(rows, {
     today,
@@ -70,6 +47,7 @@ router.get('/credits', async (_req, res) => {
     .map((user) => ({ user, ...byUser.get(user.id)! }))
     .sort((a, b) => b.month - a.month || b.total - a.total);
   const body: CreditsPage = {
+    userCount,
     balance,
     since: rows[0]?.day ?? null,
     totals,
