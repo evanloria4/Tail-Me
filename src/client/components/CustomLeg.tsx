@@ -13,6 +13,7 @@ import {
 } from '../../shared/markets';
 import { inputClass } from './ComposerParts';
 import { useDismiss } from './SlipSocial';
+import SignedInput from './SignedInput';
 
 // A leg typed on the review step, for a line FanDuel has that our odds feed
 // doesn't (usually an alt number). The game is any listed one (the slip's
@@ -450,32 +451,47 @@ export default function CustomLeg({
       <div className="grid grid-cols-2 gap-2">
         <label htmlFor={lineId} className="block">
           <span className={labelClass}>Line</span>
-          <input
-            id={lineId}
-            inputMode="decimal"
-            placeholder={market.key === 'spreads' ? '-6.5' : '287.5'}
-            value={line}
-            onKeyDown={onEnter}
-            onChange={(e) => {
-              setLine(e.target.value);
-              setError(null);
-            }}
-            className={fieldClass}
-          />
+          {market.key === 'spreads' ? (
+            <SignedInput
+              id={lineId}
+              inputMode="decimal"
+              placeholder="-6.5"
+              value={line}
+              onKeyDown={onEnter}
+              onChange={(v) => {
+                setLine(v);
+                setError(null);
+              }}
+              className={`min-w-0 flex-1 ${fieldClass}`}
+            />
+          ) : (
+            <input
+              id={lineId}
+              inputMode="decimal"
+              placeholder="287.5"
+              value={line}
+              onKeyDown={onEnter}
+              onChange={(e) => {
+                setLine(e.target.value);
+                setError(null);
+              }}
+              className={fieldClass}
+            />
+          )}
         </label>
         <label htmlFor={oddsId} className="block">
           <span className={labelClass}>Odds</span>
-          <input
+          <SignedInput
             id={oddsId}
             inputMode="numeric"
             placeholder="+150"
             value={odds}
             onKeyDown={onEnter}
-            onChange={(e) => {
-              setOdds(e.target.value);
+            onChange={(v) => {
+              setOdds(v);
               setError(null);
             }}
-            className={fieldClass}
+            className={`min-w-0 flex-1 ${fieldClass}`}
           />
         </label>
       </div>

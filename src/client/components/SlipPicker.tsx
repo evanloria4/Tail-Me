@@ -57,6 +57,7 @@ import { inSiteZone, SITE_ZONE_LABEL } from '../../shared/time';
 import GroupReview, { GroupMode, PostedKind } from './GroupReview';
 import SeriesPicker from './SeriesPicker';
 import CustomLeg from './CustomLeg';
+import SignedInput from './SignedInput';
 import SlipImport from './SlipImport';
 import { BookChip, LiveBadge } from './SlipParts';
 import useNow from '../lib/useNow';
@@ -1264,13 +1265,13 @@ export default function SlipPicker({
                 <span className="mb-1 block text-xs font-medium text-gray-400">
                   {bookName} price (optional)
                 </span>
-                <input
+                <SignedInput
                   id="slip-sgp"
                   inputMode="numeric"
                   placeholder="+450"
                   value={slipOdds}
-                  onChange={(e) => setSlipOdds(e.target.value)}
-                  className={inputClass}
+                  onChange={setSlipOdds}
+                  className={`min-w-0 flex-1 ${inputClass}`}
                 />
               </label>
             )}

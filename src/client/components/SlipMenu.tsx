@@ -24,6 +24,7 @@ import {
 import type { BetResult, FeedBet, FeedPost } from '../../shared/posts';
 import type { SeriesSummary } from '../../shared/series';
 import { useDismiss } from './SlipSocial';
+import SignedInput from './SignedInput';
 import { RESULT_OPTIONS, RESULT_STYLES } from './SlipParts';
 
 // The author's "⋯" menu on their own slip: edit it before its games start,
@@ -163,6 +164,9 @@ function NumberRow({
     setValue(String(Math.min(100, Math.max(0, base + dir))));
     setError(false);
   };
+  const boxClass = `rounded-md border bg-gray-950 px-2 py-1 text-right font-mono text-sm tabular-nums outline-none focus:border-emerald-500 ${
+    error ? 'border-red-400' : 'border-gray-700'
+  }`;
   const stepClass =
     'h-7 w-7 flex-none rounded-md border border-gray-700 text-gray-300 transition hover:border-emerald-500 disabled:opacity-30';
 
@@ -186,19 +190,31 @@ function NumberRow({
             −
           </button>
         )}
-        <input
-          id={`${field}-${id}`}
-          inputMode={f.inputMode}
-          value={value}
-          onChange={(e) => {
-            setValue(e.target.value);
-            setError(false);
-          }}
-          aria-invalid={error}
-          className={`${stepper ? 'w-12' : 'w-20'} rounded-md border bg-gray-950 px-2 py-1 text-right font-mono text-sm tabular-nums outline-none focus:border-emerald-500 ${
-            error ? 'border-red-400' : 'border-gray-700'
-          }`}
-        />
+        {field === 'odds' ? (
+          <SignedInput
+            id={`${field}-${id}`}
+            inputMode={f.inputMode}
+            value={value}
+            onChange={(v) => {
+              setValue(v);
+              setError(false);
+            }}
+            aria-invalid={error}
+            className={`w-20 ${boxClass}`}
+          />
+        ) : (
+          <input
+            id={`${field}-${id}`}
+            inputMode={f.inputMode}
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setError(false);
+            }}
+            aria-invalid={error}
+            className={`${stepper ? 'w-12' : 'w-20'} ${boxClass}`}
+          />
+        )}
         {field === 'boost' && (
           <span aria-hidden="true" className="-ml-1 text-sm text-gray-400">
             %
@@ -446,7 +462,7 @@ function AddRungForm({
         <span aria-hidden="true" className="flex-1 text-sm">
           Odds
         </span>
-        <input
+        <SignedInput
           aria-label="Odds"
           inputMode="numeric"
           placeholder="+250"
@@ -454,8 +470,8 @@ function AddRungForm({
           // eslint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
           value={odds}
-          onChange={(e) => {
-            setOdds(e.target.value);
+          onChange={(v) => {
+            setOdds(v);
             setError(null);
           }}
           className={`w-20 ${box}`}

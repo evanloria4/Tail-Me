@@ -39,10 +39,18 @@ module.exports = {
     'react/prop-types': 'off', // turn off prop types since we're using Typescript
     '@typescript-eslint/no-var-requires': 'off',
     'no-console': 'off',
+    // SignedInput renders an <input>, so a label around it counts
+    'jsx-a11y/label-has-associated-control': [
+      'error',
+      { assert: 'both', depth: 25, controlComponents: ['SignedInput'] },
+    ],
     // Optional props on TS function components use default parameters instead
     'react/require-default-props': 'off',
     // Prisma aggregate fields (_count, _sum, ...)
-    'no-underscore-dangle': ['error', { allow: ['_count', '_sum', '_avg', '_min', '_max'] }],
+    'no-underscore-dangle': [
+      'error',
+      { allow: ['_count', '_sum', '_avg', '_min', '_max'] },
+    ],
   },
   overrides: [
     {
